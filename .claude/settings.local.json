@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(flutter pub:*)",
+      "Bash($HOME/snap/flutter/common/flutter/bin/flutter run:*)",
+      "Bash($HOME/snap/flutter/common/flutter/bin/flutter devices:*)",
+      "Bash($HOME/snap/flutter/common/flutter/bin/flutter pub:*)",
+      "Bash(/home/developer/snap/flutter/common/flutter/bin/flutter pub:*)"
+    ]
+  }
+}
