@@ -1,13 +1,14 @@
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:provider/provider.dart';
 
+import 'config/env_config.dart';
 import 'firebase_options.dart';
 import 'services/auth_service.dart';
 import 'services/firestore_service.dart';
 import 'services/form_config_service.dart';
 import 'utils/app_colors.dart';
-import 'utils/demo_data.dart';
 import 'screens/splash_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/dashboard_screen.dart';
@@ -20,8 +21,9 @@ import 'screens/farmer_detail_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await dotenv.load();
 
-  if (!kDemoMode) {
+  if (!EnvConfig.isDemoMode) {
     try {
       await Firebase.initializeApp(
         options: DefaultFirebaseOptions.currentPlatform,
@@ -54,7 +56,7 @@ class FarmerRegistrationApp extends StatelessWidget {
             children: [
               child!,
               // Demo mode banner
-              if (kDemoMode)
+              if (EnvConfig.isDemoMode)
                 Positioned(
                   top: MediaQuery.of(context).padding.top,
                   right: 0,

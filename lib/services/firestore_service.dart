@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import 'package:uuid/uuid.dart';
 import '../models/farmer_model.dart';
+import '../config/env_config.dart';
 import '../utils/demo_data.dart';
 
 // ─── Demo reactive store ────────────────────────────────────────────────────
@@ -50,26 +51,26 @@ class FirestoreService extends ChangeNotifier {
 
   // Only instantiate Firebase when not in demo mode
   FirebaseFirestore? get _db =>
-      kDemoMode ? null : FirebaseFirestore.instance;
+      EnvConfig.isDemoMode ? null : FirebaseFirestore.instance;
 
   late final _DemoStore _demo;
 
   FirestoreService() {
-    if (kDemoMode) {
+    if (EnvConfig.isDemoMode) {
       _demo = _DemoStore(demoFarmers);
     }
   }
 
   @override
   void dispose() {
-    if (kDemoMode) _demo.dispose();
+    if (EnvConfig.isDemoMode) _demo.dispose();
     super.dispose();
   }
 
   // ─── Streams ──────────────────────────────────────────────────────────────
 
   Stream<List<FarmerModel>> getFarmers() {
-    if (kDemoMode) return _demo.stream;
+    if (EnvConfig.isDemoMode) return _demo.stream;
     return _db!
         .collection(_col)
         .orderBy('registrationDate', descending: true)
@@ -79,7 +80,7 @@ class FirestoreService extends ChangeNotifier {
   }
 
   Stream<List<FarmerModel>> getFarmersByCategory(String category) {
-    if (kDemoMode) {
+    if (EnvConfig.isDemoMode) {
       return _demo.stream
           .map((list) => list.where((f) => f.category == category).toList());
     }
@@ -94,7 +95,7 @@ class FirestoreService extends ChangeNotifier {
 
   Stream<List<FarmerModel>> getFarmersByCategoryAndSub(
       String category, String subcategory) {
-    if (kDemoMode) {
+    if (EnvConfig.isDemoMode) {
       return _demo.stream.map((list) => list
           .where(
               (f) => f.category == category && f.subcategory == subcategory)
@@ -111,7 +112,7 @@ class FirestoreService extends ChangeNotifier {
   }
 
   Stream<int> getTotalCount() {
-    if (kDemoMode) return _demo.stream.map((l) => l.length);
+    if (EnvConfig.isDemoMode) return _demo.stream.map((l) => l.length);
     return _db!
         .collection(_col)
         .snapshots()
@@ -119,7 +120,7 @@ class FirestoreService extends ChangeNotifier {
   }
 
   Stream<int> getActiveCount() {
-    if (kDemoMode) {
+    if (EnvConfig.isDemoMode) {
       return _demo.stream
           .map((l) => l.where((f) => f.status == 'Active').length);
     }
@@ -131,7 +132,7 @@ class FirestoreService extends ChangeNotifier {
   }
 
   Stream<Map<String, int>> getCategoryCounts() {
-    if (kDemoMode) {
+    if (EnvConfig.isDemoMode) {
       return _demo.stream.map((list) {
         final Map<String, int> counts = {};
         for (final f in list) {
@@ -164,7 +165,7 @@ class FirestoreService extends ChangeNotifier {
   // ─── CRUD ─────────────────────────────────────────────────────────────────
 
   Future<String> addFarmer(FarmerModel farmer) async {
-    if (kDemoMode) {
+    if (EnvConfig.isDemoMode) {
       final id = _uuid.v4();
       _demo.add(farmer.copyWith(id: id));
       notifyListeners();
@@ -177,7 +178,7 @@ class FirestoreService extends ChangeNotifier {
 
   Future<void> updateFarmer(FarmerModel farmer) async {
     if (farmer.id == null) return;
-    if (kDemoMode) {
+    if (EnvConfig.isDemoMode) {
       _demo.update(farmer);
       notifyListeners();
       return;
@@ -187,7 +188,7 @@ class FirestoreService extends ChangeNotifier {
   }
 
   Future<void> deleteFarmer(String id) async {
-    if (kDemoMode) {
+    if (EnvConfig.isDemoMode) {
       _demo.remove(id);
       notifyListeners();
       return;
@@ -197,7 +198,7 @@ class FirestoreService extends ChangeNotifier {
   }
 
   Future<FarmerModel?> getFarmerById(String id) async {
-    if (kDemoMode) {
+    if (EnvConfig.isDemoMode) {
       try {
         return _demo.all.firstWhere((f) => f.id == id);
       } catch (_) {

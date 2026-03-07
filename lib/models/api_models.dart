@@ -2,6 +2,7 @@
 ///
 /// API shape:
 /// { statusCode, status, message, data: [ ApiCategory ] }
+library;
 
 // ─── Option (inside DROPDOWN field) ─────────────────────────────────────────
 class ApiOption {

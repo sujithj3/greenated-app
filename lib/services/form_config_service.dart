@@ -2,10 +2,10 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import '../models/api_models.dart';
-import '../utils/demo_data.dart';
+import '../config/env_config.dart';
 
 class FormConfigService extends ChangeNotifier {
-  static const String _apiUrl = 'https://api.greenated.com/category-form-config';
+  static String get _apiUrl => '${EnvConfig.apiBaseUrl}/category-form-config';
 
   List<ApiCategory> _categories = [];
   bool _isLoading = false;
@@ -22,7 +22,7 @@ class FormConfigService extends ChangeNotifier {
     _error = null;
     notifyListeners();
     try {
-      if (kDemoMode) {
+      if (EnvConfig.isDemoMode) {
         await Future.delayed(const Duration(milliseconds: 600));
         _categories = _buildDemoCategories();
       } else {

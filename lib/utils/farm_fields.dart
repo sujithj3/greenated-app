@@ -1,5 +1,6 @@
 /// Dynamic form fields for the Greenated green carbon registration form.
 /// Fields are rendered automatically based on the selected category.
+library;
 
 enum FieldType { text, number, dropdown }
 

@@ -9,10 +9,9 @@ import '../models/farmer_model.dart';
 import '../services/auth_service.dart';
 import '../services/firestore_service.dart';
 import '../services/form_config_service.dart';
+import '../config/app_constants.dart';
+import '../config/env_config.dart';
 import '../utils/app_colors.dart';
-import '../utils/demo_data.dart';
-
-const String _mapsApiKey = 'AIzaSyCxU7C748sONe0a696gWBHrs_iCcF3dVkk';
 
 class FarmerFormScreen extends StatefulWidget {
   const FarmerFormScreen({super.key});
@@ -25,19 +24,19 @@ class _FarmerFormScreenState extends State<FarmerFormScreen> {
   final _formKey = GlobalKey<FormState>();
 
   // ── Core controllers ──────────────────────────────────────────────────────
-  final _nameCtrl     = TextEditingController();
-  final _phoneCtrl    = TextEditingController();
-  final _addressCtrl  = TextEditingController();
-  final _villageCtrl  = TextEditingController();
+  final _nameCtrl = TextEditingController();
+  final _phoneCtrl = TextEditingController();
+  final _addressCtrl = TextEditingController();
+  final _villageCtrl = TextEditingController();
   final _districtCtrl = TextEditingController();
-  final _stateCtrl    = TextEditingController();
+  final _stateCtrl = TextEditingController();
   final _landAreaCtrl = TextEditingController();
 
   // ── State ─────────────────────────────────────────────────────────────────
-  String _selectedCategory    = '';
+  String _selectedCategory = '';
   String _selectedSubcategory = '';
-  String _selectedLandUnit    = 'Acres';
-  String _selectedStatus      = 'Active';
+  String _selectedLandUnit = 'Acres';
+  String _selectedStatus = 'Active';
   List<Map<String, double>> _landCoordinates = [];
   double? _latitude;
   double? _longitude;
@@ -46,7 +45,7 @@ class _FarmerFormScreenState extends State<FarmerFormScreen> {
   final Map<String, TextEditingController> _dynTextCtrl = {};
   final Map<String, String> _dynDropdown = {};
 
-  bool _isSaving   = false;
+  bool _isSaving = false;
   bool _isLocating = false;
   bool _configFetched = false;
   FarmerModel? _editFarmer;
@@ -59,10 +58,13 @@ class _FarmerFormScreenState extends State<FarmerFormScreen> {
   void didChangeDependencies() {
     super.didChangeDependencies();
 
-    // Kick off fetch once
+    // Kick off fetch once – deferred to avoid notifyListeners() during build
     if (!_configFetched) {
       _configFetched = true;
-      context.read<FormConfigService>().fetchCategories();
+      final svc = context.read<FormConfigService>();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        svc.fetchCategories();
+      });
     }
 
     final args = ModalRoute.of(context)?.settings.arguments as Map?;
@@ -79,17 +81,23 @@ class _FarmerFormScreenState extends State<FarmerFormScreen> {
 
   @override
   void dispose() {
-    _nameCtrl.dispose(); _phoneCtrl.dispose(); _addressCtrl.dispose();
-    _villageCtrl.dispose(); _districtCtrl.dispose(); _stateCtrl.dispose();
+    _nameCtrl.dispose();
+    _phoneCtrl.dispose();
+    _addressCtrl.dispose();
+    _villageCtrl.dispose();
+    _districtCtrl.dispose();
+    _stateCtrl.dispose();
     _landAreaCtrl.dispose();
-    for (final c in _dynTextCtrl.values) c.dispose();
+    for (final c in _dynTextCtrl.values) {
+      c.dispose();
+    }
     super.dispose();
   }
 
   // ── Category helpers ──────────────────────────────────────────────────────
 
   void _setCategory(String cat) {
-    _selectedCategory    = cat;
+    _selectedCategory = cat;
     _selectedSubcategory = '';
     _rebuildDynControllers(cat);
   }
@@ -104,7 +112,9 @@ class _FarmerFormScreenState extends State<FarmerFormScreen> {
   }
 
   void _rebuildDynControllers(String category) {
-    for (final c in _dynTextCtrl.values) c.dispose();
+    for (final c in _dynTextCtrl.values) {
+      c.dispose();
+    }
     _dynTextCtrl.clear();
     _dynDropdown.clear();
 
@@ -128,21 +138,21 @@ class _FarmerFormScreenState extends State<FarmerFormScreen> {
   }
 
   void _populate(FarmerModel f) {
-    _nameCtrl.text     = f.name;
-    _phoneCtrl.text    = f.phone;
-    _addressCtrl.text  = f.address;
-    _villageCtrl.text  = f.village;
+    _nameCtrl.text = f.name;
+    _phoneCtrl.text = f.phone;
+    _addressCtrl.text = f.address;
+    _villageCtrl.text = f.village;
     _districtCtrl.text = f.district;
-    _stateCtrl.text    = f.state;
+    _stateCtrl.text = f.state;
     _landAreaCtrl.text = f.landArea > 0 ? f.landArea.toString() : '';
     setState(() {
-      _selectedCategory    = f.category;
+      _selectedCategory = f.category;
       _selectedSubcategory = f.subcategory;
-      _selectedLandUnit    = f.landUnit;
-      _selectedStatus      = f.status;
-      _landCoordinates     = f.landCoordinates;
-      _latitude            = f.latitude;
-      _longitude           = f.longitude;
+      _selectedLandUnit = f.landUnit;
+      _selectedStatus = f.status;
+      _landCoordinates = f.landCoordinates;
+      _latitude = f.latitude;
+      _longitude = f.longitude;
       _rebuildDynControllers(f.category);
       f.dynamicFields.forEach((key, value) {
         if (_dynTextCtrl.containsKey(key)) {
@@ -157,14 +167,14 @@ class _FarmerFormScreenState extends State<FarmerFormScreen> {
   // ── Geolocation ───────────────────────────────────────────────────────────
 
   Future<void> _detectLocation() async {
-    if (kDemoMode) {
+    if (EnvConfig.isDemoMode) {
       setState(() {
-        _latitude  = 26.8467;
+        _latitude = 26.8467;
         _longitude = 80.9462;
-        _addressCtrl.text  = 'Near Panchayat Bhavan, Village Road';
-        _villageCtrl.text  = 'Sundarpur';
+        _addressCtrl.text = 'Near Panchayat Bhavan, Village Road';
+        _villageCtrl.text = 'Sundarpur';
         _districtCtrl.text = 'Lucknow';
-        _stateCtrl.text    = 'Uttar Pradesh';
+        _stateCtrl.text = 'Uttar Pradesh';
       });
       _snack('Demo location detected ✓', success: true);
       return;
@@ -173,7 +183,10 @@ class _FarmerFormScreenState extends State<FarmerFormScreen> {
     setState(() => _isLocating = true);
     try {
       bool enabled = await Geolocator.isLocationServiceEnabled();
-      if (!enabled) { _snack('Please enable location services.'); return; }
+      if (!enabled) {
+        _snack('Please enable location services.');
+        return;
+      }
 
       LocationPermission perm = await Geolocator.checkPermission();
       if (perm == LocationPermission.denied) {
@@ -188,7 +201,10 @@ class _FarmerFormScreenState extends State<FarmerFormScreen> {
       final pos = await Geolocator.getCurrentPosition(
         desiredAccuracy: LocationAccuracy.high,
       );
-      setState(() { _latitude = pos.latitude; _longitude = pos.longitude; });
+      setState(() {
+        _latitude = pos.latitude;
+        _longitude = pos.longitude;
+      });
       await _reverseGeocode(pos.latitude, pos.longitude);
     } catch (e) {
       _snack('Location error: $e');
@@ -201,26 +217,30 @@ class _FarmerFormScreenState extends State<FarmerFormScreen> {
     try {
       final uri = Uri.parse(
         'https://maps.googleapis.com/maps/api/geocode/json'
-        '?latlng=$lat,$lng&key=$_mapsApiKey',
+        '?latlng=$lat,$lng&key=${EnvConfig.googleMapsApiKey}',
       );
       final res = await http.get(uri);
       if (res.statusCode != 200) return;
       final data = jsonDecode(res.body) as Map<String, dynamic>;
       if (data['status'] != 'OK') return;
-      final comps = (data['results'] as List).first['address_components'] as List;
+      final comps =
+          (data['results'] as List).first['address_components'] as List;
       String village = '', district = '', state = '';
       for (final c in comps) {
         final types = List<String>.from(c['types'] as List);
-        final name  = c['long_name'] as String;
-        if (types.contains('sublocality') || types.contains('locality')) village  = name;
-        if (types.contains('administrative_area_level_2'))                district = name;
-        if (types.contains('administrative_area_level_1'))                state    = name;
+        final name = c['long_name'] as String;
+        if (types.contains('sublocality') || types.contains('locality')) {
+          village = name;
+        }
+        if (types.contains('administrative_area_level_2')) district = name;
+        if (types.contains('administrative_area_level_1')) state = name;
       }
       setState(() {
-        _addressCtrl.text  = (data['results'] as List).first['formatted_address'] ?? '';
-        if (village.isNotEmpty)  _villageCtrl.text  = village;
+        _addressCtrl.text =
+            (data['results'] as List).first['formatted_address'] ?? '';
+        if (village.isNotEmpty) _villageCtrl.text = village;
         if (district.isNotEmpty) _districtCtrl.text = district;
-        if (state.isNotEmpty)    _stateCtrl.text    = state;
+        if (state.isNotEmpty) _stateCtrl.text = state;
       });
       _snack('Location auto-filled ✓', success: true);
     } catch (_) {}
@@ -245,17 +265,16 @@ class _FarmerFormScreenState extends State<FarmerFormScreen> {
   // ── Land map ──────────────────────────────────────────────────────────────
 
   Future<void> _openMap() async {
-    final result =
-        await Navigator.pushNamed(context, '/land-measurement')
-            as Map<String, dynamic>?;
+    final result = await Navigator.pushNamed(context, '/land-measurement')
+        as Map<String, dynamic>?;
     if (result != null && mounted) {
-      final area   = result['area'] as double? ?? 0;
+      final area = result['area'] as double? ?? 0;
       final coords = result['coordinates'] as List<Map<String, double>>? ?? [];
       setState(() {
         _landCoordinates = coords;
         if (area > 0) {
           _landAreaCtrl.text = area.toStringAsFixed(4);
-          _selectedLandUnit  = 'Acres';
+          _selectedLandUnit = 'Acres';
         }
       });
       _snack('Area: ${area.toStringAsFixed(4)} acres', success: true);
@@ -266,35 +285,45 @@ class _FarmerFormScreenState extends State<FarmerFormScreen> {
 
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
-    if (_selectedCategory.isEmpty)    { _snack('Select a category.');    return; }
-    if (_selectedSubcategory.isEmpty) { _snack('Select a subcategory.'); return; }
+    if (_selectedCategory.isEmpty) {
+      _snack('Select a category.');
+      return;
+    }
+    if (_selectedSubcategory.isEmpty) {
+      _snack('Select a subcategory.');
+      return;
+    }
 
     setState(() => _isSaving = true);
     final auth = context.read<AuthService>();
-    final fs   = context.read<FirestoreService>();
+    final fs = context.read<FirestoreService>();
 
     final Map<String, String> dynValues = {};
-    _dynTextCtrl.forEach((k, c) { if (c.text.isNotEmpty) dynValues[k] = c.text.trim(); });
-    _dynDropdown.forEach((k, v) { if (v.isNotEmpty) dynValues[k] = v; });
+    _dynTextCtrl.forEach((k, c) {
+      if (c.text.isNotEmpty) dynValues[k] = c.text.trim();
+    });
+    _dynDropdown.forEach((k, v) {
+      if (v.isNotEmpty) dynValues[k] = v;
+    });
 
     final farmer = FarmerModel(
-      id:              _editFarmer?.id,
-      name:            _nameCtrl.text.trim(),
-      phone:           _phoneCtrl.text.trim(),
-      address:         _addressCtrl.text.trim(),
-      village:         _villageCtrl.text.trim(),
-      district:        _districtCtrl.text.trim(),
-      state:           _stateCtrl.text.trim(),
-      latitude:        _latitude,
-      longitude:       _longitude,
-      category:        _selectedCategory,
-      subcategory:     _selectedSubcategory,
-      landArea:        double.tryParse(_landAreaCtrl.text) ?? 0,
-      landUnit:        _selectedLandUnit,
+      id: _editFarmer?.id,
+      name: _nameCtrl.text.trim(),
+      phone: _phoneCtrl.text.trim(),
+      address: _addressCtrl.text.trim(),
+      village: _villageCtrl.text.trim(),
+      district: _districtCtrl.text.trim(),
+      state: _stateCtrl.text.trim(),
+      latitude: _latitude,
+      longitude: _longitude,
+      category: _selectedCategory,
+      subcategory: _selectedSubcategory,
+      landArea: double.tryParse(_landAreaCtrl.text) ?? 0,
+      landUnit: _selectedLandUnit,
       landCoordinates: _landCoordinates,
-      dynamicFields:   dynValues,
-      status:          _selectedStatus,
-      registeredBy:    auth.currentUser?.uid,
+      dynamicFields: dynValues,
+      status: _selectedStatus,
+      registeredBy: auth.currentUser?.uid,
     );
 
     try {
@@ -325,22 +354,24 @@ class _FarmerFormScreenState extends State<FarmerFormScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final catData  = AppCategories.all[_selectedCategory];
+    final catData = AppCategories.all[_selectedCategory];
     final catColor = catData?.color ?? AppColors.primary;
 
-    final svc  = context.watch<FormConfigService>();
+    final svc = context.watch<FormConfigService>();
     final subs = svc.getSubcategoryNames(_selectedCategory);
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(_editFarmer != null ? 'Edit Registration' : 'New Registration'),
+        title: Text(
+            _editFarmer != null ? 'Edit Registration' : 'New Registration'),
         actions: [
           _isSaving
               ? const Center(
                   child: Padding(
                     padding: EdgeInsets.all(16),
                     child: SizedBox(
-                      width: 20, height: 20,
+                      width: 20,
+                      height: 20,
                       child: CircularProgressIndicator(
                           strokeWidth: 2, color: Colors.white),
                     ),
@@ -360,7 +391,6 @@ class _FarmerFormScreenState extends State<FarmerFormScreen> {
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
-
             // ── 1. Personal Info ─────────────────────────────────────────
             _Section(title: 'Personal Info', icon: Icons.person_outline),
             const SizedBox(height: 12),
@@ -402,7 +432,8 @@ class _FarmerFormScreenState extends State<FarmerFormScreen> {
               onPressed: _isLocating ? null : _detectLocation,
               icon: _isLocating
                   ? const SizedBox(
-                      width: 16, height: 16,
+                      width: 16,
+                      height: 16,
                       child: CircularProgressIndicator(strokeWidth: 2))
                   : const Icon(Icons.my_location),
               label: Text(_isLocating
@@ -412,10 +443,12 @@ class _FarmerFormScreenState extends State<FarmerFormScreen> {
                       : 'Auto-detect My Location'),
               style: OutlinedButton.styleFrom(
                 minimumSize: const Size(double.infinity, 48),
-                foregroundColor:
-                    _latitude != null ? AppColors.primary : AppColors.textMedium,
+                foregroundColor: _latitude != null
+                    ? AppColors.primary
+                    : AppColors.textMedium,
                 side: BorderSide(
-                  color: _latitude != null ? AppColors.primary : AppColors.light,
+                  color:
+                      _latitude != null ? AppColors.primary : AppColors.light,
                 ),
               ),
             ),
@@ -496,7 +529,8 @@ class _FarmerFormScreenState extends State<FarmerFormScreen> {
                       ),
                       child: Icon(
                         catData?.icon ?? Icons.category_outlined,
-                        color: catColor, size: 22,
+                        color: catColor,
+                        size: 22,
                       ),
                     ),
                     const SizedBox(width: 12),
@@ -539,7 +573,8 @@ class _FarmerFormScreenState extends State<FarmerFormScreen> {
               )
             else
               DropdownButtonFormField<String>(
-                value: _selectedSubcategory.isEmpty ? null : _selectedSubcategory,
+                initialValue:
+                    _selectedSubcategory.isEmpty ? null : _selectedSubcategory,
                 decoration: InputDecoration(
                   labelText: 'Subcategory *',
                   prefixIcon: Icon(Icons.list_alt_outlined, color: catColor),
@@ -562,7 +597,8 @@ class _FarmerFormScreenState extends State<FarmerFormScreen> {
               ),
 
             // ── 4. Dynamic fields ────────────────────────────────────────
-            if (_selectedCategory.isNotEmpty && _selectedSubcategory.isNotEmpty) ...[
+            if (_selectedCategory.isNotEmpty &&
+                _selectedSubcategory.isNotEmpty) ...[
               const SizedBox(height: 24),
               _Section(
                 title: '$_selectedCategory Details',
@@ -612,11 +648,11 @@ class _FarmerFormScreenState extends State<FarmerFormScreen> {
               Expanded(
                 flex: 2,
                 child: DropdownButtonFormField<String>(
-                  value: _selectedLandUnit,
+                  initialValue: _selectedLandUnit,
+                  isExpanded: true,
                   decoration: const InputDecoration(labelText: 'Unit'),
                   items: _landUnits
-                      .map((u) =>
-                          DropdownMenuItem(value: u, child: Text(u)))
+                      .map((u) => DropdownMenuItem(value: u, child: Text(u)))
                       .toList(),
                   onChanged: (v) => setState(() => _selectedLandUnit = v!),
                 ),
@@ -641,8 +677,7 @@ class _FarmerFormScreenState extends State<FarmerFormScreen> {
                     checkmarkColor: AppColors.dark,
                     labelStyle: TextStyle(
                       color: sel ? AppColors.dark : AppColors.textMedium,
-                      fontWeight:
-                          sel ? FontWeight.w600 : FontWeight.normal,
+                      fontWeight: sel ? FontWeight.w600 : FontWeight.normal,
                     ),
                   ),
                 );
@@ -713,7 +748,7 @@ class _FarmerFormScreenState extends State<FarmerFormScreen> {
 
       case 'DROPDOWN':
         return DropdownButtonFormField<String>(
-          value: (_dynDropdown[f.key]?.isEmpty ?? true)
+          initialValue: (_dynDropdown[f.key]?.isEmpty ?? true)
               ? null
               : _dynDropdown[f.key],
           decoration: InputDecoration(
@@ -735,7 +770,9 @@ class _FarmerFormScreenState extends State<FarmerFormScreen> {
         final popup = f.popup;
         if (popup == null) return const SizedBox.shrink();
         final filled = popup.fields.where((pf) {
-          if (pf.type == 'DROPDOWN') return (_dynDropdown[pf.key] ?? '').isNotEmpty;
+          if (pf.type == 'DROPDOWN') {
+            return (_dynDropdown[pf.key] ?? '').isNotEmpty;
+          }
           return (_dynTextCtrl[pf.key]?.text ?? '').isNotEmpty;
         }).length;
         final total = popup.fields.length;
@@ -746,9 +783,7 @@ class _FarmerFormScreenState extends State<FarmerFormScreen> {
             color: filled > 0 ? catColor : AppColors.textMedium,
           ),
           label: Text(
-            filled > 0
-                ? '${f.label}  ($filled / $total filled)'
-                : f.label,
+            filled > 0 ? '${f.label}  ($filled / $total filled)' : f.label,
             style: TextStyle(
               color: filled > 0 ? catColor : AppColors.textMedium,
             ),
@@ -809,8 +844,7 @@ class _Section extends StatelessWidget {
               fontWeight: FontWeight.w700,
               color: color == AppColors.primary ? AppColors.dark : color)),
       const SizedBox(width: 8),
-      Expanded(
-          child: Divider(color: color.withOpacity(0.35), thickness: 1.5)),
+      Expanded(child: Divider(color: color.withOpacity(0.35), thickness: 1.5)),
     ]);
   }
 }
@@ -833,7 +867,8 @@ class _CategorySheet extends StatelessWidget {
         children: [
           Center(
             child: Container(
-              width: 40, height: 4,
+              width: 40,
+              height: 4,
               decoration: BoxDecoration(
                 color: AppColors.divider,
                 borderRadius: BorderRadius.circular(2),
@@ -868,7 +903,10 @@ class _CategorySheet extends StatelessWidget {
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(14),
                     gradient: LinearGradient(
-                      colors: [color.withOpacity(0.08), color.withOpacity(0.04)],
+                      colors: [
+                        color.withOpacity(0.08),
+                        color.withOpacity(0.04)
+                      ],
                     ),
                     border: Border.all(color: color.withOpacity(0.25)),
                   ),
@@ -894,8 +932,7 @@ class _CategorySheet extends StatelessWidget {
                           Text(
                             '${e.value.subcategories.length} subcategories',
                             style: const TextStyle(
-                                fontSize: 12,
-                                color: AppColors.textMedium),
+                                fontSize: 12, color: AppColors.textMedium),
                           ),
                         ],
                       ),
@@ -967,7 +1004,8 @@ class _PopupFieldSheetState extends State<_PopupFieldSheet> {
             // Handle
             Container(
               margin: const EdgeInsets.only(top: 12),
-              width: 40, height: 4,
+              width: 40,
+              height: 4,
               decoration: BoxDecoration(
                 color: AppColors.divider,
                 borderRadius: BorderRadius.circular(2),
@@ -1057,7 +1095,7 @@ class _PopupFieldSheetState extends State<_PopupFieldSheet> {
 
       case 'DROPDOWN':
         return DropdownButtonFormField<String>(
-          value: (_localDropdown[f.key]?.isEmpty ?? true)
+          initialValue: (_localDropdown[f.key]?.isEmpty ?? true)
               ? null
               : _localDropdown[f.key],
           decoration: InputDecoration(
@@ -1069,8 +1107,7 @@ class _PopupFieldSheetState extends State<_PopupFieldSheet> {
           items: f.options
               .map((o) => DropdownMenuItem(value: o.name, child: Text(o.name)))
               .toList(),
-          onChanged: (v) =>
-              setState(() => _localDropdown[f.key] = v ?? ''),
+          onChanged: (v) => setState(() => _localDropdown[f.key] = v ?? ''),
         );
 
       default:

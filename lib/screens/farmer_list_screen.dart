@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../models/farmer_model.dart';
 import '../services/firestore_service.dart';
+import '../config/app_constants.dart';
 import '../utils/app_colors.dart';
 
 class FarmerListScreen extends StatefulWidget {
@@ -48,9 +49,7 @@ class _FarmerListScreenState extends State<FarmerListScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(navSubcategory != null
-            ? navSubcategory
-            : navCategory ?? 'All Farmers'),
+        title: Text(navSubcategory ?? navCategory ?? 'All Farmers'),
         bottom: hasNavFilter
             ? null
             : PreferredSize(
