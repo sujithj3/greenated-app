@@ -2,7 +2,7 @@ import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import 'package:uuid/uuid.dart';
-import '../models/farmer_model.dart';
+import '../models/farmer/farmer_model.dart';
 import '../config/env_config.dart';
 import '../utils/demo_data.dart';
 
@@ -97,8 +97,7 @@ class FirestoreService extends ChangeNotifier {
       String category, String subcategory) {
     if (EnvConfig.isDemoMode) {
       return _demo.stream.map((list) => list
-          .where(
-              (f) => f.category == category && f.subcategory == subcategory)
+          .where((f) => f.category == category && f.subcategory == subcategory)
           .toList());
     }
     return _db!
@@ -113,10 +112,7 @@ class FirestoreService extends ChangeNotifier {
 
   Stream<int> getTotalCount() {
     if (EnvConfig.isDemoMode) return _demo.stream.map((l) => l.length);
-    return _db!
-        .collection(_col)
-        .snapshots()
-        .map((s) => s.docs.length);
+    return _db!.collection(_col).snapshots().map((s) => s.docs.length);
   }
 
   Stream<int> getActiveCount() {

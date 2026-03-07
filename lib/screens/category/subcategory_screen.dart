@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../services/firestore_service.dart';
-import '../services/form_config_service.dart';
-import '../config/app_constants.dart';
-import '../utils/app_colors.dart';
+import '../../services/firestore_service.dart';
+import '../../services/form_config_service.dart';
+import '../../config/app_constants.dart';
+import '../../utils/app_colors.dart';
 
 class SubcategoryScreen extends StatelessWidget {
   const SubcategoryScreen({super.key});
@@ -151,8 +151,8 @@ class _SubcategoryTile extends StatelessWidget {
                 color: color.withOpacity(0.12),
                 borderRadius: BorderRadius.circular(12),
               ),
-              child: Icon(catData?.icon ?? Icons.category,
-                  color: color, size: 22),
+              child:
+                  Icon(catData?.icon ?? Icons.category, color: color, size: 22),
             ),
             title: Text(
               subcategory,

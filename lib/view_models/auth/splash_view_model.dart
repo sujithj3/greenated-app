@@ -1,5 +1,5 @@
 import 'package:flutter/foundation.dart';
-import '../services/auth_service.dart';
+import '../../services/auth_service.dart';
 
 class SplashViewModel extends ChangeNotifier {
   final AuthService _authService;

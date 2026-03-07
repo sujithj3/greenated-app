@@ -9,15 +9,15 @@ import 'services/auth_service.dart';
 import 'services/firestore_service.dart';
 import 'services/form_config_service.dart';
 import 'utils/app_colors.dart';
-import 'screens/splash_screen.dart';
-import 'screens/login_screen.dart';
-import 'screens/dashboard_screen.dart';
-import 'screens/category_screen.dart';
-import 'screens/subcategory_screen.dart';
-import 'screens/farmer_form_screen.dart';
-import 'screens/land_measurement_screen.dart';
-import 'screens/farmer_list_screen.dart';
-import 'screens/farmer_detail_screen.dart';
+import 'screens/auth/splash_screen.dart';
+import 'screens/auth/login_screen.dart';
+import 'screens/dashboard/dashboard_screen.dart';
+import 'screens/category/category_screen.dart';
+import 'screens/category/subcategory_screen.dart';
+import 'screens/farmer/farmer_form_screen.dart';
+import 'screens/tools/land_measurement_screen.dart';
+import 'screens/farmer/farmer_list_screen.dart';
+import 'screens/farmer/farmer_detail_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -61,8 +61,8 @@ class FarmerRegistrationApp extends StatelessWidget {
                   top: MediaQuery.of(context).padding.top,
                   right: 0,
                   child: Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 10, vertical: 4),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                     decoration: const BoxDecoration(
                       color: AppColors.warning,
                       borderRadius: BorderRadius.only(
@@ -97,8 +97,8 @@ class FarmerRegistrationApp extends StatelessWidget {
         onGenerateRoute: (settings) {
           if (settings.name == '/farmer-detail') {
             return MaterialPageRoute(
-              builder: (_) => FarmerDetailScreen(
-                  farmerId: settings.arguments as String),
+              builder: (_) =>
+                  FarmerDetailScreen(farmerId: settings.arguments as String),
             );
           }
           return null;

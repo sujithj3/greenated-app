@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
-import '../models/farmer_model.dart';
-import '../services/auth_service.dart';
-import '../services/firestore_service.dart';
-import '../utils/app_colors.dart';
-import '../view_models/dashboard_view_model.dart';
-import '../widgets/popup_form.dart';
+import '../../models/farmer/farmer_model.dart';
+import '../../services/auth_service.dart';
+import '../../services/firestore_service.dart';
+import '../../utils/app_colors.dart';
+import '../../view_models/dashboard/dashboard_view_model.dart';
+import '../../widgets/popup_form.dart';
 
 class DashboardView extends StatelessWidget {
   const DashboardView({super.key});
@@ -46,11 +46,14 @@ class DashboardView extends StatelessWidget {
                         mainAxisAlignment: MainAxisAlignment.end,
                         children: [
                           Text('Good ${vm.greeting}, ',
-                              style: const TextStyle(color: AppColors.light, fontSize: 14)),
+                              style: const TextStyle(
+                                  color: AppColors.light, fontSize: 14)),
                           const SizedBox(height: 4),
                           Text(phone,
                               style: const TextStyle(
-                                  color: Colors.white, fontSize: 18, fontWeight: FontWeight.w700)),
+                                  color: Colors.white,
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w700)),
                         ],
                       ),
                     ),
@@ -65,7 +68,8 @@ class DashboardView extends StatelessWidget {
                   ),
                   actions: [
                     IconButton(
-                      icon: const Icon(Icons.notifications_outlined, color: Colors.white),
+                      icon: const Icon(Icons.notifications_outlined,
+                          color: Colors.white),
                       onPressed: () {},
                     ),
                   ],
@@ -80,7 +84,9 @@ class DashboardView extends StatelessWidget {
                         const SizedBox(height: 24),
                         const Text('Quick Actions',
                             style: TextStyle(
-                                fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.dark)),
+                                fontSize: 16,
+                                fontWeight: FontWeight.w700,
+                                color: AppColors.dark)),
                         const SizedBox(height: 12),
                         _QuickActions(),
                         const SizedBox(height: 24),
@@ -89,9 +95,12 @@ class DashboardView extends StatelessWidget {
                           children: [
                             const Text('Recent Registrations',
                                 style: TextStyle(
-                                    fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.dark)),
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w700,
+                                    color: AppColors.dark)),
                             TextButton(
-                              onPressed: () => Navigator.pushNamed(context, '/farmer-list'),
+                              onPressed: () =>
+                                  Navigator.pushNamed(context, '/farmer-list'),
                               child: const Text('See All'),
                             ),
                           ],
@@ -110,7 +119,8 @@ class DashboardView extends StatelessWidget {
               backgroundColor: AppColors.primary,
               icon: const Icon(Icons.person_add, color: Colors.white),
               label: const Text('Register Farmer',
-                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
+                  style: TextStyle(
+                      color: Colors.white, fontWeight: FontWeight.w600)),
             ),
           );
         },
@@ -118,14 +128,16 @@ class DashboardView extends StatelessWidget {
     );
   }
 
-  Widget _buildDrawer(BuildContext context, DashboardViewModel vm, String phone) {
+  Widget _buildDrawer(
+      BuildContext context, DashboardViewModel vm, String phone) {
     return Drawer(
       child: ListView(
         padding: EdgeInsets.zero,
         children: [
           DrawerHeader(
             decoration: const BoxDecoration(
-              gradient: LinearGradient(colors: [AppColors.dark, AppColors.primary]),
+              gradient:
+                  LinearGradient(colors: [AppColors.dark, AppColors.primary]),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -139,20 +151,28 @@ class DashboardView extends StatelessWidget {
                 const SizedBox(height: 10),
                 const Text('FARMER REGISTRATION',
                     style: TextStyle(
-                        color: Colors.white, fontSize: 18, fontWeight: FontWeight.w800, letterSpacing: 2)),
-                Text(phone, style: const TextStyle(color: AppColors.light, fontSize: 12)),
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 2)),
+                Text(phone,
+                    style:
+                        const TextStyle(color: AppColors.light, fontSize: 12)),
               ],
             ),
           ),
           _drawerItem(context, Icons.dashboard, 'Dashboard', '/dashboard'),
-          _drawerItem(context, Icons.person_add, 'Register Farmer', '/farmer-form'),
+          _drawerItem(
+              context, Icons.person_add, 'Register Farmer', '/farmer-form'),
           _drawerItem(context, Icons.people, 'Farmers List', '/farmer-list'),
           _drawerItem(context, Icons.category, 'Categories', '/categories'),
-          _drawerItem(context, Icons.map, 'Land Measurement', '/land-measurement'),
+          _drawerItem(
+              context, Icons.map, 'Land Measurement', '/land-measurement'),
           const Divider(),
           ListTile(
             leading: const Icon(Icons.logout, color: AppColors.error),
-            title: const Text('Logout', style: TextStyle(color: AppColors.error)),
+            title:
+                const Text('Logout', style: TextStyle(color: AppColors.error)),
             onTap: () async {
               Navigator.pop(context);
               final confirmed = await showPopupConfirm(
@@ -173,7 +193,8 @@ class DashboardView extends StatelessWidget {
     );
   }
 
-  Widget _drawerItem(BuildContext context, IconData icon, String label, String route) {
+  Widget _drawerItem(
+      BuildContext context, IconData icon, String label, String route) {
     return ListTile(
       leading: Icon(icon, color: AppColors.primary),
       title: Text(label),
@@ -199,8 +220,10 @@ class _StatsRow extends StatelessWidget {
           child: StreamBuilder<int>(
             stream: vm.totalCount,
             builder: (_, snap) => _StatCard(
-              label: 'Total Farmers', value: '${snap.data ?? 0}',
-              icon: Icons.people, color: AppColors.primary,
+              label: 'Total Farmers',
+              value: '${snap.data ?? 0}',
+              icon: Icons.people,
+              color: AppColors.primary,
             ),
           ),
         ),
@@ -209,8 +232,10 @@ class _StatsRow extends StatelessWidget {
           child: StreamBuilder<int>(
             stream: vm.activeCount,
             builder: (_, snap) => _StatCard(
-              label: 'Active', value: '${snap.data ?? 0}',
-              icon: Icons.check_circle_outline, color: AppColors.accent,
+              label: 'Active',
+              value: '${snap.data ?? 0}',
+              icon: Icons.check_circle_outline,
+              color: AppColors.accent,
             ),
           ),
         ),
@@ -219,8 +244,10 @@ class _StatsRow extends StatelessWidget {
           child: StreamBuilder<Map<String, int>>(
             stream: vm.categoryCounts,
             builder: (_, snap) => _StatCard(
-              label: 'Categories', value: '${snap.data?.length ?? 0}',
-              icon: Icons.category, color: AppColors.medium,
+              label: 'Categories',
+              value: '${snap.data?.length ?? 0}',
+              icon: Icons.category,
+              color: AppColors.medium,
             ),
           ),
         ),
@@ -234,7 +261,11 @@ class _StatCard extends StatelessWidget {
   final String value;
   final IconData icon;
   final Color color;
-  const _StatCard({required this.label, required this.value, required this.icon, required this.color});
+  const _StatCard(
+      {required this.label,
+      required this.value,
+      required this.icon,
+      required this.color});
 
   @override
   Widget build(BuildContext context) {
@@ -245,10 +276,13 @@ class _StatCard extends StatelessWidget {
           children: [
             Icon(icon, color: color, size: 28),
             const SizedBox(height: 8),
-            Text(value, style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: color)),
+            Text(value,
+                style: TextStyle(
+                    fontSize: 22, fontWeight: FontWeight.w800, color: color)),
             const SizedBox(height: 4),
             Text(label,
-                style: const TextStyle(fontSize: 11, color: AppColors.textMedium),
+                style:
+                    const TextStyle(fontSize: 11, color: AppColors.textMedium),
                 textAlign: TextAlign.center),
           ],
         ),
@@ -292,7 +326,10 @@ class _QuickActions extends StatelessWidget {
                 Icon(a.icon, color: a.color, size: 28),
                 const SizedBox(height: 6),
                 Text(a.label,
-                    style: TextStyle(fontSize: 10, color: a.color, fontWeight: FontWeight.w600),
+                    style: TextStyle(
+                        fontSize: 10,
+                        color: a.color,
+                        fontWeight: FontWeight.w600),
                     textAlign: TextAlign.center),
               ],
             ),
@@ -322,7 +359,9 @@ class _RecentFarmers extends StatelessWidget {
       builder: (_, snap) {
         if (snap.connectionState == ConnectionState.waiting) {
           return const Center(
-            child: Padding(padding: EdgeInsets.all(24), child: CircularProgressIndicator()),
+            child: Padding(
+                padding: EdgeInsets.all(24),
+                child: CircularProgressIndicator()),
           );
         }
         final farmers = (snap.data ?? []).take(5).toList();
@@ -341,16 +380,20 @@ class _RecentFarmers extends StatelessWidget {
                     style: TextStyle(color: AppColors.textMedium)),
                 SizedBox(height: 4),
                 Text('Tap the button below to add one.',
-                    style: TextStyle(color: AppColors.textMedium, fontSize: 12)),
+                    style:
+                        TextStyle(color: AppColors.textMedium, fontSize: 12)),
               ],
             ),
           );
         }
         return Column(
-          children: farmers.map((f) => _FarmerTile(
-            farmer: f,
-            onTap: () => Navigator.pushNamed(context, '/farmer-detail', arguments: f.id),
-          )).toList(),
+          children: farmers
+              .map((f) => _FarmerTile(
+                    farmer: f,
+                    onTap: () => Navigator.pushNamed(context, '/farmer-detail',
+                        arguments: f.id),
+                  ))
+              .toList(),
         );
       },
     );
@@ -371,10 +414,13 @@ class _FarmerTile extends StatelessWidget {
         leading: CircleAvatar(
           backgroundColor: AppColors.light,
           child: Text(farmer.initials,
-              style: const TextStyle(color: AppColors.dark, fontWeight: FontWeight.w700)),
+              style: const TextStyle(
+                  color: AppColors.dark, fontWeight: FontWeight.w700)),
         ),
-        title: Text(farmer.name, style: const TextStyle(fontWeight: FontWeight.w600)),
-        subtitle: Text('${farmer.category} · ${farmer.landArea} ${farmer.landUnit}'),
+        title: Text(farmer.name,
+            style: const TextStyle(fontWeight: FontWeight.w600)),
+        subtitle:
+            Text('${farmer.category} · ${farmer.landArea} ${farmer.landUnit}'),
         trailing: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           crossAxisAlignment: CrossAxisAlignment.end,
@@ -382,18 +428,23 @@ class _FarmerTile extends StatelessWidget {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
               decoration: BoxDecoration(
-                color: farmer.status == 'Active' ? AppColors.veryLight : Colors.grey.shade100,
+                color: farmer.status == 'Active'
+                    ? AppColors.veryLight
+                    : Colors.grey.shade100,
                 borderRadius: BorderRadius.circular(20),
               ),
               child: Text(farmer.status,
                   style: TextStyle(
                       fontSize: 11,
-                      color: farmer.status == 'Active' ? AppColors.primary : Colors.grey,
+                      color: farmer.status == 'Active'
+                          ? AppColors.primary
+                          : Colors.grey,
                       fontWeight: FontWeight.w600)),
             ),
             const SizedBox(height: 4),
             Text(DateFormat('dd MMM').format(farmer.registrationDate),
-                style: const TextStyle(fontSize: 11, color: AppColors.textMedium)),
+                style:
+                    const TextStyle(fontSize: 11, color: AppColors.textMedium)),
           ],
         ),
       ),

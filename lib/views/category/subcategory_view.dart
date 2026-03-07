@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../config/app_constants.dart';
-import '../services/firestore_service.dart';
-import '../services/form_config_service.dart';
-import '../utils/app_colors.dart';
-import '../view_models/subcategory_view_model.dart';
+import '../../config/app_constants.dart';
+import '../../services/firestore_service.dart';
+import '../../services/form_config_service.dart';
+import '../../utils/app_colors.dart';
+import '../../view_models/category/subcategory_view_model.dart';
 
 class SubcategoryView extends StatelessWidget {
   const SubcategoryView({super.key});
@@ -81,8 +81,8 @@ class SubcategoryView extends StatelessWidget {
                         category: category,
                         catData: catData,
                         selectionMode: selectionMode,
-                        countStream: vm.getFarmersByCategoryAndSub(
-                            category, sub),
+                        countStream:
+                            vm.getFarmersByCategoryAndSub(category, sub),
                         onTap: () {
                           if (selectionMode) {
                             Navigator.pop(context, sub);
@@ -159,8 +159,8 @@ class _SubcategoryTile extends StatelessWidget {
                 color: color.withValues(alpha: 0.12),
                 borderRadius: BorderRadius.circular(12),
               ),
-              child: Icon(catData?.icon ?? Icons.category,
-                  color: color, size: 22),
+              child:
+                  Icon(catData?.icon ?? Icons.category, color: color, size: 22),
             ),
             title: Text(
               subcategory,
@@ -168,8 +168,7 @@ class _SubcategoryTile extends StatelessWidget {
             ),
             subtitle: Text(
               selectionMode ? category : '$count farmers registered',
-              style: const TextStyle(
-                  fontSize: 12, color: AppColors.textMedium),
+              style: const TextStyle(fontSize: 12, color: AppColors.textMedium),
             ),
             trailing: selectionMode
                 ? const Icon(Icons.check_circle_outline,

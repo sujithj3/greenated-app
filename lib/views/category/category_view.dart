@@ -1,26 +1,24 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../config/app_constants.dart';
-import '../services/firestore_service.dart';
-import '../view_models/category_view_model.dart';
+import '../../config/app_constants.dart';
+import '../../services/firestore_service.dart';
+import '../../view_models/category/category_view_model.dart';
 
 class CategoryView extends StatelessWidget {
   const CategoryView({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final bool selectionMode =
-        (ModalRoute.of(context)?.settings.arguments as Map?)?['selectionMode']
-                as bool? ??
-            false;
+    final bool selectionMode = (ModalRoute.of(context)?.settings.arguments
+            as Map?)?['selectionMode'] as bool? ??
+        false;
 
     return ChangeNotifierProvider(
       create: (ctx) => CategoryViewModel(ctx.read<FirestoreService>()),
       child: Consumer<CategoryViewModel>(
         builder: (context, vm, _) => Scaffold(
           appBar: AppBar(
-            title:
-                Text(selectionMode ? 'Select Category' : 'Farm Categories'),
+            title: Text(selectionMode ? 'Select Category' : 'Farm Categories'),
           ),
           body: StreamBuilder<Map<String, int>>(
             stream: vm.categoryCounts,
@@ -30,8 +28,7 @@ class CategoryView extends StatelessWidget {
 
               return GridView.builder(
                 padding: const EdgeInsets.all(16),
-                gridDelegate:
-                    const SliverGridDelegateWithFixedCrossAxisCount(
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                   crossAxisCount: 2,
                   mainAxisSpacing: 16,
                   crossAxisSpacing: 16,
@@ -138,8 +135,7 @@ class _CategoryCard extends StatelessWidget {
                   const SizedBox(width: 4),
                   Text(
                     '$farmerCount farmers',
-                    style:
-                        const TextStyle(color: Colors.white70, fontSize: 12),
+                    style: const TextStyle(color: Colors.white70, fontSize: 12),
                   ),
                 ],
               ),
@@ -150,8 +146,7 @@ class _CategoryCard extends StatelessWidget {
                   const SizedBox(width: 4),
                   Text(
                     '${data.subcategories.length} subcategories',
-                    style:
-                        const TextStyle(color: Colors.white70, fontSize: 12),
+                    style: const TextStyle(color: Colors.white70, fontSize: 12),
                   ),
                 ],
               ),

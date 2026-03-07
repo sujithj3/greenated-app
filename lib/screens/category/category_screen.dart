@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../services/firestore_service.dart';
-import '../config/app_constants.dart';
+import '../../services/firestore_service.dart';
+import '../../config/app_constants.dart';
 
 class CategoryScreen extends StatelessWidget {
   const CategoryScreen({super.key});
@@ -10,9 +10,8 @@ class CategoryScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     // selectionMode = true means this screen is used to PICK a category
     // (e.g. from FarmerFormScreen). Otherwise it navigates to subcategories.
-    final bool selectionMode =
-        (ModalRoute.of(context)?.settings.arguments as Map?)?['selectionMode']
-            as bool? ??
+    final bool selectionMode = (ModalRoute.of(context)?.settings.arguments
+            as Map?)?['selectionMode'] as bool? ??
         false;
 
     final fs = context.read<FirestoreService>();

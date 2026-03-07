@@ -1,5 +1,5 @@
 import 'package:flutter/foundation.dart';
-import '../services/firestore_service.dart';
+import '../../services/firestore_service.dart';
 
 class CategoryViewModel extends ChangeNotifier {
   final FirestoreService _firestoreService;

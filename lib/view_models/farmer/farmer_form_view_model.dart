@@ -1,11 +1,11 @@
 import 'package:flutter/foundation.dart';
-import '../config/env_config.dart';
-import '../models/api_models.dart';
-import '../models/farmer_model.dart';
-import '../services/auth_service.dart';
-import '../services/firestore_service.dart';
-import '../services/form_config_service.dart';
-import '../services/location_service.dart';
+import '../../config/env_config.dart';
+import '../../models/api/api_models.dart';
+import '../../models/farmer/farmer_model.dart';
+import '../../services/auth_service.dart';
+import '../../services/firestore_service.dart';
+import '../../services/form_config_service.dart';
+import '../../services/location_service.dart';
 
 class FarmerFormViewModel extends ChangeNotifier {
   final AuthService _authService;
@@ -37,7 +37,12 @@ class FarmerFormViewModel extends ChangeNotifier {
   final Set<String> _textFieldKeys = {};
   final Set<String> _numberFieldKeys = {};
 
-  final List<String> landUnits = const ['Acres', 'Hectares', 'Bigha', 'Sq. Meters'];
+  final List<String> landUnits = const [
+    'Acres',
+    'Hectares',
+    'Bigha',
+    'Sq. Meters'
+  ];
 
   // FormConfigService proxies
   bool get isConfigLoading => _formConfigService.isLoading;
@@ -142,7 +147,8 @@ class FarmerFormViewModel extends ChangeNotifier {
       final pos = await _locationService.getCurrentPosition();
       latitude = pos.latitude;
       longitude = pos.longitude;
-      final result = await _locationService.reverseGeocode(pos.latitude, pos.longitude);
+      final result =
+          await _locationService.reverseGeocode(pos.latitude, pos.longitude);
       isLocating = false;
       notifyListeners();
       return result;
@@ -164,7 +170,8 @@ class FarmerFormViewModel extends ChangeNotifier {
   }
 
   // Save
-  Future<bool> save(Map<String, String> textFieldValues, {
+  Future<bool> save(
+    Map<String, String> textFieldValues, {
     required String name,
     required String phone,
     required String address,

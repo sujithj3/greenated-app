@@ -1,4 +1,4 @@
-import '../models/farmer_model.dart';
+import '../models/farmer/farmer_model.dart';
 
 /// Set to false once Firebase is configured (flutterfire configure).
 const bool kDemoMode = true;

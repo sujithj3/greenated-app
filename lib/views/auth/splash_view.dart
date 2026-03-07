@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../services/auth_service.dart';
-import '../utils/app_colors.dart';
-import '../view_models/splash_view_model.dart';
+import '../../services/auth_service.dart';
+import '../../utils/app_colors.dart';
+import '../../view_models/auth/splash_view_model.dart';
 
 class SplashView extends StatefulWidget {
   const SplashView({super.key});

@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
-import '../config/app_constants.dart';
-import '../models/farmer_model.dart';
-import '../services/firestore_service.dart';
-import '../utils/app_colors.dart';
-import '../view_models/farmer_list_view_model.dart';
+import '../../config/app_constants.dart';
+import '../../models/farmer/farmer_model.dart';
+import '../../services/firestore_service.dart';
+import '../../utils/app_colors.dart';
+import '../../view_models/farmer/farmer_list_view_model.dart';
 
 class FarmerListView extends StatefulWidget {
   const FarmerListView({super.key});
@@ -55,8 +55,10 @@ class _FarmerListViewState extends State<FarmerListView> {
               tooltip: 'Filter',
               itemBuilder: (_) => [
                 const PopupMenuItem(value: 'all', child: Text('All Farmers')),
-                const PopupMenuItem(value: 'Active', child: Text('Active Only')),
-                const PopupMenuItem(value: 'Inactive', child: Text('Inactive Only')),
+                const PopupMenuItem(
+                    value: 'Active', child: Text('Active Only')),
+                const PopupMenuItem(
+                    value: 'Inactive', child: Text('Inactive Only')),
               ],
               onSelected: (v) => _vm.setStatusFilter(v == 'all' ? null : v),
             ),
@@ -88,11 +90,13 @@ class _FarmerListViewState extends State<FarmerListView> {
               children: [
                 Container(
                   width: double.infinity,
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                   color: AppColors.veryLight,
                   child: Text(
                     '${farmers.length} farmer${farmers.length != 1 ? 's' : ''} found',
-                    style: const TextStyle(color: AppColors.textMedium, fontSize: 13),
+                    style: const TextStyle(
+                        color: AppColors.textMedium, fontSize: 13),
                   ),
                 ),
                 Expanded(
@@ -103,7 +107,9 @@ class _FarmerListViewState extends State<FarmerListView> {
                     itemBuilder: (_, i) => _FarmerCard(
                       farmer: farmers[i],
                       onTap: () => Navigator.pushNamed(
-                        context, '/farmer-detail', arguments: farmers[i].id,
+                        context,
+                        '/farmer-detail',
+                        arguments: farmers[i].id,
                       ),
                     ),
                   ),
@@ -143,7 +149,8 @@ class _FarmerListViewState extends State<FarmerListView> {
               : null,
           fillColor: Colors.white.withValues(alpha: 0.2),
           filled: true,
-          contentPadding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+          contentPadding:
+              const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(24),
             borderSide: BorderSide.none,
@@ -176,7 +183,10 @@ class _FarmerCard extends StatelessWidget {
                 radius: 26,
                 backgroundColor: color.withValues(alpha: 0.15),
                 child: Text(farmer.initials,
-                    style: TextStyle(color: color, fontWeight: FontWeight.w800, fontSize: 16)),
+                    style: TextStyle(
+                        color: color,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 16)),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -184,19 +194,26 @@ class _FarmerCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(farmer.name,
-                        style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15, color: AppColors.textDark)),
+                        style: const TextStyle(
+                            fontWeight: FontWeight.w700,
+                            fontSize: 15,
+                            color: AppColors.textDark)),
                     const SizedBox(height: 3),
                     Row(children: [
-                      const Icon(Icons.phone, size: 13, color: AppColors.textMedium),
+                      const Icon(Icons.phone,
+                          size: 13, color: AppColors.textMedium),
                       const SizedBox(width: 4),
-                      Text(farmer.phone, style: const TextStyle(fontSize: 12, color: AppColors.textMedium)),
+                      Text(farmer.phone,
+                          style: const TextStyle(
+                              fontSize: 12, color: AppColors.textMedium)),
                     ]),
                     const SizedBox(height: 4),
                     Row(children: [
                       _Tag(label: farmer.category, color: color),
                       const SizedBox(width: 6),
                       if (farmer.subcategory.isNotEmpty)
-                        _Tag(label: farmer.subcategory, color: AppColors.medium),
+                        _Tag(
+                            label: farmer.subcategory, color: AppColors.medium),
                     ]),
                   ],
                 ),
@@ -207,10 +224,14 @@ class _FarmerCard extends StatelessWidget {
                   _StatusBadge(status: farmer.status),
                   const SizedBox(height: 6),
                   Text('${farmer.landArea} ${farmer.landUnit}',
-                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.primary)),
+                      style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.primary)),
                   const SizedBox(height: 4),
                   Text(DateFormat('dd MMM yy').format(farmer.registrationDate),
-                      style: const TextStyle(fontSize: 11, color: AppColors.textMedium)),
+                      style: const TextStyle(
+                          fontSize: 11, color: AppColors.textMedium)),
                 ],
               ),
             ],
@@ -235,7 +256,8 @@ class _Tag extends StatelessWidget {
         borderRadius: BorderRadius.circular(6),
       ),
       child: Text(label,
-          style: TextStyle(fontSize: 11, color: color, fontWeight: FontWeight.w600)),
+          style: TextStyle(
+              fontSize: 11, color: color, fontWeight: FontWeight.w600)),
     );
   }
 }
@@ -250,15 +272,20 @@ class _StatusBadge extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
-        color: isActive ? AppColors.primary.withValues(alpha: 0.1) : Colors.grey.shade100,
+        color: isActive
+            ? AppColors.primary.withValues(alpha: 0.1)
+            : Colors.grey.shade100,
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
-          color: isActive ? AppColors.primary.withValues(alpha: 0.3) : Colors.grey.shade300,
+          color: isActive
+              ? AppColors.primary.withValues(alpha: 0.3)
+              : Colors.grey.shade300,
         ),
       ),
       child: Text(status,
           style: TextStyle(
-              fontSize: 11, fontWeight: FontWeight.w600,
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
               color: isActive ? AppColors.primary : Colors.grey)),
     );
   }
@@ -278,8 +305,12 @@ class _EmptyList extends StatelessWidget {
           Icon(query.isNotEmpty ? Icons.search_off : Icons.people_outline,
               size: 72, color: AppColors.light),
           const SizedBox(height: 16),
-          Text(query.isNotEmpty ? 'No results for "$query"' : 'No farmers registered yet',
-              style: const TextStyle(fontSize: 16, color: AppColors.textMedium)),
+          Text(
+              query.isNotEmpty
+                  ? 'No results for "$query"'
+                  : 'No farmers registered yet',
+              style:
+                  const TextStyle(fontSize: 16, color: AppColors.textMedium)),
           const SizedBox(height: 8),
           if (query.isEmpty) ...[
             const Text('Tap the button to register the first farmer.',

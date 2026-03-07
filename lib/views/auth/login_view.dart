@@ -2,9 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:pinput/pinput.dart';
 import 'package:provider/provider.dart';
-import '../services/auth_service.dart';
-import '../utils/app_colors.dart';
-import '../view_models/login_view_model.dart';
+import '../../services/auth_service.dart';
+import '../../utils/app_colors.dart';
+import '../../view_models/auth/login_view_model.dart';
 
 class LoginView extends StatefulWidget {
   const LoginView({super.key});
@@ -37,7 +37,8 @@ class _LoginViewState extends State<LoginView> {
     FocusScope.of(context).unfocus();
     final success = await _vm.sendOTP(_phoneCtrl.text.trim());
     if (success && mounted) {
-      _showSnack('OTP sent to ${_vm.selectedCountryCode}${_phoneCtrl.text.trim()}');
+      _showSnack(
+          'OTP sent to ${_vm.selectedCountryCode}${_phoneCtrl.text.trim()}');
     } else if (_vm.error != null && mounted) {
       _showSnack(_vm.error!, isError: true);
     }
@@ -119,9 +120,7 @@ class _LoginViewState extends State<LoginView> {
                     ),
                     child: Form(
                       key: _formKey,
-                      child: _vm.codeSent
-                          ? _buildOtpView()
-                          : _buildPhoneView(),
+                      child: _vm.codeSent ? _buildOtpView() : _buildPhoneView(),
                     ),
                   ),
                   const SizedBox(height: 32),
@@ -140,7 +139,9 @@ class _LoginViewState extends State<LoginView> {
       children: [
         const Text('Login with Phone',
             style: TextStyle(
-                fontSize: 22, fontWeight: FontWeight.w700, color: AppColors.dark)),
+                fontSize: 22,
+                fontWeight: FontWeight.w700,
+                color: AppColors.dark)),
         const SizedBox(height: 6),
         const Text('Enter your mobile number to receive a verification code.',
             style: TextStyle(color: AppColors.textMedium, fontSize: 13)),
@@ -193,8 +194,10 @@ class _LoginViewState extends State<LoginView> {
             onPressed: _vm.isLoading ? null : _sendOTP,
             child: _vm.isLoading
                 ? const SizedBox(
-                    width: 22, height: 22,
-                    child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white))
+                    width: 22,
+                    height: 22,
+                    child: CircularProgressIndicator(
+                        strokeWidth: 2.5, color: Colors.white))
                 : const Text('Send OTP'),
           ),
         ),
@@ -220,7 +223,9 @@ class _LoginViewState extends State<LoginView> {
       children: [
         const Text('Enter OTP',
             style: TextStyle(
-                fontSize: 22, fontWeight: FontWeight.w700, color: AppColors.dark)),
+                fontSize: 22,
+                fontWeight: FontWeight.w700,
+                color: AppColors.dark)),
         const SizedBox(height: 6),
         Text('Code sent to ${_vm.selectedCountryCode} ${_phoneCtrl.text}',
             style: const TextStyle(color: AppColors.textMedium, fontSize: 13)),
@@ -248,8 +253,10 @@ class _LoginViewState extends State<LoginView> {
             onPressed: _vm.isLoading ? null : _verifyOTP,
             child: _vm.isLoading
                 ? const SizedBox(
-                    width: 22, height: 22,
-                    child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white))
+                    width: 22,
+                    height: 22,
+                    child: CircularProgressIndicator(
+                        strokeWidth: 2.5, color: Colors.white))
                 : const Text('Verify & Login'),
           ),
         ),

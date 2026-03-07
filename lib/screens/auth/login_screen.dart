@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:pinput/pinput.dart';
 import 'package:provider/provider.dart';
-import '../services/auth_service.dart';
-import '../utils/app_colors.dart';
+import '../../services/auth_service.dart';
+import '../../utils/app_colors.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -126,7 +126,8 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                   child: Form(
                     key: _formKey,
-                    child: _codeSent ? _buildOtpView(auth) : _buildPhoneView(auth),
+                    child:
+                        _codeSent ? _buildOtpView(auth) : _buildPhoneView(auth),
                   ),
                 ),
                 const SizedBox(height: 32),
@@ -175,8 +176,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   items: _countryCodes
                       .map((c) => DropdownMenuItem(value: c, child: Text(c)))
                       .toList(),
-                  onChanged: (v) =>
-                      setState(() => _selectedCountryCode = v!),
+                  onChanged: (v) => setState(() => _selectedCountryCode = v!),
                 ),
               ),
             ),
@@ -257,7 +257,6 @@ class _LoginScreenState extends State<LoginScreen> {
           style: const TextStyle(color: AppColors.textMedium, fontSize: 13),
         ),
         const SizedBox(height: 32),
-
         Center(
           child: Pinput(
             controller: _otpCtrl,
@@ -274,9 +273,7 @@ class _LoginScreenState extends State<LoginScreen> {
             onCompleted: (_) => _verifyOTP(),
           ),
         ),
-
         const SizedBox(height: 32),
-
         SizedBox(
           width: double.infinity,
           child: ElevatedButton(
@@ -293,9 +290,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 : const Text('Verify & Login'),
           ),
         ),
-
         const SizedBox(height: 16),
-
         Center(
           child: TextButton.icon(
             onPressed: auth.isLoading

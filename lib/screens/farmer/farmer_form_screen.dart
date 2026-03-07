@@ -4,14 +4,14 @@ import 'package:flutter/services.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http;
 import 'package:provider/provider.dart';
-import '../models/api_models.dart';
-import '../models/farmer_model.dart';
-import '../services/auth_service.dart';
-import '../services/firestore_service.dart';
-import '../services/form_config_service.dart';
-import '../config/app_constants.dart';
-import '../config/env_config.dart';
-import '../utils/app_colors.dart';
+import '../../models/api/api_models.dart';
+import '../../models/farmer/farmer_model.dart';
+import '../../services/auth_service.dart';
+import '../../services/firestore_service.dart';
+import '../../services/form_config_service.dart';
+import '../../config/app_constants.dart';
+import '../../config/env_config.dart';
+import '../../utils/app_colors.dart';
 
 class FarmerFormScreen extends StatefulWidget {
   const FarmerFormScreen({super.key});

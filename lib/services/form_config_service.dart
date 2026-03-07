@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
-import '../models/api_models.dart';
+import '../models/api/api_models.dart';
 import '../config/env_config.dart';
 
 class FormConfigService extends ChangeNotifier {
@@ -72,16 +72,25 @@ class FormConfigService extends ChangeNotifier {
     // ── Agroforestry ──────────────────────────────────────────────────────────
     final agroFields = <ApiField>[
       const ApiField(
-        fieldId: 10, label: 'Tree Species', key: 'tree_species',
-        type: 'TEXT', required: true,
+        fieldId: 10,
+        label: 'Tree Species',
+        key: 'tree_species',
+        type: 'TEXT',
+        required: true,
       ),
       const ApiField(
-        fieldId: 11, label: 'Trees per Acre', key: 'trees_per_acre',
-        type: 'NUMBER', required: true,
+        fieldId: 11,
+        label: 'Trees per Acre',
+        key: 'trees_per_acre',
+        type: 'NUMBER',
+        required: true,
       ),
       ApiField(
-        fieldId: 12, label: 'Carbon Certification', key: 'certification',
-        type: 'DROPDOWN', required: false,
+        fieldId: 12,
+        label: 'Carbon Certification',
+        key: 'certification',
+        type: 'DROPDOWN',
+        required: false,
         options: const [
           ApiOption(id: 1, name: 'None'),
           ApiOption(id: 2, name: 'VCS / Verra'),
@@ -92,14 +101,32 @@ class FormConfigService extends ChangeNotifier {
         ],
       ),
       ApiField(
-        fieldId: 13, label: 'Add Plantation Details', key: 'plantation_details',
-        type: 'BUTTON', required: false,
+        fieldId: 13,
+        label: 'Add Plantation Details',
+        key: 'plantation_details',
+        type: 'BUTTON',
+        required: false,
         popup: ApiPopup(
           title: 'Plantation Details',
           fields: const [
-            ApiField(fieldId: 131, label: 'Intercrop / Understory', key: 'intercrop', type: 'TEXT', required: false),
-            ApiField(fieldId: 132, label: 'Plantation Age (Years)', key: 'plantation_age', type: 'NUMBER', required: false),
-            ApiField(fieldId: 133, label: 'Carbon Stock (tCO\u2082e/ha)', key: 'carbon_stock', type: 'NUMBER', required: false),
+            ApiField(
+                fieldId: 131,
+                label: 'Intercrop / Understory',
+                key: 'intercrop',
+                type: 'TEXT',
+                required: false),
+            ApiField(
+                fieldId: 132,
+                label: 'Plantation Age (Years)',
+                key: 'plantation_age',
+                type: 'NUMBER',
+                required: false),
+            ApiField(
+                fieldId: 133,
+                label: 'Carbon Stock (tCO\u2082e/ha)',
+                key: 'carbon_stock',
+                type: 'NUMBER',
+                required: false),
           ],
         ),
       ),
@@ -108,8 +135,11 @@ class FormConfigService extends ChangeNotifier {
     // ── Soil Carbon ───────────────────────────────────────────────────────────
     final soilFields = <ApiField>[
       ApiField(
-        fieldId: 20, label: 'Current Practice', key: 'current_practice',
-        type: 'DROPDOWN', required: true,
+        fieldId: 20,
+        label: 'Current Practice',
+        key: 'current_practice',
+        type: 'DROPDOWN',
+        required: true,
         options: const [
           ApiOption(id: 1, name: 'Cover Cropping'),
           ApiOption(id: 2, name: 'No-till / Reduced Tillage'),
@@ -121,12 +151,18 @@ class FormConfigService extends ChangeNotifier {
         ],
       ),
       const ApiField(
-        fieldId: 21, label: 'Baseline SOC (%)', key: 'baseline_soc',
-        type: 'NUMBER', required: true,
+        fieldId: 21,
+        label: 'Baseline SOC (%)',
+        key: 'baseline_soc',
+        type: 'NUMBER',
+        required: true,
       ),
       ApiField(
-        fieldId: 22, label: 'Previous Land Use', key: 'previous_land_use',
-        type: 'DROPDOWN', required: false,
+        fieldId: 22,
+        label: 'Previous Land Use',
+        key: 'previous_land_use',
+        type: 'DROPDOWN',
+        required: false,
         options: const [
           ApiOption(id: 1, name: 'Cropland'),
           ApiOption(id: 2, name: 'Degraded Land'),
@@ -137,15 +173,26 @@ class FormConfigService extends ChangeNotifier {
         ],
       ),
       ApiField(
-        fieldId: 23, label: 'Add Soil Analysis', key: 'soil_analysis',
-        type: 'BUTTON', required: false,
+        fieldId: 23,
+        label: 'Add Soil Analysis',
+        key: 'soil_analysis',
+        type: 'BUTTON',
+        required: false,
         popup: ApiPopup(
           title: 'Soil Analysis Details',
           fields: [
-            const ApiField(fieldId: 231, label: 'Target SOC (%)', key: 'target_soc', type: 'NUMBER', required: false),
+            const ApiField(
+                fieldId: 231,
+                label: 'Target SOC (%)',
+                key: 'target_soc',
+                type: 'NUMBER',
+                required: false),
             ApiField(
-              fieldId: 232, label: 'Measurement Method', key: 'measurement_method',
-              type: 'DROPDOWN', required: false,
+              fieldId: 232,
+              label: 'Measurement Method',
+              key: 'measurement_method',
+              type: 'DROPDOWN',
+              required: false,
               options: const [
                 ApiOption(id: 1, name: 'Lab Analysis (Walkley-Black)'),
                 ApiOption(id: 2, name: 'Lab Analysis (LOI)'),
@@ -155,7 +202,12 @@ class FormConfigService extends ChangeNotifier {
                 ApiOption(id: 6, name: 'Not Measured Yet'),
               ],
             ),
-            const ApiField(fieldId: 233, label: 'Years Under Practice', key: 'years_in_practice', type: 'NUMBER', required: false),
+            const ApiField(
+                fieldId: 233,
+                label: 'Years Under Practice',
+                key: 'years_in_practice',
+                type: 'NUMBER',
+                required: false),
           ],
         ),
       ),
@@ -164,8 +216,11 @@ class FormConfigService extends ChangeNotifier {
     // ── Biochar ───────────────────────────────────────────────────────────────
     final biocharFields = <ApiField>[
       ApiField(
-        fieldId: 30, label: 'Feedstock Type', key: 'feedstock_type',
-        type: 'DROPDOWN', required: true,
+        fieldId: 30,
+        label: 'Feedstock Type',
+        key: 'feedstock_type',
+        type: 'DROPDOWN',
+        required: true,
         options: const [
           ApiOption(id: 1, name: 'Wood / Woody Biomass'),
           ApiOption(id: 2, name: 'Crop Residue (Rice Husk, Straw)'),
@@ -177,8 +232,11 @@ class FormConfigService extends ChangeNotifier {
         ],
       ),
       ApiField(
-        fieldId: 31, label: 'Production Method', key: 'production_method',
-        type: 'DROPDOWN', required: true,
+        fieldId: 31,
+        label: 'Production Method',
+        key: 'production_method',
+        type: 'DROPDOWN',
+        required: true,
         options: const [
           ApiOption(id: 1, name: 'Slow Pyrolysis'),
           ApiOption(id: 2, name: 'Fast Pyrolysis'),
@@ -189,19 +247,33 @@ class FormConfigService extends ChangeNotifier {
         ],
       ),
       const ApiField(
-        fieldId: 32, label: 'Application Rate (t/ha)', key: 'application_rate',
-        type: 'NUMBER', required: true,
+        fieldId: 32,
+        label: 'Application Rate (t/ha)',
+        key: 'application_rate',
+        type: 'NUMBER',
+        required: true,
       ),
       ApiField(
-        fieldId: 33, label: 'Add Biochar Details', key: 'biochar_details',
-        type: 'BUTTON', required: false,
+        fieldId: 33,
+        label: 'Add Biochar Details',
+        key: 'biochar_details',
+        type: 'BUTTON',
+        required: false,
         popup: ApiPopup(
           title: 'Biochar Details',
           fields: [
-            const ApiField(fieldId: 331, label: 'Carbon Content (%)', key: 'carbon_content', type: 'NUMBER', required: false),
+            const ApiField(
+                fieldId: 331,
+                label: 'Carbon Content (%)',
+                key: 'carbon_content',
+                type: 'NUMBER',
+                required: false),
             ApiField(
-              fieldId: 332, label: 'Application Frequency', key: 'application_frequency',
-              type: 'DROPDOWN', required: false,
+              fieldId: 332,
+              label: 'Application Frequency',
+              key: 'application_frequency',
+              type: 'DROPDOWN',
+              required: false,
               options: const [
                 ApiOption(id: 1, name: 'One-time Application'),
                 ApiOption(id: 2, name: 'Annual'),
@@ -211,8 +283,11 @@ class FormConfigService extends ChangeNotifier {
               ],
             ),
             ApiField(
-              fieldId: 333, label: 'Observed Soil Impact', key: 'soil_impact',
-              type: 'DROPDOWN', required: false,
+              fieldId: 333,
+              label: 'Observed Soil Impact',
+              key: 'soil_impact',
+              type: 'DROPDOWN',
+              required: false,
               options: const [
                 ApiOption(id: 1, name: 'Improved Water Retention'),
                 ApiOption(id: 2, name: 'Increased Crop Yield'),
@@ -232,17 +307,21 @@ class FormConfigService extends ChangeNotifier {
       int baseId,
       List<ApiField> fields,
     ) {
-      return names.asMap().entries.map((e) => ApiSubcategory(
-        id: baseId + e.key,
-        name: e.value,
-        forms: [
-          ApiForm(
-            formId: baseId * 10 + e.key,
-            formName: 'Farmer Registration',
-            fields: fields,
-          ),
-        ],
-      )).toList();
+      return names
+          .asMap()
+          .entries
+          .map((e) => ApiSubcategory(
+                id: baseId + e.key,
+                name: e.value,
+                forms: [
+                  ApiForm(
+                    formId: baseId * 10 + e.key,
+                    formName: 'Farmer Registration',
+                    fields: fields,
+                  ),
+                ],
+              ))
+          .toList();
     }
 
     return [
@@ -250,28 +329,51 @@ class FormConfigService extends ChangeNotifier {
         id: 1,
         name: 'Agroforestry',
         subcategories: buildSubs(
-          ['Silvopasture', 'Alley Cropping', 'Forest Farming', 'Riparian Buffers',
-           'Windbreaks & Shelterbelts', 'Multi-strata Systems', 'Homegardens', 'Taungya System'],
-          100, agroFields,
+          [
+            'Silvopasture',
+            'Alley Cropping',
+            'Forest Farming',
+            'Riparian Buffers',
+            'Windbreaks & Shelterbelts',
+            'Multi-strata Systems',
+            'Homegardens',
+            'Taungya System'
+          ],
+          100,
+          agroFields,
         ),
       ),
       ApiCategory(
         id: 2,
         name: 'Soil Carbon',
         subcategories: buildSubs(
-          ['Cover Cropping', 'No-till / Reduced Tillage', 'Rotational Grazing',
-           'Compost Application', 'Biosolids Application', 'Wetland Restoration',
-           'Grassland Management'],
-          200, soilFields,
+          [
+            'Cover Cropping',
+            'No-till / Reduced Tillage',
+            'Rotational Grazing',
+            'Compost Application',
+            'Biosolids Application',
+            'Wetland Restoration',
+            'Grassland Management'
+          ],
+          200,
+          soilFields,
         ),
       ),
       ApiCategory(
         id: 3,
         name: 'Biochar',
         subcategories: buildSubs(
-          ['Wood Biochar', 'Crop Residue Biochar', 'Bamboo Biochar',
-           'Municipal Waste Biochar', 'Co-composting with Biochar', 'Livestock Manure Biochar'],
-          300, biocharFields,
+          [
+            'Wood Biochar',
+            'Crop Residue Biochar',
+            'Bamboo Biochar',
+            'Municipal Waste Biochar',
+            'Co-composting with Biochar',
+            'Livestock Manure Biochar'
+          ],
+          300,
+          biocharFields,
         ),
       ),
     ];

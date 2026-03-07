@@ -11,7 +11,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
-import '../utils/app_colors.dart';
+import '../../utils/app_colors.dart';
 
 class LandMeasurementScreen extends StatefulWidget {
   const LandMeasurementScreen({super.key});
@@ -192,8 +192,7 @@ class _LandMeasurementScreenState extends State<LandMeasurementScreen> {
   }
 
   void _showSnack(String msg) {
-    ScaffoldMessenger.of(context)
-        .showSnackBar(SnackBar(content: Text(msg)));
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
   }
 
   void _done() {
@@ -203,9 +202,8 @@ class _LandMeasurementScreenState extends State<LandMeasurementScreen> {
     }
     Navigator.pop(context, {
       'area': _areaInAcres,
-      'coordinates': _points
-          .map((p) => {'lat': p.latitude, 'lng': p.longitude})
-          .toList(),
+      'coordinates':
+          _points.map((p) => {'lat': p.latitude, 'lng': p.longitude}).toList(),
     });
   }
 
@@ -248,8 +246,8 @@ class _LandMeasurementScreenState extends State<LandMeasurementScreen> {
             right: 12,
             child: Card(
               child: Padding(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 16, vertical: 12),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                 child: Row(
                   children: [
                     const Icon(Icons.info_outline,
@@ -274,8 +272,7 @@ class _LandMeasurementScreenState extends State<LandMeasurementScreen> {
                             Text(
                               '${_points.length} point(s) marked',
                               style: const TextStyle(
-                                  fontSize: 12,
-                                  color: AppColors.textMedium),
+                                  fontSize: 12, color: AppColors.textMedium),
                             ),
                         ],
                       ),
@@ -322,8 +319,7 @@ class _LandMeasurementScreenState extends State<LandMeasurementScreen> {
                           height: 18,
                           child: CircularProgressIndicator(strokeWidth: 2),
                         )
-                      : const Icon(Icons.my_location,
-                          color: AppColors.primary),
+                      : const Icon(Icons.my_location, color: AppColors.primary),
                 ),
                 const SizedBox(height: 8),
 
@@ -334,9 +330,7 @@ class _LandMeasurementScreenState extends State<LandMeasurementScreen> {
                   backgroundColor:
                       _points.isEmpty ? Colors.grey.shade300 : Colors.white,
                   child: Icon(Icons.undo,
-                      color: _points.isEmpty
-                          ? Colors.grey
-                          : AppColors.warning),
+                      color: _points.isEmpty ? Colors.grey : AppColors.warning),
                 ),
                 const SizedBox(height: 8),
 
@@ -347,9 +341,7 @@ class _LandMeasurementScreenState extends State<LandMeasurementScreen> {
                   backgroundColor:
                       _points.isEmpty ? Colors.grey.shade300 : Colors.white,
                   child: Icon(Icons.delete_outline,
-                      color: _points.isEmpty
-                          ? Colors.grey
-                          : AppColors.error),
+                      color: _points.isEmpty ? Colors.grey : AppColors.error),
                 ),
               ],
             ),

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../services/auth_service.dart';
-import '../utils/app_colors.dart';
+import '../../services/auth_service.dart';
+import '../../utils/app_colors.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -33,7 +33,9 @@ class _SplashScreenState extends State<SplashScreen>
     );
     _slideAnim =
         Tween<Offset>(begin: const Offset(0, 0.5), end: Offset.zero).animate(
-      CurvedAnimation(parent: _ctrl, curve: const Interval(0.4, 1.0, curve: Curves.easeOut)),
+      CurvedAnimation(
+          parent: _ctrl,
+          curve: const Interval(0.4, 1.0, curve: Curves.easeOut)),
     );
 
     _ctrl.forward();

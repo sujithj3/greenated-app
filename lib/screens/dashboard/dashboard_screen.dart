@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
-import '../models/farmer_model.dart';
-import '../services/auth_service.dart';
-import '../services/firestore_service.dart';
-import '../utils/app_colors.dart';
-import '../widgets/popup_form.dart';
+import '../../models/farmer/farmer_model.dart';
+import '../../services/auth_service.dart';
+import '../../services/firestore_service.dart';
+import '../../utils/app_colors.dart';
+import '../../widgets/popup_form.dart';
 
 class DashboardScreen extends StatelessWidget {
   const DashboardScreen({super.key});
@@ -26,6 +26,9 @@ class DashboardScreen extends StatelessWidget {
             floating: false,
             pinned: true,
             backgroundColor: AppColors.primary,
+            title: const Text('Dashboard',
+                style: TextStyle(color: Colors.white, fontSize: 18)),
+            centerTitle: true,
             flexibleSpace: FlexibleSpaceBar(
               background: Container(
                 decoration: const BoxDecoration(
@@ -59,8 +62,6 @@ class DashboardScreen extends StatelessWidget {
                   ],
                 ),
               ),
-              title: const Text('Dashboard',
-                  style: TextStyle(color: Colors.white, fontSize: 18)),
             ),
             leading: Builder(
               builder: (ctx) => IconButton(
@@ -128,7 +129,6 @@ class DashboardScreen extends StatelessWidget {
           ),
         ],
       ),
-
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => Navigator.pushNamed(context, '/farmer-form'),
         backgroundColor: AppColors.primary,
@@ -174,21 +174,23 @@ class DashboardScreen extends StatelessWidget {
                         fontWeight: FontWeight.w800,
                         letterSpacing: 2)),
                 Text(phone,
-                    style: const TextStyle(
-                        color: AppColors.light, fontSize: 12)),
+                    style:
+                        const TextStyle(color: AppColors.light, fontSize: 12)),
               ],
             ),
           ),
           _drawerItem(context, Icons.dashboard, 'Dashboard', '/dashboard'),
-          _drawerItem(context, Icons.person_add, 'Register Farmer', '/farmer-form'),
+          _drawerItem(
+              context, Icons.person_add, 'Register Farmer', '/farmer-form'),
           _drawerItem(context, Icons.people, 'Farmers List', '/farmer-list'),
           _drawerItem(context, Icons.category, 'Categories', '/categories'),
-          _drawerItem(context, Icons.map, 'Land Measurement', '/land-measurement'),
+          _drawerItem(
+              context, Icons.map, 'Land Measurement', '/land-measurement'),
           const Divider(),
           ListTile(
             leading: const Icon(Icons.logout, color: AppColors.error),
-            title: const Text('Logout',
-                style: TextStyle(color: AppColors.error)),
+            title:
+                const Text('Logout', style: TextStyle(color: AppColors.error)),
             onTap: () async {
               Navigator.pop(context);
               final confirmed = await showPopupConfirm(
@@ -293,13 +295,11 @@ class _StatCard extends StatelessWidget {
             const SizedBox(height: 8),
             Text(value,
                 style: TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.w800,
-                    color: color)),
+                    fontSize: 22, fontWeight: FontWeight.w800, color: color)),
             const SizedBox(height: 4),
             Text(label,
-                style: const TextStyle(
-                    fontSize: 11, color: AppColors.textMedium),
+                style:
+                    const TextStyle(fontSize: 11, color: AppColors.textMedium),
                 textAlign: TextAlign.center),
           ],
         ),
@@ -350,9 +350,7 @@ class _QuickActions extends StatelessWidget {
             Text(
               a.label,
               style: TextStyle(
-                  fontSize: 10,
-                  color: a.color,
-                  fontWeight: FontWeight.w600),
+                  fontSize: 10, color: a.color, fontWeight: FontWeight.w600),
               textAlign: TextAlign.center,
             ),
           ],
@@ -451,14 +449,14 @@ class _FarmerTile extends StatelessWidget {
         ),
         title: Text(farmer.name,
             style: const TextStyle(fontWeight: FontWeight.w600)),
-        subtitle: Text('${farmer.category} · ${farmer.landArea} ${farmer.landUnit}'),
+        subtitle:
+            Text('${farmer.category} · ${farmer.landArea} ${farmer.landUnit}'),
         trailing: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           crossAxisAlignment: CrossAxisAlignment.end,
           children: [
             Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
               decoration: BoxDecoration(
                 color: farmer.status == 'Active'
                     ? AppColors.veryLight
@@ -479,8 +477,7 @@ class _FarmerTile extends StatelessWidget {
             const SizedBox(height: 4),
             Text(
               DateFormat('dd MMM').format(farmer.registrationDate),
-              style: const TextStyle(
-                  fontSize: 11, color: AppColors.textMedium),
+              style: const TextStyle(fontSize: 11, color: AppColors.textMedium),
             ),
           ],
         ),
