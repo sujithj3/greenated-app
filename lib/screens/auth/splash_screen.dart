@@ -61,6 +61,9 @@ class _SplashScreenState extends State<SplashScreen>
 
   @override
   Widget build(BuildContext context) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final scale = (screenWidth / 375).clamp(0.8, 1.3);
+
     return Scaffold(
       body: Container(
         decoration: const BoxDecoration(
@@ -72,95 +75,102 @@ class _SplashScreenState extends State<SplashScreen>
         ),
         child: SafeArea(
           child: Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                // Logo
-                ScaleTransition(
-                  scale: _scaleAnim,
-                  child: FadeTransition(
-                    opacity: _fadeAnim,
-                    child: Container(
-                      width: 120,
-                      height: 120,
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.15),
-                        shape: BoxShape.circle,
-                        border: Border.all(
-                          color: Colors.white.withOpacity(0.4),
-                          width: 2,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  // Logo
+                  ScaleTransition(
+                    scale: _scaleAnim,
+                    child: FadeTransition(
+                      opacity: _fadeAnim,
+                      child: Container(
+                        width: (100 * scale).clamp(80.0, 130.0),
+                        height: (100 * scale).clamp(80.0, 130.0),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.15),
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: Colors.white.withOpacity(0.4),
+                            width: 2,
+                          ),
                         ),
-                      ),
-                      child: const Icon(
-                        Icons.eco,
-                        size: 64,
-                        color: AppColors.light,
+                        child: Icon(
+                          Icons.eco,
+                          size: (54 * scale).clamp(40.0, 70.0),
+                          color: AppColors.light,
+                        ),
                       ),
                     ),
                   ),
-                ),
 
-                const SizedBox(height: 32),
+                  SizedBox(height: 28 * scale),
 
-                // App name
-                SlideTransition(
-                  position: _slideAnim,
-                  child: FadeTransition(
+                  // App name
+                  SlideTransition(
+                    position: _slideAnim,
+                    child: FadeTransition(
+                      opacity: _fadeAnim,
+                      child: Column(
+                        children: [
+                          FittedBox(
+                            fit: BoxFit.scaleDown,
+                            child: Text(
+                              'FARMER REGISTRATION',
+                              maxLines: 1,
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: (30 * scale).clamp(22.0, 40.0),
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: 3,
+                              ),
+                            ),
+                          ),
+                          SizedBox(height: 6 * scale),
+                          Text(
+                            'Farmer Registration System',
+                            style: TextStyle(
+                              color: Colors.white.withOpacity(0.85),
+                              fontSize: (14 * scale).clamp(12.0, 17.0),
+                              letterSpacing: 1.2,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+
+                  SizedBox(height: (70 * scale).clamp(50.0, 90.0)),
+
+                  // Loading indicator
+                  FadeTransition(
                     opacity: _fadeAnim,
                     child: Column(
                       children: [
-                        const Text(
-                          'FARMER REGISTRATION',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 36,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: 4,
+                        SizedBox(
+                          width: 28 * scale,
+                          height: 28 * scale,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2.5,
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                              Colors.white.withOpacity(0.7),
+                            ),
                           ),
                         ),
-                        const SizedBox(height: 8),
+                        SizedBox(height: 14 * scale),
                         Text(
-                          'Farmer Registration System',
+                          'Empowering Farmers',
                           style: TextStyle(
-                            color: Colors.white.withOpacity(0.85),
-                            fontSize: 15,
-                            letterSpacing: 1.2,
+                            color: Colors.white.withOpacity(0.6),
+                            fontSize: (12 * scale).clamp(11.0, 15.0),
                           ),
                         ),
                       ],
                     ),
                   ),
-                ),
-
-                const SizedBox(height: 80),
-
-                // Loading indicator
-                FadeTransition(
-                  opacity: _fadeAnim,
-                  child: Column(
-                    children: [
-                      SizedBox(
-                        width: 32,
-                        height: 32,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2.5,
-                          valueColor: AlwaysStoppedAnimation<Color>(
-                            Colors.white.withOpacity(0.7),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      Text(
-                        'Empowering Farmers',
-                        style: TextStyle(
-                          color: Colors.white.withOpacity(0.6),
-                          fontSize: 13,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),

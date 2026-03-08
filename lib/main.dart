@@ -84,24 +84,63 @@ class FarmerRegistrationApp extends StatelessWidget {
           );
         },
         initialRoute: '/',
-        routes: {
-          '/': (ctx) => const SplashScreen(),
-          '/login': (ctx) => const LoginScreen(),
-          '/dashboard': (ctx) => const DashboardScreen(),
-          '/categories': (ctx) => const CategoryScreen(),
-          '/subcategories': (ctx) => const SubcategoryScreen(),
-          '/farmer-form': (ctx) => const FarmerFormScreen(),
-          '/land-measurement': (ctx) => const LandMeasurementScreen(),
-          '/farmer-list': (ctx) => const FarmerListScreen(),
-        },
         onGenerateRoute: (settings) {
-          if (settings.name == '/farmer-detail') {
+          Widget page;
+          switch (settings.name) {
+            case '/':
+              page = const SplashScreen();
+            case '/login':
+              page = const LoginScreen();
+            case '/dashboard':
+              page = const DashboardScreen();
+            case '/categories':
+              page = const CategoryScreen();
+            case '/subcategories':
+              page = const SubcategoryScreen();
+            case '/farmer-form':
+              page = const FarmerFormScreen();
+            case '/land-measurement':
+              page = const LandMeasurementScreen();
+            case '/farmer-list':
+              page = const FarmerListScreen();
+            case '/farmer-detail':
+              page = FarmerDetailScreen(
+                  farmerId: settings.arguments as String);
+            default:
+              page = const SplashScreen();
+          }
+
+          // No animation for splash screen
+          if (settings.name == '/') {
             return MaterialPageRoute(
-              builder: (_) =>
-                  FarmerDetailScreen(farmerId: settings.arguments as String),
+              builder: (_) => page,
+              settings: settings,
             );
           }
-          return null;
+
+          return PageRouteBuilder(
+            settings: settings,
+            pageBuilder: (_, __, ___) => page,
+            transitionDuration: const Duration(milliseconds: 300),
+            reverseTransitionDuration: const Duration(milliseconds: 250),
+            transitionsBuilder: (context, animation, secondaryAnimation, child) {
+              final curved = CurvedAnimation(
+                parent: animation,
+                curve: Curves.easeOutCubic,
+                reverseCurve: Curves.easeInCubic,
+              );
+              return FadeTransition(
+                opacity: Tween<double>(begin: 0.0, end: 1.0).animate(curved),
+                child: SlideTransition(
+                  position: Tween<Offset>(
+                    begin: const Offset(0.06, 0),
+                    end: Offset.zero,
+                  ).animate(curved),
+                  child: child,
+                ),
+              );
+            },
+          );
         },
       ),
     );
