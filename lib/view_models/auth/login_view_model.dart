@@ -10,11 +10,13 @@ class LoginViewModel extends ChangeNotifier {
   String? _error;
   bool _codeSent = false;
   String _selectedCountryCode = '+91';
+  String _lastPhoneNumber = '';
 
   bool get isLoading => _isLoading;
   String? get error => _error;
   bool get codeSent => _codeSent;
   String get selectedCountryCode => _selectedCountryCode;
+  String get lastPhoneNumber => _lastPhoneNumber;
 
   final List<String> countryCodes = const ['+91', '+1', '+44', '+61', '+971'];
 
@@ -30,6 +32,7 @@ class LoginViewModel extends ChangeNotifier {
 
   Future<bool> sendOTP(String phone) async {
     final fullPhone = '$_selectedCountryCode$phone';
+    _lastPhoneNumber = phone;
     bool success = false;
 
     _isLoading = true;
@@ -50,6 +53,12 @@ class LoginViewModel extends ChangeNotifier {
     _isLoading = false;
     notifyListeners();
     return success;
+  }
+
+  /// Resend OTP using the previously stored phone number.
+  Future<bool> resendOTP() async {
+    if (_lastPhoneNumber.isEmpty) return false;
+    return sendOTP(_lastPhoneNumber);
   }
 
   Future<bool> verifyOTP(String otp) async {

@@ -183,7 +183,8 @@ class DashboardView extends StatelessWidget {
               if (confirmed == true && context.mounted) {
                 await vm.signOut();
                 if (context.mounted) {
-                  Navigator.pushReplacementNamed(context, '/login');
+                  Navigator.pushNamedAndRemoveUntil(
+                      context, '/', (_) => false);
                 }
               }
             },

@@ -1,4 +1,6 @@
 import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter/cupertino.dart';
+import 'package:flutter/foundation.dart' show defaultTargetPlatform, TargetPlatform;
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:provider/provider.dart';
@@ -9,8 +11,8 @@ import 'services/auth_service.dart';
 import 'services/firestore_service.dart';
 import 'services/form_config_service.dart';
 import 'utils/app_colors.dart';
-import 'screens/auth/splash_screen.dart';
-import 'screens/auth/login_screen.dart';
+import 'views/auth/splash_view.dart';
+import 'views/auth/login_view.dart';
 import 'screens/dashboard/dashboard_screen.dart';
 import 'screens/category/category_screen.dart';
 import 'screens/category/subcategory_screen.dart';
@@ -88,9 +90,9 @@ class FarmerRegistrationApp extends StatelessWidget {
           Widget page;
           switch (settings.name) {
             case '/':
-              page = const SplashScreen();
+              page = const SplashView();
             case '/login':
-              page = const LoginScreen();
+              page = const LoginView();
             case '/dashboard':
               page = const DashboardScreen();
             case '/categories':
@@ -107,42 +109,84 @@ class FarmerRegistrationApp extends StatelessWidget {
               page = FarmerDetailScreen(
                   farmerId: settings.arguments as String);
             default:
-              page = const SplashScreen();
+              page = const SplashView();
           }
 
-          // No animation for splash screen
+          // ── Splash screen: no animation ──
           if (settings.name == '/') {
-            return MaterialPageRoute(
-              builder: (_) => page,
+            return PageRouteBuilder(
               settings: settings,
+              pageBuilder: (_, __, ___) => page,
+              transitionDuration: Duration.zero,
+              reverseTransitionDuration: Duration.zero,
+              transitionsBuilder: (_, __, ___, child) => child,
             );
           }
 
-          return PageRouteBuilder(
-            settings: settings,
-            pageBuilder: (_, __, ___) => page,
-            transitionDuration: const Duration(milliseconds: 300),
-            reverseTransitionDuration: const Duration(milliseconds: 250),
-            transitionsBuilder: (context, animation, secondaryAnimation, child) {
-              final curved = CurvedAnimation(
-                parent: animation,
-                curve: Curves.easeOutCubic,
-                reverseCurve: Curves.easeInCubic,
-              );
-              return FadeTransition(
-                opacity: Tween<double>(begin: 0.0, end: 1.0).animate(curved),
-                child: SlideTransition(
-                  position: Tween<Offset>(
-                    begin: const Offset(0.06, 0),
-                    end: Offset.zero,
-                  ).animate(curved),
+          // ── Splash → Login: smooth fade transition ──
+          if (settings.name == '/login') {
+            return PageRouteBuilder(
+              settings: settings,
+              pageBuilder: (_, __, ___) => page,
+              transitionDuration: const Duration(milliseconds: 500),
+              reverseTransitionDuration: const Duration(milliseconds: 300),
+              transitionsBuilder: (_, animation, __, child) {
+                return FadeTransition(
+                  opacity: CurvedAnimation(
+                    parent: animation,
+                    curve: Curves.easeInOut,
+                  ),
                   child: child,
-                ),
-              );
-            },
-          );
+                );
+              },
+            );
+          }
+
+          // ── All other routes: platform-adaptive transitions ──
+          return _buildAdaptiveRoute(page, settings);
         },
       ),
     );
   }
+
+  /// Returns a platform-adaptive page route:
+  /// - iOS: CupertinoPageRoute (native slide-from-right)
+  /// - Android/other: custom fade + slide PageRouteBuilder
+  static Route<dynamic> _buildAdaptiveRoute(
+      Widget page, RouteSettings settings) {
+    final isIOS = defaultTargetPlatform == TargetPlatform.iOS;
+
+    if (isIOS) {
+      return CupertinoPageRoute(
+        builder: (_) => page,
+        settings: settings,
+      );
+    }
+
+    // Android / default: fade + slide
+    return PageRouteBuilder(
+      settings: settings,
+      pageBuilder: (_, __, ___) => page,
+      transitionDuration: const Duration(milliseconds: 300),
+      reverseTransitionDuration: const Duration(milliseconds: 250),
+      transitionsBuilder: (_, animation, __, child) {
+        final curved = CurvedAnimation(
+          parent: animation,
+          curve: Curves.easeOutCubic,
+          reverseCurve: Curves.easeInCubic,
+        );
+        return FadeTransition(
+          opacity: Tween<double>(begin: 0.0, end: 1.0).animate(curved),
+          child: SlideTransition(
+            position: Tween<Offset>(
+              begin: const Offset(0.06, 0),
+              end: Offset.zero,
+            ).animate(curved),
+            child: child,
+          ),
+        );
+      },
+    );
+  }
 }
+

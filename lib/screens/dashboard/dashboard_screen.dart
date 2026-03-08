@@ -200,7 +200,10 @@ class DashboardScreen extends StatelessWidget {
               );
               if (confirmed == true && context.mounted) {
                 await context.read<AuthService>().signOut();
-                Navigator.pushReplacementNamed(context, '/login');
+                if (context.mounted) {
+                  Navigator.pushNamedAndRemoveUntil(
+                      context, '/', (_) => false);
+                }
               }
             },
           ),
