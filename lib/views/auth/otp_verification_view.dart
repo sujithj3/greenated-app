@@ -167,24 +167,28 @@ class _OtpVerificationViewState extends State<OtpVerificationView> {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            TextButton.icon(
-              onPressed: _vm.isLoading ? null : widget.onChangeNumber,
-              icon: Icon(Icons.arrow_back,
-                  size: (16 * scale).clamp(14.0, 20.0)),
-              label: Text(
-                'Change Number',
-                style: TextStyle(
-                  fontSize: (13 * scale).clamp(11.0, 15.0),
+            Flexible(
+              child: TextButton.icon(
+                onPressed: _vm.isLoading ? null : widget.onChangeNumber,
+                icon: Icon(Icons.arrow_back,
+                    size: (16 * scale).clamp(14.0, 20.0)),
+                label: Text(
+                  'Change Number',
+                  style: TextStyle(
+                    fontSize: (13 * scale).clamp(11.0, 15.0),
+                  ),
                 ),
               ),
             ),
-            TextButton(
-              onPressed: _vm.isLoading ? null : _resendOTP,
-              child: Text(
-                'Resend OTP',
-                style: TextStyle(
-                  fontSize: (13 * scale).clamp(11.0, 15.0),
-                  color: AppColors.primary,
+            Flexible(
+              child: TextButton(
+                onPressed: _vm.isLoading ? null : _resendOTP,
+                child: Text(
+                  'Resend OTP',
+                  style: TextStyle(
+                    fontSize: (13 * scale).clamp(11.0, 15.0),
+                    color: AppColors.primary,
+                  ),
                 ),
               ),
             ),
