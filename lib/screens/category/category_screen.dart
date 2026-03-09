@@ -1,65 +1,101 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../services/firestore_service.dart';
+import '../../services/form_config_service.dart';
 import '../../config/app_constants.dart';
+import '../../widgets/shimmer_loading.dart';
 
-class CategoryScreen extends StatelessWidget {
+class CategoryScreen extends StatefulWidget {
   const CategoryScreen({super.key});
 
   @override
+  State<CategoryScreen> createState() => _CategoryScreenState();
+}
+
+class _CategoryScreenState extends State<CategoryScreen> {
+  @override
+  void initState() {
+    super.initState();
+    // Ensure categories (with subcategories) are loaded from mock/real API
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<FormConfigService>().fetchCategories();
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final args = ModalRoute.of(context)?.settings.arguments as Map? ?? {};
     // selectionMode = true means this screen is used to PICK a category
     // (e.g. from FarmerFormScreen). Otherwise it navigates to subcategories.
-    final bool selectionMode = (ModalRoute.of(context)?.settings.arguments
-            as Map?)?['selectionMode'] as bool? ??
-        false;
+    final bool selectionMode = args['selectionMode'] as bool? ?? false;
+    final bool registrationFlow = args['registrationFlow'] as bool? ?? false;
 
     final fs = context.read<FirestoreService>();
+    final svc = context.watch<FormConfigService>();
+
+    final String title = registrationFlow
+        ? 'Select Category'
+        : selectionMode
+            ? 'Select Category'
+            : 'Farm Categories';
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text(selectionMode ? 'Select Category' : 'Farm Categories'),
-      ),
-      body: StreamBuilder<Map<String, int>>(
-        stream: fs.getCategoryCounts(),
-        builder: (_, snap) {
-          final counts = snap.data ?? {};
-          final categories = AppCategories.all.entries.toList();
+      appBar: AppBar(title: Text(title)),
+      body: svc.isLoading
+          ? const ShimmerCategoryGrid()
+          : StreamBuilder<Map<String, int>>(
+              stream: fs.getCategoryCounts(),
+              builder: (_, snap) {
+                final counts = snap.data ?? {};
+                final categories = AppCategories.all.entries.toList();
 
-          return GridView.builder(
-            padding: const EdgeInsets.all(16),
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 2,
-              mainAxisSpacing: 16,
-              crossAxisSpacing: 16,
-              childAspectRatio: 1.05,
-            ),
-            itemCount: categories.length,
-            itemBuilder: (_, i) {
-              final name = categories[i].key;
-              final data = categories[i].value;
-              final count = counts[name] ?? 0;
+                return GridView.builder(
+                  padding: const EdgeInsets.all(16),
+                  gridDelegate:
+                      const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 2,
+                    mainAxisSpacing: 16,
+                    crossAxisSpacing: 16,
+                    childAspectRatio: 1.05,
+                  ),
+                  itemCount: categories.length,
+                  itemBuilder: (_, i) {
+                    final name = categories[i].key;
+                    final data = categories[i].value;
+                    final count = counts[name] ?? 0;
 
-              return _CategoryCard(
-                name: name,
-                data: data,
-                farmerCount: count,
-                onTap: () {
-                  if (selectionMode) {
-                    Navigator.pop(context, name);
-                  } else {
-                    Navigator.pushNamed(
-                      context,
-                      '/subcategories',
-                      arguments: {'category': name, 'selectionMode': false},
+                    return _CategoryCard(
+                      name: name,
+                      data: data,
+                      farmerCount: count,
+                      onTap: () {
+                        if (selectionMode) {
+                          Navigator.pop(context, name);
+                        } else if (registrationFlow) {
+                          Navigator.pushNamed(
+                            context,
+                            '/subcategories',
+                            arguments: {
+                              'category': name,
+                              'registrationFlow': true,
+                            },
+                          );
+                        } else {
+                          Navigator.pushNamed(
+                            context,
+                            '/subcategories',
+                            arguments: {
+                              'category': name,
+                              'selectionMode': false,
+                            },
+                          );
+                        }
+                      },
                     );
-                  }
-                },
-              );
-            },
-          );
-        },
-      ),
+                  },
+                );
+              },
+            ),
     );
   }
 }

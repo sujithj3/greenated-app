@@ -12,6 +12,8 @@ import '../../services/form_config_service.dart';
 import '../../config/app_constants.dart';
 import '../../config/env_config.dart';
 import '../../utils/app_colors.dart';
+import '../../widgets/dynamic_field_builder.dart';
+import '../../widgets/shimmer_loading.dart';
 
 class FarmerFormScreen extends StatefulWidget {
   const FarmerFormScreen({super.key});
@@ -23,16 +25,18 @@ class FarmerFormScreen extends StatefulWidget {
 class _FarmerFormScreenState extends State<FarmerFormScreen> {
   final _formKey = GlobalKey<FormState>();
 
-  // ── Core controllers ──────────────────────────────────────────────────────
-  final _nameCtrl = TextEditingController();
-  final _phoneCtrl = TextEditingController();
+  // ── Hardcoded controllers (location + land) ─────────────────────────────
   final _addressCtrl = TextEditingController();
   final _villageCtrl = TextEditingController();
   final _districtCtrl = TextEditingController();
   final _stateCtrl = TextEditingController();
   final _landAreaCtrl = TextEditingController();
 
-  // ── State ─────────────────────────────────────────────────────────────────
+  // ── Dynamic field state ─────────────────────────────────────────────────
+  final Map<String, TextEditingController> _dynTextCtrl = {};
+  final Map<String, dynamic> _dynValues = {};
+
+  // ── State ───────────────────────────────────────────────────────────────
   String _selectedCategory = '';
   String _selectedSubcategory = '';
   String _selectedLandUnit = 'Acres';
@@ -41,48 +45,52 @@ class _FarmerFormScreenState extends State<FarmerFormScreen> {
   double? _latitude;
   double? _longitude;
 
-  // Dynamic field state (keyed by ApiField.key, includes popup sub-fields)
-  final Map<String, TextEditingController> _dynTextCtrl = {};
-  final Map<String, String> _dynDropdown = {};
-
   bool _isSaving = false;
   bool _isLocating = false;
-  bool _configFetched = false;
+  bool _argsProcessed = false;
   FarmerModel? _editFarmer;
 
-  final List<String> _landUnits = ['Acres', 'Hectares', 'Bigha', 'Sq. Meters'];
+  // Form config from API
+  ApiForm? _form;
+  bool _isLoadingForm = true;
 
-  // ── Lifecycle ─────────────────────────────────────────────────────────────
+  final List<String> _landUnits = [
+    'Acres',
+    'Hectares',
+    'Bigha',
+    'Sq. Meters'
+  ];
+
+  // ── Lifecycle ───────────────────────────────────────────────────────────
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
 
-    // Kick off fetch once – deferred to avoid notifyListeners() during build
-    if (!_configFetched) {
-      _configFetched = true;
-      final svc = context.read<FormConfigService>();
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        svc.fetchCategories();
-      });
-    }
+    if (!_argsProcessed) {
+      _argsProcessed = true;
 
-    final args = ModalRoute.of(context)?.settings.arguments as Map?;
-    if (args != null) {
-      if (args['category'] != null && _selectedCategory.isEmpty) {
-        _setCategory(args['category'] as String);
+      final args = ModalRoute.of(context)?.settings.arguments as Map?;
+      if (args != null) {
+        _selectedCategory = args['category'] as String? ?? '';
+        _selectedSubcategory = args['subcategory'] as String? ?? '';
+
+        if (args['farmer'] != null) {
+          _editFarmer = args['farmer'] as FarmerModel;
+        }
       }
-      if (args['farmer'] != null && _editFarmer == null) {
-        _editFarmer = args['farmer'] as FarmerModel;
-        _populate(_editFarmer!);
-      }
+
+      // Ensure categories are loaded, then load form
+      final svc = context.read<FormConfigService>();
+      WidgetsBinding.instance.addPostFrameCallback((_) async {
+        await svc.fetchCategories();
+        if (mounted) _loadForm();
+      });
     }
   }
 
   @override
   void dispose() {
-    _nameCtrl.dispose();
-    _phoneCtrl.dispose();
     _addressCtrl.dispose();
     _villageCtrl.dispose();
     _districtCtrl.dispose();
@@ -94,57 +102,74 @@ class _FarmerFormScreenState extends State<FarmerFormScreen> {
     super.dispose();
   }
 
-  // ── Category helpers ──────────────────────────────────────────────────────
+  // ── Form loading ────────────────────────────────────────────────────────
 
-  void _setCategory(String cat) {
-    _selectedCategory = cat;
-    _selectedSubcategory = '';
-    _rebuildDynControllers(cat);
-  }
-
-  /// Returns the template ApiField list for a category
-  /// (all subcategories share the same form fields).
-  List<ApiField> _fieldsForCategory(String category) {
+  void _loadForm() {
     final svc = context.read<FormConfigService>();
-    final cat = svc.getCategoryByName(category);
-    if (cat == null || cat.subcategories.isEmpty) return [];
-    return cat.subcategories.first.primaryForm?.fields ?? [];
+    final form = svc.getForm(_selectedCategory, _selectedSubcategory);
+
+    if (form == null) {
+      // Fallback: try to get any form for the category
+      final cat = svc.getCategoryByName(_selectedCategory);
+      final sub = cat?.subcategories.isNotEmpty == true
+          ? cat!.subcategories.first
+          : null;
+      _form = sub?.primaryForm;
+    } else {
+      _form = form;
+    }
+
+    _initDynamicControllers();
+
+    if (_editFarmer != null) {
+      _populate(_editFarmer!);
+    }
+
+    setState(() => _isLoadingForm = false);
   }
 
-  void _rebuildDynControllers(String category) {
+  void _initDynamicControllers() {
+    // Dispose old controllers
     for (final c in _dynTextCtrl.values) {
       c.dispose();
     }
     _dynTextCtrl.clear();
-    _dynDropdown.clear();
+    _dynValues.clear();
 
-    for (final f in _fieldsForCategory(category)) {
-      _initField(f);
-      // Also initialise nested popup fields
-      if (f.type == 'BUTTON' && f.popup != null) {
-        for (final pf in f.popup!.fields) {
-          _initField(pf);
+    if (_form == null) return;
+
+    for (final field in _form!.fields) {
+      _initFieldController(field);
+      // Also init popup sub-fields
+      if (field.fieldStyle == FieldStyle.button && field.popup != null) {
+        for (final pf in field.popup!.fields) {
+          _initFieldController(pf);
         }
       }
     }
   }
 
-  void _initField(ApiField f) {
-    if (f.type == 'DROPDOWN') {
-      _dynDropdown[f.key] = '';
-    } else if (f.type == 'TEXT' || f.type == 'NUMBER') {
+  void _initFieldController(ApiField f) {
+    final style = f.fieldStyle;
+    if (style == FieldStyle.text || style == FieldStyle.date) {
       _dynTextCtrl[f.key] = TextEditingController();
+    } else if (style == FieldStyle.dropdown) {
+      _dynValues[f.key] = null;
+    } else if (style == FieldStyle.checkbox) {
+      _dynValues[f.key] = false;
+    } else if (style == FieldStyle.radio) {
+      _dynValues[f.key] = null;
     }
   }
 
   void _populate(FarmerModel f) {
-    _nameCtrl.text = f.name;
-    _phoneCtrl.text = f.phone;
+    // Location (hardcoded)
     _addressCtrl.text = f.address;
     _villageCtrl.text = f.village;
     _districtCtrl.text = f.district;
     _stateCtrl.text = f.state;
     _landAreaCtrl.text = f.landArea > 0 ? f.landArea.toString() : '';
+
     setState(() {
       _selectedCategory = f.category;
       _selectedSubcategory = f.subcategory;
@@ -153,18 +178,28 @@ class _FarmerFormScreenState extends State<FarmerFormScreen> {
       _landCoordinates = f.landCoordinates;
       _latitude = f.latitude;
       _longitude = f.longitude;
-      _rebuildDynControllers(f.category);
+
+      // Map known model fields back to dynamic field keys
+      _setDynValue('full_name', f.name);
+      _setDynValue('mobile_number', f.phone);
+
+      // Map dynamicFields
       f.dynamicFields.forEach((key, value) {
-        if (_dynTextCtrl.containsKey(key)) {
-          _dynTextCtrl[key]!.text = value;
-        } else if (_dynDropdown.containsKey(key)) {
-          _dynDropdown[key] = value;
-        }
+        _setDynValue(key, value);
       });
     });
   }
 
-  // ── Geolocation ───────────────────────────────────────────────────────────
+  void _setDynValue(String key, String value) {
+    if (value.isEmpty) return;
+    if (_dynTextCtrl.containsKey(key)) {
+      _dynTextCtrl[key]!.text = value;
+    } else {
+      _dynValues[key] = value;
+    }
+  }
+
+  // ── Geolocation ─────────────────────────────────────────────────────────
 
   Future<void> _detectLocation() async {
     if (EnvConfig.isDemoMode) {
@@ -176,7 +211,7 @@ class _FarmerFormScreenState extends State<FarmerFormScreen> {
         _districtCtrl.text = 'Lucknow';
         _stateCtrl.text = 'Uttar Pradesh';
       });
-      _snack('Demo location detected ✓', success: true);
+      _snack('Demo location detected', success: true);
       return;
     }
 
@@ -242,34 +277,19 @@ class _FarmerFormScreenState extends State<FarmerFormScreen> {
         if (district.isNotEmpty) _districtCtrl.text = district;
         if (state.isNotEmpty) _stateCtrl.text = state;
       });
-      _snack('Location auto-filled ✓', success: true);
+      _snack('Location auto-filled', success: true);
     } catch (_) {}
   }
 
-  // ── Category sheet ────────────────────────────────────────────────────────
-
-  void _openCategorySheet() {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => _CategorySheet(
-        onSelected: (cat) {
-          Navigator.pop(context);
-          setState(() => _setCategory(cat));
-        },
-      ),
-    );
-  }
-
-  // ── Land map ──────────────────────────────────────────────────────────────
+  // ── Land map ────────────────────────────────────────────────────────────
 
   Future<void> _openMap() async {
     final result = await Navigator.pushNamed(context, '/land-measurement')
         as Map<String, dynamic>?;
     if (result != null && mounted) {
       final area = result['area'] as double? ?? 0;
-      final coords = result['coordinates'] as List<Map<String, double>>? ?? [];
+      final coords =
+          result['coordinates'] as List<Map<String, double>>? ?? [];
       setState(() {
         _landCoordinates = coords;
         if (area > 0) {
@@ -281,7 +301,28 @@ class _FarmerFormScreenState extends State<FarmerFormScreen> {
     }
   }
 
-  // ── Save ──────────────────────────────────────────────────────────────────
+  // ── Popup sheet ─────────────────────────────────────────────────────────
+
+  void _openPopupSheet(ApiPopup popup, Color catColor) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _PopupFieldSheet(
+        popup: popup,
+        catColor: catColor,
+        textCtrl: _dynTextCtrl,
+        dynValues: _dynValues,
+        onSaved: (updated) {
+          setState(() {
+            updated.forEach((k, v) => _dynValues[k] = v);
+          });
+        },
+      ),
+    );
+  }
+
+  // ── Save ────────────────────────────────────────────────────────────────
 
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
@@ -298,18 +339,25 @@ class _FarmerFormScreenState extends State<FarmerFormScreen> {
     final auth = context.read<AuthService>();
     final fs = context.read<FirestoreService>();
 
-    final Map<String, String> dynValues = {};
+    // Collect all dynamic field values
+    final Map<String, String> allDynValues = {};
     _dynTextCtrl.forEach((k, c) {
-      if (c.text.isNotEmpty) dynValues[k] = c.text.trim();
+      if (c.text.isNotEmpty) allDynValues[k] = c.text.trim();
     });
-    _dynDropdown.forEach((k, v) {
-      if (v.isNotEmpty) dynValues[k] = v;
+    _dynValues.forEach((k, v) {
+      if (v != null && v.toString().isNotEmpty) {
+        allDynValues[k] = v.toString();
+      }
     });
+
+    // Extract well-known keys for FarmerModel core fields
+    final name = allDynValues.remove('full_name') ?? '';
+    final phone = allDynValues.remove('mobile_number') ?? '';
 
     final farmer = FarmerModel(
       id: _editFarmer?.id,
-      name: _nameCtrl.text.trim(),
-      phone: _phoneCtrl.text.trim(),
+      name: name,
+      phone: phone,
       address: _addressCtrl.text.trim(),
       village: _villageCtrl.text.trim(),
       district: _districtCtrl.text.trim(),
@@ -321,7 +369,7 @@ class _FarmerFormScreenState extends State<FarmerFormScreen> {
       landArea: double.tryParse(_landAreaCtrl.text) ?? 0,
       landUnit: _selectedLandUnit,
       landCoordinates: _landCoordinates,
-      dynamicFields: dynValues,
+      dynamicFields: allDynValues,
       status: _selectedStatus,
       registeredBy: auth.currentUser?.uid,
     );
@@ -350,15 +398,13 @@ class _FarmerFormScreenState extends State<FarmerFormScreen> {
     ));
   }
 
-  // ── Build ─────────────────────────────────────────────────────────────────
+  // ── Build ───────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
     final catData = AppCategories.all[_selectedCategory];
     final catColor = catData?.color ?? AppColors.primary;
-
-    final svc = context.watch<FormConfigService>();
-    final subs = svc.getSubcategoryNames(_selectedCategory);
+    final geoRequired = _form?.formConfig.geoLocationRequired ?? false;
 
     return Scaffold(
       appBar: AppBar(
@@ -378,7 +424,7 @@ class _FarmerFormScreenState extends State<FarmerFormScreen> {
                   ),
                 )
               : TextButton.icon(
-                  onPressed: _save,
+                  onPressed: _isLoadingForm ? null : _save,
                   icon: const Icon(Icons.save, color: Colors.white),
                   label: const Text('Save',
                       style: TextStyle(
@@ -386,438 +432,341 @@ class _FarmerFormScreenState extends State<FarmerFormScreen> {
                 ),
         ],
       ),
-      body: Form(
-        key: _formKey,
-        child: ListView(
-          padding: const EdgeInsets.all(16),
-          children: [
-            // ── 1. Personal Info ─────────────────────────────────────────
-            _Section(title: 'Personal Info', icon: Icons.person_outline),
-            const SizedBox(height: 12),
-
-            TextFormField(
-              controller: _nameCtrl,
-              decoration: const InputDecoration(
-                labelText: 'Full Name *',
-                prefixIcon: Icon(Icons.badge_outlined),
-              ),
-              textCapitalization: TextCapitalization.words,
-              validator: (v) =>
-                  v == null || v.trim().isEmpty ? 'Required' : null,
-            ),
-            const SizedBox(height: 12),
-
-            TextFormField(
-              controller: _phoneCtrl,
-              decoration: const InputDecoration(
-                labelText: 'Mobile Number *',
-                prefixIcon: Icon(Icons.phone_outlined),
-              ),
-              keyboardType: TextInputType.phone,
-              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-              maxLength: 15,
-              validator: (v) {
-                if (v == null || v.isEmpty) return 'Required';
-                if (v.length < 7) return 'Invalid number';
-                return null;
-              },
-            ),
-
-            // ── 2. Location ──────────────────────────────────────────────
-            const SizedBox(height: 20),
-            _Section(title: 'Location', icon: Icons.location_on_outlined),
-            const SizedBox(height: 12),
-
-            OutlinedButton.icon(
-              onPressed: _isLocating ? null : _detectLocation,
-              icon: _isLocating
-                  ? const SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2))
-                  : const Icon(Icons.my_location),
-              label: Text(_isLocating
-                  ? 'Detecting…'
-                  : _latitude != null
-                      ? 'GPS: ${_latitude!.toStringAsFixed(4)}, ${_longitude!.toStringAsFixed(4)}  ✓'
-                      : 'Auto-detect My Location'),
-              style: OutlinedButton.styleFrom(
-                minimumSize: const Size(double.infinity, 48),
-                foregroundColor: _latitude != null
-                    ? AppColors.primary
-                    : AppColors.textMedium,
-                side: BorderSide(
-                  color:
-                      _latitude != null ? AppColors.primary : AppColors.light,
-                ),
-              ),
-            ),
-            const SizedBox(height: 12),
-
-            TextFormField(
-              controller: _addressCtrl,
-              decoration: const InputDecoration(
-                labelText: 'Full Address *',
-                prefixIcon: Icon(Icons.location_on_outlined),
-              ),
-              maxLines: 2,
-              validator: (v) =>
-                  v == null || v.trim().isEmpty ? 'Required' : null,
-            ),
-            const SizedBox(height: 12),
-
-            Row(children: [
-              Expanded(
-                child: TextFormField(
-                  controller: _villageCtrl,
-                  decoration: const InputDecoration(
-                    labelText: 'Village / Town',
-                    prefixIcon: Icon(Icons.house_outlined),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: TextFormField(
-                  controller: _districtCtrl,
-                  decoration: const InputDecoration(
-                    labelText: 'District',
-                    prefixIcon: Icon(Icons.map_outlined),
-                  ),
-                ),
-              ),
-            ]),
-            const SizedBox(height: 12),
-
-            TextFormField(
-              controller: _stateCtrl,
-              decoration: const InputDecoration(
-                labelText: 'State',
-                prefixIcon: Icon(Icons.flag_outlined),
-              ),
-            ),
-
-            // ── 3. Category ──────────────────────────────────────────────
-            const SizedBox(height: 24),
-            _Section(title: 'Category', icon: Icons.category_outlined),
-            const SizedBox(height: 12),
-
-            InkWell(
-              onTap: _openCategorySheet,
-              borderRadius: BorderRadius.circular(12),
-              child: Container(
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: _selectedCategory.isEmpty
-                      ? AppColors.veryLight
-                      : catColor.withOpacity(0.08),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                    color: _selectedCategory.isEmpty
-                        ? AppColors.light
-                        : catColor.withOpacity(0.4),
-                    width: _selectedCategory.isEmpty ? 1 : 1.5,
-                  ),
-                ),
-                child: Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: catColor.withOpacity(0.12),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Icon(
-                        catData?.icon ?? Icons.category_outlined,
-                        color: catColor,
-                        size: 22,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text('Category *',
-                              style: TextStyle(
-                                  fontSize: 12, color: AppColors.textMedium)),
-                          Text(
-                            _selectedCategory.isEmpty
-                                ? 'Tap to select category'
-                                : _selectedCategory,
-                            style: TextStyle(
-                              fontSize: 15,
-                              fontWeight: _selectedCategory.isEmpty
-                                  ? FontWeight.normal
-                                  : FontWeight.w700,
-                              color: _selectedCategory.isEmpty
-                                  ? AppColors.textMedium.withOpacity(0.6)
-                                  : catColor,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    Icon(Icons.expand_more, color: catColor),
+      body: _isLoadingForm
+          ? const ShimmerFormSkeleton()
+          : Form(
+              key: _formKey,
+              child: ListView(
+                padding: const EdgeInsets.all(16),
+                children: [
+                  // ── Category / Subcategory badge ────────────────────────
+                  if (_selectedCategory.isNotEmpty) ...[
+                    _buildCategoryBadge(catColor, catData),
+                    const SizedBox(height: 20),
                   ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 12),
 
-            // Subcategory dropdown — items come from FormConfigService
-            if (svc.isLoading && _selectedCategory.isNotEmpty)
-              const Padding(
-                padding: EdgeInsets.symmetric(vertical: 8),
-                child: Center(child: CircularProgressIndicator()),
-              )
-            else
-              DropdownButtonFormField<String>(
-                initialValue:
-                    _selectedSubcategory.isEmpty ? null : _selectedSubcategory,
-                decoration: InputDecoration(
-                  labelText: 'Subcategory *',
-                  prefixIcon: Icon(Icons.list_alt_outlined, color: catColor),
-                  filled: true,
-                  fillColor: _selectedCategory.isEmpty
-                      ? AppColors.divider.withOpacity(0.3)
-                      : AppColors.veryLight,
-                ),
-                hint: Text(_selectedCategory.isEmpty
-                    ? 'Select a category first'
-                    : 'Select subcategory'),
-                items: subs
-                    .map((s) => DropdownMenuItem(value: s, child: Text(s)))
-                    .toList(),
-                onChanged: _selectedCategory.isEmpty
-                    ? null
-                    : (v) => setState(() => _selectedSubcategory = v ?? ''),
-                validator: (v) =>
-                    v == null || v.isEmpty ? 'Select a subcategory' : null,
-              ),
+                  // ── Dynamic sections from API ──────────────────────────
+                  ..._buildDynamicSections(catColor),
 
-            // ── 4. Dynamic fields ────────────────────────────────────────
-            if (_selectedCategory.isNotEmpty &&
-                _selectedSubcategory.isNotEmpty) ...[
-              const SizedBox(height: 24),
-              _Section(
-                title: '$_selectedCategory Details',
-                icon: catData?.icon ?? Icons.info_outline,
-                color: catColor,
-              ),
-              const SizedBox(height: 12),
-              ..._buildDynamicFields(catColor),
-            ],
+                  // ── Location (hardcoded) ───────────────────────────────
+                  const SizedBox(height: 20),
+                  _Section(
+                      title: 'Location',
+                      icon: Icons.location_on_outlined),
+                  const SizedBox(height: 12),
+                  ..._buildLocationSection(),
 
-            // ── 5. Land Details ──────────────────────────────────────────
-            const SizedBox(height: 24),
-            _Section(title: 'Land Details', icon: Icons.landscape_outlined),
-            const SizedBox(height: 12),
+                  // ── Land Details (conditional) ─────────────────────────
+                  if (geoRequired) ...[
+                    const SizedBox(height: 24),
+                    _Section(
+                        title: 'Land Details',
+                        icon: Icons.landscape_outlined),
+                    const SizedBox(height: 12),
+                    ..._buildLandSection(),
+                  ],
 
-            OutlinedButton.icon(
-              onPressed: _openMap,
-              icon: const Icon(Icons.map),
-              label: Text(_landCoordinates.isEmpty
-                  ? 'Measure Land on Map'
-                  : 'Re-measure  (${_landCoordinates.length} pts)'),
-              style: OutlinedButton.styleFrom(
-                minimumSize: const Size(double.infinity, 48),
-              ),
-            ),
-            const SizedBox(height: 12),
+                  // ── Status (hardcoded) ─────────────────────────────────
+                  const SizedBox(height: 24),
+                  _Section(
+                      title: 'Status', icon: Icons.toggle_on_outlined),
+                  const SizedBox(height: 12),
+                  _buildStatusSection(),
 
-            Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Expanded(
-                flex: 3,
-                child: TextFormField(
-                  controller: _landAreaCtrl,
-                  decoration: const InputDecoration(
-                    labelText: 'Land Area *',
-                    prefixIcon: Icon(Icons.square_foot_outlined),
-                  ),
-                  keyboardType:
-                      const TextInputType.numberWithOptions(decimal: true),
-                  validator: (v) {
-                    if (v == null || v.isEmpty) return 'Required';
-                    if (double.tryParse(v) == null) return 'Invalid';
-                    return null;
-                  },
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                flex: 2,
-                child: DropdownButtonFormField<String>(
-                  initialValue: _selectedLandUnit,
-                  isExpanded: true,
-                  decoration: const InputDecoration(labelText: 'Unit'),
-                  items: _landUnits
-                      .map((u) => DropdownMenuItem(value: u, child: Text(u)))
-                      .toList(),
-                  onChanged: (v) => setState(() => _selectedLandUnit = v!),
-                ),
-              ),
-            ]),
-
-            // ── 6. Status ────────────────────────────────────────────────
-            const SizedBox(height: 24),
-            _Section(title: 'Status', icon: Icons.toggle_on_outlined),
-            const SizedBox(height: 12),
-
-            Row(
-              children: ['Active', 'Inactive'].map((s) {
-                final sel = _selectedStatus == s;
-                return Padding(
-                  padding: const EdgeInsets.only(right: 12),
-                  child: FilterChip(
-                    label: Text(s),
-                    selected: sel,
-                    onSelected: (_) => setState(() => _selectedStatus = s),
-                    selectedColor: AppColors.light,
-                    checkmarkColor: AppColors.dark,
-                    labelStyle: TextStyle(
-                      color: sel ? AppColors.dark : AppColors.textMedium,
-                      fontWeight: sel ? FontWeight.w600 : FontWeight.normal,
+                  // ── Submit ─────────────────────────────────────────────
+                  const SizedBox(height: 32),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: _isSaving ? null : _save,
+                      icon: const Icon(Icons.how_to_reg),
+                      label: Text(_editFarmer != null
+                          ? 'Update Registration'
+                          : 'Complete Registration'),
                     ),
                   ),
-                );
-              }).toList(),
-            ),
-
-            // ── Submit ───────────────────────────────────────────────────
-            const SizedBox(height: 32),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                onPressed: _isSaving ? null : _save,
-                icon: const Icon(Icons.how_to_reg),
-                label: Text(_editFarmer != null
-                    ? 'Update Registration'
-                    : 'Complete Registration'),
+                  const SizedBox(height: 32),
+                ],
               ),
             ),
-            const SizedBox(height: 32),
-          ],
-        ),
+    );
+  }
+
+  // ── Category badge ──────────────────────────────────────────────────────
+
+  Widget _buildCategoryBadge(Color catColor, CategoryData? catData) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: catColor.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: catColor.withValues(alpha: 0.4), width: 1.5),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: catColor.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(
+              catData?.icon ?? Icons.category_outlined,
+              color: catColor,
+              size: 22,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  _selectedCategory,
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    color: catColor,
+                  ),
+                ),
+                if (_selectedSubcategory.isNotEmpty)
+                  Text(
+                    _selectedSubcategory,
+                    style: const TextStyle(
+                        fontSize: 12, color: AppColors.textMedium),
+                  ),
+              ],
+            ),
+          ),
+          Icon(Icons.check_circle, color: catColor, size: 22),
+        ],
       ),
     );
   }
 
-  // ── Dynamic field builder ─────────────────────────────────────────────────
+  // ── Dynamic sections ────────────────────────────────────────────────────
 
-  List<Widget> _buildDynamicFields(Color catColor) {
-    final fields = _fieldsForCategory(_selectedCategory);
-    return fields
-        .map((f) => Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: _buildApiField(f, catColor),
-            ))
-        .toList();
-  }
-
-  Widget _buildApiField(ApiField f, Color catColor) {
-    switch (f.type) {
-      case 'TEXT':
-        return TextFormField(
-          controller: _dynTextCtrl[f.key],
-          decoration: InputDecoration(
-            labelText: f.required ? '${f.label} *' : f.label,
-            prefixIcon: Icon(Icons.edit_note_outlined, color: catColor),
-          ),
-          textCapitalization: TextCapitalization.sentences,
-          validator: f.required
-              ? (v) => (v == null || v.trim().isEmpty) ? 'Required' : null
-              : null,
-        );
-
-      case 'NUMBER':
-        return TextFormField(
-          controller: _dynTextCtrl[f.key],
-          decoration: InputDecoration(
-            labelText: f.required ? '${f.label} *' : f.label,
-            prefixIcon: Icon(Icons.numbers_outlined, color: catColor),
-          ),
-          keyboardType: const TextInputType.numberWithOptions(decimal: true),
-          inputFormatters: [
-            FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*'))
-          ],
-          validator: f.required
-              ? (v) => (v == null || v.isEmpty) ? 'Required' : null
-              : null,
-        );
-
-      case 'DROPDOWN':
-        return DropdownButtonFormField<String>(
-          initialValue: (_dynDropdown[f.key]?.isEmpty ?? true)
-              ? null
-              : _dynDropdown[f.key],
-          decoration: InputDecoration(
-            labelText: f.required ? '${f.label} *' : f.label,
-            prefixIcon:
-                Icon(Icons.arrow_drop_down_circle_outlined, color: catColor),
-          ),
-          hint: Text('Select ${f.label}'),
-          items: f.options
-              .map((o) => DropdownMenuItem(value: o.name, child: Text(o.name)))
-              .toList(),
-          onChanged: (v) => setState(() => _dynDropdown[f.key] = v ?? ''),
-          validator: f.required
-              ? (v) => (v == null || v.isEmpty) ? 'Required' : null
-              : null,
-        );
-
-      case 'BUTTON':
-        final popup = f.popup;
-        if (popup == null) return const SizedBox.shrink();
-        final filled = popup.fields.where((pf) {
-          if (pf.type == 'DROPDOWN') {
-            return (_dynDropdown[pf.key] ?? '').isNotEmpty;
-          }
-          return (_dynTextCtrl[pf.key]?.text ?? '').isNotEmpty;
-        }).length;
-        final total = popup.fields.length;
-        return OutlinedButton.icon(
-          onPressed: () => _openPopupSheet(popup, catColor),
-          icon: Icon(
-            filled > 0 ? Icons.check_circle_outline : Icons.add_circle_outline,
-            color: filled > 0 ? catColor : AppColors.textMedium,
-          ),
-          label: Text(
-            filled > 0 ? '${f.label}  ($filled / $total filled)' : f.label,
-            style: TextStyle(
-              color: filled > 0 ? catColor : AppColors.textMedium,
-            ),
-          ),
-          style: OutlinedButton.styleFrom(
-            minimumSize: const Size(double.infinity, 48),
-            side: BorderSide(
-              color: filled > 0 ? catColor : AppColors.light,
-              width: filled > 0 ? 1.5 : 1,
-            ),
-          ),
-        );
-
-      default:
-        return const SizedBox.shrink();
+  List<Widget> _buildDynamicSections(Color catColor) {
+    if (_form == null) return [];
+    final sections = _form!.sections;
+    if (sections.isEmpty) {
+      // Fallback: render flat fields without section headers
+      return _form!.fields
+          .map((f) => Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: _buildDynamicField(f, catColor),
+              ))
+          .toList();
     }
+
+    final widgets = <Widget>[];
+    for (int i = 0; i < sections.length; i++) {
+      final section = sections[i];
+      if (i > 0) widgets.add(const SizedBox(height: 24));
+
+      // Section header
+      widgets.add(_Section(
+        title: section.sectionTitle.isNotEmpty
+            ? section.sectionTitle
+            : 'Section ${i + 1}',
+        icon: _sectionIcon(section.sectionId),
+        color: catColor,
+      ));
+      widgets.add(const SizedBox(height: 12));
+
+      // Section fields
+      for (final field in section.fields) {
+        widgets.add(Padding(
+          padding: const EdgeInsets.only(bottom: 12),
+          child: _buildDynamicField(field, catColor),
+        ));
+      }
+    }
+    return widgets;
   }
 
-  void _openPopupSheet(ApiPopup popup, Color catColor) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => _PopupFieldSheet(
-        popup: popup,
-        catColor: catColor,
-        textCtrl: _dynTextCtrl,
-        dropdown: _dynDropdown,
-        onSaved: (updatedDropdown) {
-          setState(() {
-            updatedDropdown.forEach((k, v) => _dynDropdown[k] = v);
-          });
-        },
+  IconData _sectionIcon(String sectionId) {
+    if (sectionId.contains('personal')) return Icons.person_outline;
+    return Icons.info_outline;
+  }
+
+  Widget _buildDynamicField(ApiField f, Color catColor) {
+    // For BUTTON type, compute popup filled count
+    int? popupFilled;
+    int? popupTotal;
+    if (f.fieldStyle == FieldStyle.button && f.popup != null) {
+      final popup = f.popup!;
+      popupTotal = popup.fields.length;
+      popupFilled = popup.fields.where((pf) {
+        if (_dynTextCtrl.containsKey(pf.key)) {
+          return (_dynTextCtrl[pf.key]?.text ?? '').isNotEmpty;
+        }
+        final val = _dynValues[pf.key];
+        return val != null && val.toString().isNotEmpty;
+      }).length;
+    }
+
+    return DynamicFieldBuilder(
+      field: f,
+      value: _dynTextCtrl.containsKey(f.key)
+          ? _dynTextCtrl[f.key]!.text
+          : _dynValues[f.key],
+      textController: _dynTextCtrl[f.key],
+      accentColor: catColor,
+      onChanged: (val) {
+        if (!_dynTextCtrl.containsKey(f.key)) {
+          setState(() => _dynValues[f.key] = val);
+        }
+      },
+      onPopupPressed: f.fieldStyle == FieldStyle.button && f.popup != null
+          ? () => _openPopupSheet(f.popup!, catColor)
+          : null,
+      popupFilledCount: popupFilled,
+      popupTotalCount: popupTotal,
+    );
+  }
+
+  // ── Location section (hardcoded) ────────────────────────────────────────
+
+  List<Widget> _buildLocationSection() {
+    return [
+      OutlinedButton.icon(
+        onPressed: _isLocating ? null : _detectLocation,
+        icon: _isLocating
+            ? const SizedBox(
+                width: 16,
+                height: 16,
+                child: CircularProgressIndicator(strokeWidth: 2))
+            : const Icon(Icons.my_location),
+        label: Text(_isLocating
+            ? 'Detecting...'
+            : _latitude != null
+                ? 'GPS: ${_latitude!.toStringAsFixed(4)}, ${_longitude!.toStringAsFixed(4)}'
+                : 'Auto-detect My Location'),
+        style: OutlinedButton.styleFrom(
+          minimumSize: const Size(double.infinity, 48),
+          foregroundColor:
+              _latitude != null ? AppColors.primary : AppColors.textMedium,
+          side: BorderSide(
+            color: _latitude != null ? AppColors.primary : AppColors.light,
+          ),
+        ),
       ),
+      const SizedBox(height: 12),
+      TextFormField(
+        controller: _addressCtrl,
+        decoration: const InputDecoration(
+          labelText: 'Full Address *',
+          prefixIcon: Icon(Icons.location_on_outlined),
+        ),
+        maxLines: 2,
+        validator: (v) =>
+            v == null || v.trim().isEmpty ? 'Required' : null,
+      ),
+      const SizedBox(height: 12),
+      Row(children: [
+        Expanded(
+          child: TextFormField(
+            controller: _villageCtrl,
+            decoration: const InputDecoration(
+              labelText: 'Village / Town',
+              prefixIcon: Icon(Icons.house_outlined),
+            ),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: TextFormField(
+            controller: _districtCtrl,
+            decoration: const InputDecoration(
+              labelText: 'District',
+              prefixIcon: Icon(Icons.map_outlined),
+            ),
+          ),
+        ),
+      ]),
+      const SizedBox(height: 12),
+      TextFormField(
+        controller: _stateCtrl,
+        decoration: const InputDecoration(
+          labelText: 'State',
+          prefixIcon: Icon(Icons.flag_outlined),
+        ),
+      ),
+    ];
+  }
+
+  // ── Land section (hardcoded, conditional) ───────────────────────────────
+
+  List<Widget> _buildLandSection() {
+    return [
+      OutlinedButton.icon(
+        onPressed: _openMap,
+        icon: const Icon(Icons.map),
+        label: Text(_landCoordinates.isEmpty
+            ? 'Measure Land on Map'
+            : 'Re-measure  (${_landCoordinates.length} pts)'),
+        style: OutlinedButton.styleFrom(
+          minimumSize: const Size(double.infinity, 48),
+        ),
+      ),
+      const SizedBox(height: 12),
+      Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Expanded(
+          flex: 3,
+          child: TextFormField(
+            controller: _landAreaCtrl,
+            decoration: const InputDecoration(
+              labelText: 'Land Area *',
+              prefixIcon: Icon(Icons.square_foot_outlined),
+            ),
+            keyboardType:
+                const TextInputType.numberWithOptions(decimal: true),
+            validator: (v) {
+              if (v == null || v.isEmpty) return 'Required';
+              if (double.tryParse(v) == null) return 'Invalid';
+              return null;
+            },
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          flex: 2,
+          child: DropdownButtonFormField<String>(
+            initialValue: _selectedLandUnit,
+            isExpanded: true,
+            decoration: const InputDecoration(labelText: 'Unit'),
+            items: _landUnits
+                .map((u) => DropdownMenuItem(value: u, child: Text(u)))
+                .toList(),
+            onChanged: (v) => setState(() => _selectedLandUnit = v!),
+          ),
+        ),
+      ]),
+    ];
+  }
+
+  // ── Status section (hardcoded) ──────────────────────────────────────────
+
+  Widget _buildStatusSection() {
+    return Row(
+      children: ['Active', 'Inactive'].map((s) {
+        final sel = _selectedStatus == s;
+        return Padding(
+          padding: const EdgeInsets.only(right: 12),
+          child: FilterChip(
+            label: Text(s),
+            selected: sel,
+            onSelected: (_) => setState(() => _selectedStatus = s),
+            selectedColor: AppColors.light,
+            checkmarkColor: AppColors.dark,
+            labelStyle: TextStyle(
+              color: sel ? AppColors.dark : AppColors.textMedium,
+              fontWeight: sel ? FontWeight.w600 : FontWeight.normal,
+            ),
+          ),
+        );
+      }).toList(),
     );
   }
 }
@@ -844,108 +793,10 @@ class _Section extends StatelessWidget {
               fontWeight: FontWeight.w700,
               color: color == AppColors.primary ? AppColors.dark : color)),
       const SizedBox(width: 8),
-      Expanded(child: Divider(color: color.withOpacity(0.35), thickness: 1.5)),
+      Expanded(
+          child:
+              Divider(color: color.withValues(alpha: 0.35), thickness: 1.5)),
     ]);
-  }
-}
-
-// ─── Category Bottom Sheet ────────────────────────────────────────────────────
-class _CategorySheet extends StatelessWidget {
-  final ValueChanged<String> onSelected;
-  const _CategorySheet({required this.onSelected});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Center(
-            child: Container(
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(
-                color: AppColors.divider,
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
-          const Align(
-            alignment: Alignment.centerLeft,
-            child: Text('Select Category',
-                style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.dark)),
-          ),
-          const SizedBox(height: 4),
-          const Align(
-            alignment: Alignment.centerLeft,
-            child: Text('Subcategory will appear as dropdown inside the form',
-                style: TextStyle(fontSize: 12, color: AppColors.textMedium)),
-          ),
-          const SizedBox(height: 16),
-          ...AppCategories.all.entries.map((e) {
-            final color = e.value.color;
-            return Padding(
-              padding: const EdgeInsets.only(bottom: 10),
-              child: InkWell(
-                onTap: () => onSelected(e.key),
-                borderRadius: BorderRadius.circular(14),
-                child: Container(
-                  padding: const EdgeInsets.all(14),
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(14),
-                    gradient: LinearGradient(
-                      colors: [
-                        color.withOpacity(0.08),
-                        color.withOpacity(0.04)
-                      ],
-                    ),
-                    border: Border.all(color: color.withOpacity(0.25)),
-                  ),
-                  child: Row(children: [
-                    Container(
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        color: color.withOpacity(0.15),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Icon(e.value.icon, color: color, size: 24),
-                    ),
-                    const SizedBox(width: 14),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(e.key,
-                              style: TextStyle(
-                                  fontWeight: FontWeight.w700,
-                                  fontSize: 15,
-                                  color: color)),
-                          Text(
-                            '${e.value.subcategories.length} subcategories',
-                            style: const TextStyle(
-                                fontSize: 12, color: AppColors.textMedium),
-                          ),
-                        ],
-                      ),
-                    ),
-                    Icon(Icons.chevron_right, color: color),
-                  ]),
-                ),
-              ),
-            );
-          }),
-        ],
-      ),
-    );
   }
 }
 
@@ -954,14 +805,14 @@ class _PopupFieldSheet extends StatefulWidget {
   final ApiPopup popup;
   final Color catColor;
   final Map<String, TextEditingController> textCtrl;
-  final Map<String, String> dropdown;
-  final void Function(Map<String, String> updatedDropdown) onSaved;
+  final Map<String, dynamic> dynValues;
+  final void Function(Map<String, dynamic> updated) onSaved;
 
   const _PopupFieldSheet({
     required this.popup,
     required this.catColor,
     required this.textCtrl,
-    required this.dropdown,
+    required this.dynValues,
     required this.onSaved,
   });
 
@@ -970,20 +821,21 @@ class _PopupFieldSheet extends StatefulWidget {
 }
 
 class _PopupFieldSheetState extends State<_PopupFieldSheet> {
-  late Map<String, String> _localDropdown;
+  late Map<String, dynamic> _localValues;
 
   @override
   void initState() {
     super.initState();
-    // Copy only the dropdown keys that belong to this popup
-    _localDropdown = {
+    _localValues = {
       for (final f in widget.popup.fields)
-        if (f.type == 'DROPDOWN') f.key: widget.dropdown[f.key] ?? '',
+        if (f.fieldStyle == FieldStyle.dropdown ||
+            f.fieldStyle == FieldStyle.radio)
+          f.key: widget.dynValues[f.key] ?? '',
     };
   }
 
   void _save() {
-    widget.onSaved(_localDropdown);
+    widget.onSaved(_localValues);
     Navigator.pop(context);
   }
 
@@ -1029,7 +881,8 @@ class _PopupFieldSheetState extends State<_PopupFieldSheet> {
                   ),
                   IconButton(
                     onPressed: () => Navigator.pop(context),
-                    icon: const Icon(Icons.close, color: AppColors.textMedium),
+                    icon: const Icon(Icons.close,
+                        color: AppColors.textMedium),
                   ),
                 ],
               ),
@@ -1069,45 +922,48 @@ class _PopupFieldSheetState extends State<_PopupFieldSheet> {
   }
 
   Widget _buildPopupField(ApiField f, Color color) {
-    switch (f.type) {
-      case 'TEXT':
+    switch (f.fieldStyle) {
+      case FieldStyle.text:
         return TextFormField(
           controller: widget.textCtrl[f.key],
           decoration: InputDecoration(
             labelText: f.label,
-            prefixIcon: Icon(Icons.edit_note_outlined, color: color),
+            prefixIcon: Icon(
+              f.fieldType == FieldType.number
+                  ? Icons.numbers_outlined
+                  : Icons.edit_note_outlined,
+              color: color,
+            ),
           ),
-          textCapitalization: TextCapitalization.sentences,
-        );
-
-      case 'NUMBER':
-        return TextFormField(
-          controller: widget.textCtrl[f.key],
-          decoration: InputDecoration(
-            labelText: f.label,
-            prefixIcon: Icon(Icons.numbers_outlined, color: color),
-          ),
-          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          textCapitalization: f.fieldType == FieldType.number
+              ? TextCapitalization.none
+              : TextCapitalization.sentences,
+          keyboardType: f.fieldType == FieldType.number
+              ? const TextInputType.numberWithOptions(decimal: true)
+              : TextInputType.text,
           inputFormatters: [
-            FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*'))
+            if (f.fieldType == FieldType.number)
+              FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*'))
           ],
         );
 
-      case 'DROPDOWN':
+      case FieldStyle.dropdown:
         return DropdownButtonFormField<String>(
-          initialValue: (_localDropdown[f.key]?.isEmpty ?? true)
+          initialValue: (_localValues[f.key]?.toString().isEmpty ?? true)
               ? null
-              : _localDropdown[f.key],
+              : _localValues[f.key] as String?,
           decoration: InputDecoration(
             labelText: f.label,
-            prefixIcon:
-                Icon(Icons.arrow_drop_down_circle_outlined, color: color),
+            prefixIcon: Icon(Icons.arrow_drop_down_circle_outlined,
+                color: color),
           ),
           hint: Text('Select ${f.label}'),
-          items: f.options
-              .map((o) => DropdownMenuItem(value: o.name, child: Text(o.name)))
+          items: f.fieldData
+              .map(
+                  (o) => DropdownMenuItem(value: o, child: Text(o)))
               .toList(),
-          onChanged: (v) => setState(() => _localDropdown[f.key] = v ?? ''),
+          onChanged: (v) =>
+              setState(() => _localValues[f.key] = v ?? ''),
         );
 
       default:

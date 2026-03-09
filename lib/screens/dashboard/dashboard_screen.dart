@@ -130,7 +130,8 @@ class DashboardScreen extends StatelessWidget {
         ],
       ),
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => Navigator.pushNamed(context, '/farmer-form'),
+        onPressed: () => Navigator.pushNamed(context, '/categories',
+            arguments: {'registrationFlow': true}),
         backgroundColor: AppColors.primary,
         icon: const Icon(Icons.person_add, color: Colors.white),
         label: const Text('Register Farmer',
@@ -181,7 +182,8 @@ class DashboardScreen extends StatelessWidget {
           ),
           _drawerItem(context, Icons.dashboard, 'Dashboard', '/dashboard'),
           _drawerItem(
-              context, Icons.person_add, 'Register Farmer', '/farmer-form'),
+              context, Icons.person_add, 'Register Farmer', '/categories',
+              arguments: {'registrationFlow': true}),
           _drawerItem(context, Icons.people, 'Farmers List', '/farmer-list'),
           _drawerItem(context, Icons.category, 'Categories', '/categories'),
           _drawerItem(
@@ -213,14 +215,15 @@ class DashboardScreen extends StatelessWidget {
   }
 
   Widget _drawerItem(
-      BuildContext context, IconData icon, String label, String route) {
+      BuildContext context, IconData icon, String label, String route,
+      {Object? arguments}) {
     return ListTile(
       leading: Icon(icon, color: AppColors.primary),
       title: Text(label),
       onTap: () {
         Navigator.pop(context);
         if (ModalRoute.of(context)?.settings.name != route) {
-          Navigator.pushNamed(context, route);
+          Navigator.pushNamed(context, route, arguments: arguments);
         }
       },
     );
@@ -316,8 +319,9 @@ class _QuickActions extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final actions = [
-      _QAction(Icons.person_add, 'Register\nFarmer', AppColors.primary,
-          () => Navigator.pushNamed(context, '/farmer-form')),
+      _QAction(Icons.person_add, 'New\nRegister', AppColors.primary,
+          () => Navigator.pushNamed(context, '/categories',
+              arguments: {'registrationFlow': true})),
       _QAction(Icons.people, 'View\nFarmers', AppColors.medium,
           () => Navigator.pushNamed(context, '/farmer-list')),
       _QAction(Icons.category, 'Categories', AppColors.dark,

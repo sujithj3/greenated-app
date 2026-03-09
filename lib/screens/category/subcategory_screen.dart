@@ -4,30 +4,48 @@ import '../../services/firestore_service.dart';
 import '../../services/form_config_service.dart';
 import '../../config/app_constants.dart';
 import '../../utils/app_colors.dart';
+import '../../widgets/shimmer_loading.dart';
 
-class SubcategoryScreen extends StatelessWidget {
+class SubcategoryScreen extends StatefulWidget {
   const SubcategoryScreen({super.key});
+
+  @override
+  State<SubcategoryScreen> createState() => _SubcategoryScreenState();
+}
+
+class _SubcategoryScreenState extends State<SubcategoryScreen> {
+  @override
+  void initState() {
+    super.initState();
+    // Ensure categories (with subcategories) are loaded from mock/real API
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<FormConfigService>().fetchCategories();
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
     final args = ModalRoute.of(context)?.settings.arguments as Map? ?? {};
     final String category = args['category'] as String? ?? '';
     final bool selectionMode = args['selectionMode'] as bool? ?? false;
+    final bool registrationFlow = args['registrationFlow'] as bool? ?? false;
 
     final catData = AppCategories.all[category];
     final svc = context.watch<FormConfigService>();
     final subcategories = svc.getSubcategoryNames(category);
     final fs = context.read<FirestoreService>();
 
+    final bool isPickMode = selectionMode || registrationFlow;
+
     return Scaffold(
       appBar: AppBar(
-        title: Text(selectionMode ? 'Select Subcategory' : category),
+        title: Text(isPickMode ? 'Select Subcategory' : category),
         backgroundColor: catData?.color ?? AppColors.primary,
       ),
       body: Column(
         children: [
           // Category header banner
-          if (!selectionMode)
+          if (!isPickMode)
             Container(
               width: double.infinity,
               padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
@@ -66,51 +84,43 @@ class SubcategoryScreen extends StatelessWidget {
 
           // Subcategory list
           Expanded(
-            child: ListView.separated(
-              padding: const EdgeInsets.all(16),
-              itemCount: subcategories.length,
-              separatorBuilder: (_, __) => const SizedBox(height: 8),
-              itemBuilder: (_, i) {
-                final sub = subcategories[i];
-                return _SubcategoryTile(
-                  subcategory: sub,
-                  category: category,
-                  catData: catData,
-                  selectionMode: selectionMode,
-                  fs: fs,
-                  onTap: () {
-                    if (selectionMode) {
-                      Navigator.pop(context, sub);
-                    } else {
-                      Navigator.pushNamed(
-                        context,
-                        '/farmer-list',
-                        arguments: {
-                          'category': category,
-                          'subcategory': sub,
+            child: svc.isLoading
+                ? const ShimmerSubcategoryList()
+                : ListView.separated(
+                    padding: const EdgeInsets.all(16),
+                    itemCount: subcategories.length,
+                    separatorBuilder: (_, __) => const SizedBox(height: 8),
+                    itemBuilder: (_, i) {
+                      final sub = subcategories[i];
+                      return _SubcategoryTile(
+                        subcategory: sub,
+                        category: category,
+                        catData: catData,
+                        selectionMode: isPickMode,
+                        fs: fs,
+                        onTap: () {
+                          if (selectionMode) {
+                            Navigator.pop(context, sub);
+                          } else {
+                            // Both registrationFlow and normal flow
+                            // navigate directly to farmer registration form
+                            Navigator.pushNamed(
+                              context,
+                              '/farmer-form',
+                              arguments: {
+                                'category': category,
+                                'subcategory': sub,
+                              },
+                            );
+                          }
                         },
                       );
-                    }
-                  },
-                );
-              },
-            ),
+                    },
+                  ),
           ),
         ],
       ),
-      floatingActionButton: selectionMode
-          ? null
-          : FloatingActionButton.extended(
-              onPressed: () => Navigator.pushNamed(
-                context,
-                '/farmer-form',
-                arguments: {'category': category},
-              ),
-              backgroundColor: catData?.color ?? AppColors.primary,
-              icon: const Icon(Icons.person_add, color: Colors.white),
-              label: const Text('Register Farmer',
-                  style: TextStyle(color: Colors.white)),
-            ),
+      // FAB removed — subcategory tap directly triggers registration
     );
   }
 }
