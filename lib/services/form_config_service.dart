@@ -1,12 +1,18 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
-import '../models/api/api_models.dart';
-import '../config/env_config.dart';
-import 'mock_api_service.dart';
 
+import '../core/network/network.dart';
+import '../models/api/api_models.dart';
+
+/// Service that fetches and caches category/form configuration.
+///
+/// Uses [ApiClient] under the hood — in demo mode this resolves to
+/// [MockHttpClient]; in production it hits the real backend.
+/// Business logic in this class is identical either way.
 class FormConfigService extends ChangeNotifier {
-  static String get _apiUrl => '${EnvConfig.apiBaseUrl}/category-form-config';
+  FormConfigService({ApiClient? apiClient})
+      : _apiClient = apiClient ?? ApiClientFactory.create();
+
+  final ApiClient _apiClient;
 
   List<ApiCategory> _categories = [];
   bool _isLoading = false;
@@ -18,27 +24,36 @@ class FormConfigService extends ChangeNotifier {
   bool get isLoaded => _categories.isNotEmpty;
 
   /// Fetches all categories (with embedded subcategories and forms).
-  ///
-  /// In demo mode, delegates to [MockApiService.getCategories()].
-  /// When the real API is ready, only the demo-mode branch needs removal.
   Future<void> fetchCategories() async {
     if (_categories.isNotEmpty) return;
     _isLoading = true;
     _error = null;
     notifyListeners();
     try {
-      if (EnvConfig.isDemoMode) {
-        // ── Mock API call ──────────────────────────────────────────────────
-        // TODO: Remove this branch when real backend API is available.
-        _categories = await MockApiService.getCategories();
-      } else {
-        final res = await http.get(Uri.parse(_apiUrl));
-        if (res.statusCode != 200) throw Exception('HTTP ${res.statusCode}');
-        final body = jsonDecode(res.body) as Map<String, dynamic>;
-        _categories = (body['data'] as List<dynamic>)
-            .map((c) => ApiCategory.fromJson(c as Map<String, dynamic>))
-            .toList();
+      final ApiResponse<List<dynamic>> response =
+          await _apiClient.send<List<dynamic>>(
+        const ApiRequest(
+          method: ApiMethod.get,
+          path: ApiEndpoints.categories,
+        ),
+        decoder: (raw) => raw is List ? raw : null,
+      );
+
+      if (!response.isSuccess || response.data == null) {
+        throw ApiException(
+          response.message.isNotEmpty
+              ? response.message
+              : 'Failed to load categories.',
+          statusCode: response.statusCode,
+        );
       }
+
+      _categories = response.data!
+          .map((c) => ApiCategory.fromJson(c as Map<String, dynamic>))
+          .toList();
+    } on ApiException catch (e) {
+      _error = e.message;
+      debugPrint('FormConfigService: $e');
     } catch (e) {
       _error = e.toString();
       debugPrint('FormConfigService: $e');
@@ -79,47 +94,63 @@ class FormConfigService extends ChangeNotifier {
         ?.primaryForm;
   }
 
-  // ── Mock API delegate methods ──────────────────────────────────────────────
-  // These methods call through to MockApiService in demo mode.
-  // When the real API is ready, replace the mock calls with HTTP calls.
-
   /// Fetches subcategories for a given category ID.
-  ///
-  /// **Expected real API:** `GET /api/v1/categories/{categoryId}/subcategories`
-  /// TODO: Replace MockApiService call with real HTTP request.
   Future<List<ApiSubcategory>> getSubCategoriesByCategoryId(
       int categoryId) async {
-    if (EnvConfig.isDemoMode) {
-      return MockApiService.getSubCategories(categoryId);
-    }
-    // Real API call placeholder
-    final res = await http.get(
-      Uri.parse('${EnvConfig.apiBaseUrl}/categories/$categoryId/subcategories'),
+    final ApiResponse<Map<String, dynamic>> response =
+        await _apiClient.send<Map<String, dynamic>>(
+      ApiRequest(
+        method: ApiMethod.get,
+        path: ApiEndpoints.subcategories(categoryId),
+      ),
+      decoder: (raw) {
+        if (raw is Map<String, dynamic>) return raw;
+        if (raw is Map) return Map<String, dynamic>.from(raw);
+        return null;
+      },
     );
-    if (res.statusCode != 200) throw Exception('HTTP ${res.statusCode}');
-    final body = jsonDecode(res.body) as Map<String, dynamic>;
-    return (body['data']['subcategories'] as List<dynamic>)
+
+    if (!response.isSuccess || response.data == null) {
+      throw ApiException(
+        response.message.isNotEmpty
+            ? response.message
+            : 'Failed to load subcategories.',
+        statusCode: response.statusCode,
+      );
+    }
+
+    final subcatsJson =
+        response.data!['subcategories'] as List<dynamic>? ?? [];
+    return subcatsJson
         .map((s) => ApiSubcategory.fromJson(s as Map<String, dynamic>))
         .toList();
   }
 
   /// Fetches dynamic registration form fields for a given subcategory ID.
-  ///
-  /// **Expected real API:**
-  ///   `GET /api/v1/subcategories/{subCategoryId}/registration-fields`
-  /// TODO: Replace MockApiService call with real HTTP request.
   Future<ApiForm?> getDynamicRegistrationFields(int subCategoryId) async {
-    if (EnvConfig.isDemoMode) {
-      return MockApiService.getDynamicRegistrationFields(subCategoryId);
-    }
-    // Real API call placeholder
-    final res = await http.get(
-      Uri.parse(
-          '${EnvConfig.apiBaseUrl}/subcategories/$subCategoryId/registration-fields'),
+    final ApiResponse<Map<String, dynamic>> response =
+        await _apiClient.send<Map<String, dynamic>>(
+      ApiRequest(
+        method: ApiMethod.get,
+        path: ApiEndpoints.registrationFields(subCategoryId),
+      ),
+      decoder: (raw) {
+        if (raw is Map<String, dynamic>) return raw;
+        if (raw is Map) return Map<String, dynamic>.from(raw);
+        return null;
+      },
     );
-    if (res.statusCode != 200) throw Exception('HTTP ${res.statusCode}');
-    final body = jsonDecode(res.body) as Map<String, dynamic>;
-    final formsJson = body['data']['forms'] as List<dynamic>?;
+
+    if (!response.isSuccess || response.data == null) {
+      throw ApiException(
+        response.message.isNotEmpty
+            ? response.message
+            : 'Failed to load registration fields.',
+        statusCode: response.statusCode,
+      );
+    }
+
+    final formsJson = response.data!['forms'] as List<dynamic>?;
     if (formsJson == null || formsJson.isEmpty) return null;
     return ApiForm.fromJson(formsJson.first as Map<String, dynamic>);
   }

@@ -88,18 +88,18 @@ class DashboardScreen extends StatelessWidget {
                   _StatsRow(fs: fs),
                   const SizedBox(height: 24),
 
-                  // ── Quick Actions ──────────────────────────────────────
-                  const Text(
-                    'Quick Actions',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.dark,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  _QuickActions(),
-                  const SizedBox(height: 24),
+                  // ── Quick Actions (hidden for now) ────────────────────
+                  // const Text(
+                  //   'Quick Actions',
+                  //   style: TextStyle(
+                  //     fontSize: 16,
+                  //     fontWeight: FontWeight.w700,
+                  //     color: AppColors.dark,
+                  //   ),
+                  // ),
+                  // const SizedBox(height: 12),
+                  // _QuickActions(),
+                  // const SizedBox(height: 24),
 
                   // ── Recent Farmers ─────────────────────────────────────
                   Row(
