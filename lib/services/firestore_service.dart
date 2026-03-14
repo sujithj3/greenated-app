@@ -152,8 +152,8 @@ class FirestoreService extends ChangeNotifier {
     final lower = query.toLowerCase();
     return getFarmers().map((list) => list
         .where((f) =>
-            f.name.toLowerCase().contains(lower) ||
-            f.phone.contains(query) ||
+            (f.name ?? '').toLowerCase().contains(lower) ||
+            (f.phone ?? '').contains(query) ||
             f.village.toLowerCase().contains(lower))
         .toList());
   }

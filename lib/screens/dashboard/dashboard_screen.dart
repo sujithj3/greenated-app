@@ -454,7 +454,7 @@ class _FarmerTile extends StatelessWidget {
                 color: AppColors.dark, fontWeight: FontWeight.w700),
           ),
         ),
-        title: Text(farmer.name,
+        title: Text(farmer.name ?? 'Unknown',
             style: const TextStyle(fontWeight: FontWeight.w600)),
         subtitle:
             Text('${farmer.category} · ${farmer.landArea} ${farmer.landUnit}'),

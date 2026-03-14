@@ -84,7 +84,7 @@ class _FarmerDetailView extends StatelessWidget {
                     ),
                     const SizedBox(height: 12),
                     Text(
-                      farmer.name,
+                      farmer.name ?? 'Unknown',
                       style: const TextStyle(
                         color: Colors.white,
                         fontSize: 22,
@@ -125,7 +125,7 @@ class _FarmerDetailView extends StatelessWidget {
                     children: [
                       _InfoChip(
                           icon: Icons.phone,
-                          label: farmer.phone,
+                          label: farmer.phone ?? 'N/A',
                           color: AppColors.primary),
                       const SizedBox(width: 8),
                       _InfoChip(
@@ -142,8 +142,8 @@ class _FarmerDetailView extends StatelessWidget {
                     icon: Icons.person_outline,
                     rows: [
                       _DetailRow(
-                          'Full Name', farmer.name, Icons.badge_outlined),
-                      _DetailRow('Phone', farmer.phone, Icons.phone_outlined),
+                          'Full Name', farmer.name ?? 'Unknown', Icons.badge_outlined),
+                      _DetailRow('Phone', farmer.phone ?? 'N/A', Icons.phone_outlined),
                       _DetailRow('Address', farmer.address,
                           Icons.location_on_outlined),
                       if (farmer.village.isNotEmpty)
@@ -238,7 +238,7 @@ class _FarmerDetailView extends StatelessWidget {
       context,
       title: 'Delete Farmer',
       message:
-          'Are you sure you want to permanently delete ${farmer.name}\'s record? This cannot be undone.',
+          'Are you sure you want to permanently delete ${farmer.name ?? 'this farmer'}\'s record? This cannot be undone.',
       confirmLabel: 'Delete',
       confirmColor: AppColors.error,
     );

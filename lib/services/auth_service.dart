@@ -1,5 +1,7 @@
+import 'dart:convert';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
 import '../config/env_config.dart';
@@ -18,12 +20,11 @@ class AuthService extends ChangeNotifier {
 
   // Demo mode state
   bool _demoLoggedIn = false;
-  static const String _demoPhone = '+91 98765 43210';
+  String _demoPhone = '';
 
-  User? get currentUser =>
-      EnvConfig.isDemoMode ? null : _auth.currentUser;
+  User? get currentUser => EnvConfig.isDemoMode ? null : _auth.currentUser;
 
-  /// Retrieves the stored user ID. Falls back to Firebase UID if present, 
+  /// Retrieves the stored user ID. Falls back to Firebase UID if present,
   /// otherwise uses the ID stored in SharedPreferences.
   String? get userId {
     if (!EnvConfig.isDemoMode && _auth.currentUser != null) {
@@ -32,8 +33,9 @@ class AuthService extends ChangeNotifier {
     return _prefs?.getString(_userIdKey);
   }
 
-  String get displayPhone =>
-      EnvConfig.isDemoMode ? _demoPhone : (_auth.currentUser?.phoneNumber ?? '');
+  String get displayPhone => EnvConfig.isDemoMode
+      ? _demoPhone
+      : (_auth.currentUser?.phoneNumber ?? '');
 
   bool get isLoggedIn =>
       EnvConfig.isDemoMode ? _demoLoggedIn : _auth.currentUser != null;
@@ -70,6 +72,10 @@ class AuthService extends ChangeNotifier {
     if (userId == null) {
       final String newId = const Uuid().v4();
       await _prefs!.setString(_userIdKey, newId);
+      debugPrint(
+          '🔑 [AuthService] Generated and Saved New User ID to SharedPreferences: $newId');
+    } else {
+      debugPrint('🔑 [AuthService] User ID already exists in storage: $userId');
     }
   }
 
@@ -87,6 +93,7 @@ class AuthService extends ChangeNotifier {
     await Future.delayed(const Duration(milliseconds: 600));
     _demoLoggedIn = true;
     await _saveUserId();
+    _logOtpVerificationResponse(success: true);
     _setLoading(false);
     notifyListeners();
     return true;
@@ -102,6 +109,7 @@ class AuthService extends ChangeNotifier {
     Function(PhoneAuthCredential)? onAutoVerified,
   }) async {
     if (EnvConfig.isDemoMode) {
+      _demoPhone = phoneNumber;
       await _demoVerify(onCodeSent: onCodeSent);
       return;
     }
@@ -113,18 +121,17 @@ class AuthService extends ChangeNotifier {
       phoneNumber: phoneNumber,
       timeout: const Duration(seconds: 60),
       forceResendingToken: _resendToken,
-
       verificationCompleted: (PhoneAuthCredential credential) async {
         try {
           await _auth.signInWithCredential(credential);
           await _saveUserId();
+          _logOtpVerificationResponse(success: true);
           notifyListeners();
           if (onAutoVerified != null) onAutoVerified(credential);
         } catch (e) {
           _setError(e.toString());
         }
       },
-
       verificationFailed: (FirebaseAuthException e) {
         _setLoading(false);
         String msg = e.message ?? 'Verification failed.';
@@ -136,14 +143,12 @@ class AuthService extends ChangeNotifier {
         _setError(msg);
         onError(msg);
       },
-
       codeSent: (String verificationId, int? resendToken) {
         _verificationId = verificationId;
         _resendToken = resendToken;
         _setLoading(false);
         onCodeSent();
       },
-
       codeAutoRetrievalTimeout: (String verificationId) {
         _verificationId = verificationId;
       },
@@ -167,6 +172,7 @@ class AuthService extends ChangeNotifier {
       );
       await _auth.signInWithCredential(credential);
       await _saveUserId();
+      _logOtpVerificationResponse(success: true);
       _setLoading(false);
       notifyListeners();
       return true;
@@ -175,6 +181,7 @@ class AuthService extends ChangeNotifier {
       if (e.code == 'session-expired') {
         msg = 'OTP session expired. Please resend.';
       }
+      _logOtpVerificationResponse(success: false);
       _setError(msg);
       _setLoading(false);
       return false;
@@ -188,6 +195,7 @@ class AuthService extends ChangeNotifier {
 
     if (EnvConfig.isDemoMode) {
       _demoLoggedIn = false;
+      _demoPhone = '';
       notifyListeners();
       return;
     }
@@ -195,6 +203,20 @@ class AuthService extends ChangeNotifier {
     _verificationId = null;
     _resendToken = null;
     notifyListeners();
+  }
+
+  void _logOtpVerificationResponse({required bool success}) {
+    final payload = <String, dynamic>{
+      'userId': userId,
+      'phone': displayPhone,
+      'timestamp': DateTime.now().toIso8601String(),
+      'success': success,
+    };
+
+    final pretty = const JsonEncoder.withIndent('  ').convert(payload);
+    debugPrint('=== OTP VERIFICATION RESPONSE ===');
+    debugPrint(pretty);
+    debugPrint('===============================');
   }
 }
 
