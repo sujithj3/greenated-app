@@ -101,8 +101,8 @@ class _SubcategoryScreenState extends State<SubcategoryScreen> {
                         onTap: () {
                           if (selectionMode) {
                             Navigator.pop(context, sub);
-                          } else {
-                            // navigate directly to farmer registration form
+                          } else if (registrationFlow) {
+                            // Registration flow → open farmer form
                             final subData = svc.getCategoryByName(category)?.findSubcategory(sub);
                             Navigator.pushNamed(
                               context,
@@ -111,6 +111,16 @@ class _SubcategoryScreenState extends State<SubcategoryScreen> {
                                 'category': category,
                                 'subcategory': sub,
                                 'subcategoryId': subData?.id,
+                              },
+                            );
+                          } else {
+                            // Browse flow → show farmer list for this subcategory
+                            Navigator.pushNamed(
+                              context,
+                              '/farmer-list',
+                              arguments: {
+                                'category': category,
+                                'subcategory': sub,
                               },
                             );
                           }

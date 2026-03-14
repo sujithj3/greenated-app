@@ -14,6 +14,7 @@ class SubcategoryView extends StatelessWidget {
     final args = ModalRoute.of(context)?.settings.arguments as Map? ?? {};
     final String category = args['category'] as String? ?? '';
     final bool selectionMode = args['selectionMode'] as bool? ?? false;
+    final bool registrationFlow = args['registrationFlow'] as bool? ?? false;
     final catData = AppCategories.all[category];
 
     return ChangeNotifierProvider(
@@ -86,7 +87,18 @@ class SubcategoryView extends StatelessWidget {
                         onTap: () {
                           if (selectionMode) {
                             Navigator.pop(context, sub);
+                          } else if (registrationFlow) {
+                            // Registration flow → open farmer form
+                            Navigator.pushNamed(
+                              context,
+                              '/farmer-form',
+                              arguments: {
+                                'category': category,
+                                'subcategory': sub,
+                              },
+                            );
                           } else {
+                            // Browse flow → show farmer list
                             Navigator.pushNamed(
                               context,
                               '/farmer-list',
