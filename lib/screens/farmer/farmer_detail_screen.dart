@@ -2,10 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
-import '../models/farmer_model.dart';
-import '../services/firestore_service.dart';
-import '../utils/app_colors.dart';
-import '../widgets/popup_form.dart';
+import '../../models/farmer/farmer_model.dart';
+import '../../services/firestore_service.dart';
+import '../../config/app_constants.dart';
+import '../../utils/app_colors.dart';
+import '../../widgets/popup_form.dart';
 
 class FarmerDetailScreen extends StatelessWidget {
   final String farmerId;
@@ -204,8 +205,7 @@ class _FarmerDetailView extends StatelessWidget {
                       const SizedBox(width: 12),
                       Expanded(
                         child: ElevatedButton.icon(
-                          onPressed: () =>
-                              _toggleStatus(context),
+                          onPressed: () => _toggleStatus(context),
                           icon: Icon(
                             farmer.status == 'Active'
                                 ? Icons.pause_circle_outline
@@ -324,8 +324,7 @@ class _LandMapCardState extends State<_LandMapCard> {
             child: SizedBox(
               height: 200,
               child: GoogleMap(
-                initialCameraPosition:
-                    CameraPosition(target: center, zoom: 16),
+                initialCameraPosition: CameraPosition(target: center, zoom: 16),
                 mapType: MapType.hybrid,
                 zoomControlsEnabled: false,
                 myLocationButtonEnabled: false,
@@ -413,8 +412,8 @@ class _DetailRow extends StatelessWidget {
           SizedBox(
             width: 100,
             child: Text(label,
-                style: const TextStyle(
-                    color: AppColors.textMedium, fontSize: 13)),
+                style:
+                    const TextStyle(color: AppColors.textMedium, fontSize: 13)),
           ),
           Expanded(
             child: Text(
@@ -477,9 +476,7 @@ class _InfoChip extends StatelessWidget {
           const SizedBox(width: 6),
           Text(label,
               style: TextStyle(
-                  color: color,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600)),
+                  color: color, fontSize: 13, fontWeight: FontWeight.w600)),
         ],
       ),
     );

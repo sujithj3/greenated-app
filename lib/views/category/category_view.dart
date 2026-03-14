@@ -1,65 +1,69 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../services/firestore_service.dart';
-import '../utils/app_colors.dart';
+import '../../config/app_constants.dart';
+import '../../services/firestore_service.dart';
+import '../../view_models/category/category_view_model.dart';
 
-class CategoryScreen extends StatelessWidget {
-  const CategoryScreen({super.key});
+class CategoryView extends StatelessWidget {
+  const CategoryView({super.key});
 
   @override
   Widget build(BuildContext context) {
-    // selectionMode = true means this screen is used to PICK a category
-    // (e.g. from FarmerFormScreen). Otherwise it navigates to subcategories.
-    final bool selectionMode =
-        (ModalRoute.of(context)?.settings.arguments as Map?)?['selectionMode']
-            as bool? ??
+    final bool selectionMode = (ModalRoute.of(context)?.settings.arguments
+            as Map?)?['selectionMode'] as bool? ??
         false;
 
-    final fs = context.read<FirestoreService>();
+    return ChangeNotifierProvider(
+      create: (ctx) => CategoryViewModel(ctx.read<FirestoreService>()),
+      child: Consumer<CategoryViewModel>(
+        builder: (context, vm, _) => Scaffold(
+          appBar: AppBar(
+            title: Text(selectionMode ? 'Select Category' : 'Farm Categories'),
+          ),
+          body: StreamBuilder<Map<String, int>>(
+            stream: vm.categoryCounts,
+            builder: (_, snap) {
+              final counts = snap.data ?? {};
+              final categories = AppCategories.all.entries.toList();
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(selectionMode ? 'Select Category' : 'Farm Categories'),
-      ),
-      body: StreamBuilder<Map<String, int>>(
-        stream: fs.getCategoryCounts(),
-        builder: (_, snap) {
-          final counts = snap.data ?? {};
-          final categories = AppCategories.all.entries.toList();
+              return GridView.builder(
+                padding: const EdgeInsets.all(16),
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 2,
+                  mainAxisSpacing: 16,
+                  crossAxisSpacing: 16,
+                  childAspectRatio: 1.05,
+                ),
+                itemCount: categories.length,
+                itemBuilder: (_, i) {
+                  final name = categories[i].key;
+                  final data = categories[i].value;
+                  final count = counts[name] ?? 0;
 
-          return GridView.builder(
-            padding: const EdgeInsets.all(16),
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 2,
-              mainAxisSpacing: 16,
-              crossAxisSpacing: 16,
-              childAspectRatio: 1.05,
-            ),
-            itemCount: categories.length,
-            itemBuilder: (_, i) {
-              final name = categories[i].key;
-              final data = categories[i].value;
-              final count = counts[name] ?? 0;
-
-              return _CategoryCard(
-                name: name,
-                data: data,
-                farmerCount: count,
-                onTap: () {
-                  if (selectionMode) {
-                    Navigator.pop(context, name);
-                  } else {
-                    Navigator.pushNamed(
-                      context,
-                      '/subcategories',
-                      arguments: {'category': name, 'selectionMode': false},
-                    );
-                  }
+                  return _CategoryCard(
+                    name: name,
+                    data: data,
+                    farmerCount: count,
+                    onTap: () {
+                      if (selectionMode) {
+                        Navigator.pop(context, name);
+                      } else {
+                        Navigator.pushNamed(
+                          context,
+                          '/subcategories',
+                          arguments: {
+                            'category': name,
+                            'selectionMode': false,
+                          },
+                        );
+                      }
+                    },
+                  );
                 },
               );
             },
-          );
-        },
+          ),
+        ),
       ),
     );
   }
@@ -88,7 +92,7 @@ class _CategoryCard extends StatelessWidget {
           borderRadius: BorderRadius.circular(20),
           gradient: LinearGradient(
             colors: [
-              data.color.withOpacity(0.85),
+              data.color.withValues(alpha: 0.85),
               data.color,
             ],
             begin: Alignment.topLeft,
@@ -96,7 +100,7 @@ class _CategoryCard extends StatelessWidget {
           ),
           boxShadow: [
             BoxShadow(
-              color: data.color.withOpacity(0.3),
+              color: data.color.withValues(alpha: 0.3),
               blurRadius: 12,
               offset: const Offset(0, 6),
             ),
@@ -110,7 +114,7 @@ class _CategoryCard extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.2),
+                  color: Colors.white.withValues(alpha: 0.2),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Icon(data.icon, color: Colors.white, size: 28),

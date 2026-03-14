@@ -10,11 +10,9 @@
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
 
-        <!-- ⚠ Replace YOUR_GOOGLE_MAPS_API_KEY with your actual key from
-             Google Cloud Console → Maps SDK for Android -->
         <meta-data
             android:name="com.google.android.geo.API_KEY"
-            android:value="AIzaSyCxU7C748sONe0a696gWBHrs_iCcF3dVkk"/>
+            android:value="${GOOGLE_MAPS_API_KEY}"/>
 
         <activity
             android:name=".MainActivity"

@@ -1,9 +1,10 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
-import '../utils/demo_data.dart';
+import '../config/env_config.dart';
 
 class AuthService extends ChangeNotifier {
-  final FirebaseAuth _auth = kDemoMode ? _DummyAuth() : FirebaseAuth.instance;
+  late final FirebaseAuth _auth =
+      EnvConfig.isDemoMode ? _DummyAuth() : FirebaseAuth.instance;
 
   String? _verificationId;
   int? _resendToken;
@@ -15,19 +16,19 @@ class AuthService extends ChangeNotifier {
   static const String _demoPhone = '+91 98765 43210';
 
   User? get currentUser =>
-      kDemoMode ? null : _auth.currentUser;
+      EnvConfig.isDemoMode ? null : _auth.currentUser;
 
   String get displayPhone =>
-      kDemoMode ? _demoPhone : (_auth.currentUser?.phoneNumber ?? '');
+      EnvConfig.isDemoMode ? _demoPhone : (_auth.currentUser?.phoneNumber ?? '');
 
   bool get isLoggedIn =>
-      kDemoMode ? _demoLoggedIn : _auth.currentUser != null;
+      EnvConfig.isDemoMode ? _demoLoggedIn : _auth.currentUser != null;
 
   bool get isLoading => _isLoading;
   String? get error => _error;
 
   Stream<User?> get authStateChanges =>
-      kDemoMode ? const Stream.empty() : _auth.authStateChanges();
+      EnvConfig.isDemoMode ? const Stream.empty() : _auth.authStateChanges();
 
   void _setLoading(bool value) {
     _isLoading = value;
@@ -71,7 +72,7 @@ class AuthService extends ChangeNotifier {
     required Function(String) onError,
     Function(PhoneAuthCredential)? onAutoVerified,
   }) async {
-    if (kDemoMode) {
+    if (EnvConfig.isDemoMode) {
       await _demoVerify(onCodeSent: onCodeSent);
       return;
     }
@@ -121,7 +122,7 @@ class AuthService extends ChangeNotifier {
 
   /// Step 2 – verify OTP
   Future<bool> signInWithOTP(String otp) async {
-    if (kDemoMode) return _demoSignIn();
+    if (EnvConfig.isDemoMode) return _demoSignIn();
 
     if (_verificationId == null) {
       _setError('Verification session expired. Please retry.');
@@ -150,7 +151,7 @@ class AuthService extends ChangeNotifier {
   }
 
   Future<void> signOut() async {
-    if (kDemoMode) {
+    if (EnvConfig.isDemoMode) {
       _demoLoggedIn = false;
       notifyListeners();
       return;

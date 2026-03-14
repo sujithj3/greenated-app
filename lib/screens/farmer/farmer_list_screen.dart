@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
-import '../models/farmer_model.dart';
-import '../services/firestore_service.dart';
-import '../utils/app_colors.dart';
+import '../../models/farmer/farmer_model.dart';
+import '../../services/firestore_service.dart';
+import '../../config/app_constants.dart';
+import '../../utils/app_colors.dart';
 
 class FarmerListScreen extends StatefulWidget {
   const FarmerListScreen({super.key});
@@ -48,9 +49,7 @@ class _FarmerListScreenState extends State<FarmerListScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(navSubcategory != null
-            ? navSubcategory
-            : navCategory ?? 'All Farmers'),
+        title: Text(navSubcategory ?? navCategory ?? 'All Farmers'),
         bottom: hasNavFilter
             ? null
             : PreferredSize(
@@ -62,10 +61,8 @@ class _FarmerListScreenState extends State<FarmerListScreen> {
             icon: const Icon(Icons.filter_list, color: Colors.white),
             tooltip: 'Filter',
             itemBuilder: (_) => [
-              const PopupMenuItem(
-                  value: 'all', child: Text('All Farmers')),
-              const PopupMenuItem(
-                  value: 'Active', child: Text('Active Only')),
+              const PopupMenuItem(value: 'all', child: Text('All Farmers')),
+              const PopupMenuItem(value: 'Active', child: Text('Active Only')),
               const PopupMenuItem(
                   value: 'Inactive', child: Text('Inactive Only')),
             ],
@@ -99,15 +96,13 @@ class _FarmerListScreenState extends State<FarmerListScreen> {
 
           // Apply status filter
           if (_filterStatus != null) {
-            farmers =
-                farmers.where((f) => f.status == _filterStatus).toList();
+            farmers = farmers.where((f) => f.status == _filterStatus).toList();
           }
 
           if (farmers.isEmpty) {
             return _EmptyList(
               query: _searchQuery,
-              onRegister: () =>
-                  Navigator.pushNamed(context, '/farmer-form'),
+              onRegister: () => Navigator.pushNamed(context, '/farmer-form'),
             );
           }
 
@@ -116,8 +111,8 @@ class _FarmerListScreenState extends State<FarmerListScreen> {
               // Count bar
               Container(
                 width: double.infinity,
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 16, vertical: 8),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                 color: AppColors.veryLight,
                 child: Text(
                   '${farmers.length} farmer${farmers.length != 1 ? 's' : ''} found',
@@ -275,8 +270,7 @@ class _FarmerCard extends StatelessWidget {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    DateFormat('dd MMM yy')
-                        .format(farmer.registrationDate),
+                    DateFormat('dd MMM yy').format(farmer.registrationDate),
                     style: const TextStyle(
                         fontSize: 11, color: AppColors.textMedium),
                   ),
@@ -325,7 +319,9 @@ class _StatusBadge extends StatelessWidget {
             : Colors.grey.shade100,
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
-          color: isActive ? AppColors.primary.withOpacity(0.3) : Colors.grey.shade300,
+          color: isActive
+              ? AppColors.primary.withOpacity(0.3)
+              : Colors.grey.shade300,
         ),
       ),
       child: Text(
@@ -361,14 +357,12 @@ class _EmptyList extends StatelessWidget {
             query.isNotEmpty
                 ? 'No results for "$query"'
                 : 'No farmers registered yet',
-            style: const TextStyle(
-                fontSize: 16, color: AppColors.textMedium),
+            style: const TextStyle(fontSize: 16, color: AppColors.textMedium),
           ),
           const SizedBox(height: 8),
           if (query.isEmpty) ...[
             const Text('Tap the button to register the first farmer.',
-                style: TextStyle(
-                    color: AppColors.textMedium, fontSize: 13)),
+                style: TextStyle(color: AppColors.textMedium, fontSize: 13)),
             const SizedBox(height: 24),
             ElevatedButton.icon(
               onPressed: onRegister,

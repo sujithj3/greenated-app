@@ -1,27 +1,31 @@
 import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter/cupertino.dart';
+import 'package:flutter/foundation.dart' show defaultTargetPlatform, TargetPlatform;
 import 'package:flutter/material.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:provider/provider.dart';
 
+import 'config/env_config.dart';
 import 'firebase_options.dart';
 import 'services/auth_service.dart';
 import 'services/firestore_service.dart';
 import 'services/form_config_service.dart';
 import 'utils/app_colors.dart';
-import 'utils/demo_data.dart';
-import 'screens/splash_screen.dart';
-import 'screens/login_screen.dart';
-import 'screens/dashboard_screen.dart';
-import 'screens/category_screen.dart';
-import 'screens/subcategory_screen.dart';
-import 'screens/farmer_form_screen.dart';
-import 'screens/land_measurement_screen.dart';
-import 'screens/farmer_list_screen.dart';
-import 'screens/farmer_detail_screen.dart';
+import 'views/auth/splash_view.dart';
+import 'views/auth/login_view.dart';
+import 'screens/dashboard/dashboard_screen.dart';
+import 'screens/category/category_screen.dart';
+import 'screens/category/subcategory_screen.dart';
+import 'screens/farmer/farmer_form_screen.dart';
+import 'screens/tools/land_measurement_screen.dart';
+import 'screens/farmer/farmer_list_screen.dart';
+import 'screens/farmer/farmer_detail_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await dotenv.load();
 
-  if (!kDemoMode) {
+  if (!EnvConfig.isDemoMode) {
     try {
       await Firebase.initializeApp(
         options: DefaultFirebaseOptions.currentPlatform,
@@ -54,13 +58,13 @@ class FarmerRegistrationApp extends StatelessWidget {
             children: [
               child!,
               // Demo mode banner
-              if (kDemoMode)
+              if (EnvConfig.isDemoMode)
                 Positioned(
                   top: MediaQuery.of(context).padding.top,
                   right: 0,
                   child: Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 10, vertical: 4),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                     decoration: const BoxDecoration(
                       color: AppColors.warning,
                       borderRadius: BorderRadius.only(
@@ -82,26 +86,107 @@ class FarmerRegistrationApp extends StatelessWidget {
           );
         },
         initialRoute: '/',
-        routes: {
-          '/': (ctx) => const SplashScreen(),
-          '/login': (ctx) => const LoginScreen(),
-          '/dashboard': (ctx) => const DashboardScreen(),
-          '/categories': (ctx) => const CategoryScreen(),
-          '/subcategories': (ctx) => const SubcategoryScreen(),
-          '/farmer-form': (ctx) => const FarmerFormScreen(),
-          '/land-measurement': (ctx) => const LandMeasurementScreen(),
-          '/farmer-list': (ctx) => const FarmerListScreen(),
-        },
         onGenerateRoute: (settings) {
-          if (settings.name == '/farmer-detail') {
-            return MaterialPageRoute(
-              builder: (_) => FarmerDetailScreen(
-                  farmerId: settings.arguments as String),
+          Widget page;
+          switch (settings.name) {
+            case '/':
+              page = const SplashView();
+            case '/login':
+              page = const LoginView();
+            case '/dashboard':
+              page = const DashboardScreen();
+            case '/categories':
+              page = const CategoryScreen();
+            case '/subcategories':
+              page = const SubcategoryScreen();
+            case '/farmer-form':
+              page = const FarmerFormScreen();
+            case '/land-measurement':
+              page = const LandMeasurementScreen();
+            case '/farmer-list':
+              page = const FarmerListScreen();
+            case '/farmer-detail':
+              page = FarmerDetailScreen(
+                  farmerId: settings.arguments as String);
+            default:
+              page = const SplashView();
+          }
+
+          // ── Splash screen: no animation ──
+          if (settings.name == '/') {
+            return PageRouteBuilder(
+              settings: settings,
+              pageBuilder: (_, __, ___) => page,
+              transitionDuration: Duration.zero,
+              reverseTransitionDuration: Duration.zero,
+              transitionsBuilder: (_, __, ___, child) => child,
             );
           }
-          return null;
+
+          // ── Splash → Login: smooth fade transition ──
+          if (settings.name == '/login') {
+            return PageRouteBuilder(
+              settings: settings,
+              pageBuilder: (_, __, ___) => page,
+              transitionDuration: const Duration(milliseconds: 500),
+              reverseTransitionDuration: const Duration(milliseconds: 300),
+              transitionsBuilder: (_, animation, __, child) {
+                return FadeTransition(
+                  opacity: CurvedAnimation(
+                    parent: animation,
+                    curve: Curves.easeInOut,
+                  ),
+                  child: child,
+                );
+              },
+            );
+          }
+
+          // ── All other routes: platform-adaptive transitions ──
+          return _buildAdaptiveRoute(page, settings);
         },
       ),
     );
   }
+
+  /// Returns a platform-adaptive page route:
+  /// - iOS: CupertinoPageRoute (native slide-from-right)
+  /// - Android/other: custom fade + slide PageRouteBuilder
+  static Route<dynamic> _buildAdaptiveRoute(
+      Widget page, RouteSettings settings) {
+    final isIOS = defaultTargetPlatform == TargetPlatform.iOS;
+
+    if (isIOS) {
+      return CupertinoPageRoute(
+        builder: (_) => page,
+        settings: settings,
+      );
+    }
+
+    // Android / default: fade + slide
+    return PageRouteBuilder(
+      settings: settings,
+      pageBuilder: (_, __, ___) => page,
+      transitionDuration: const Duration(milliseconds: 300),
+      reverseTransitionDuration: const Duration(milliseconds: 250),
+      transitionsBuilder: (_, animation, __, child) {
+        final curved = CurvedAnimation(
+          parent: animation,
+          curve: Curves.easeOutCubic,
+          reverseCurve: Curves.easeInCubic,
+        );
+        return FadeTransition(
+          opacity: Tween<double>(begin: 0.0, end: 1.0).animate(curved),
+          child: SlideTransition(
+            position: Tween<Offset>(
+              begin: const Offset(0.06, 0),
+              end: Offset.zero,
+            ).animate(curved),
+            child: child,
+          ),
+        );
+      },
+    );
+  }
 }
+
