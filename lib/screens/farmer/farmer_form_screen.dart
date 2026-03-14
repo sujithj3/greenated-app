@@ -1,16 +1,13 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:geolocator/geolocator.dart';
-import 'package:http/http.dart' as http;
 import 'package:provider/provider.dart';
 import '../../models/api/api_models.dart';
 import '../../models/farmer/farmer_model.dart';
 import '../../services/auth_service.dart';
 import '../../services/firestore_service.dart';
 import '../../services/form_config_service.dart';
+import '../../services/location_service.dart';
 import '../../config/app_constants.dart';
-import '../../config/env_config.dart';
 import '../../utils/app_colors.dart';
 import '../../widgets/dynamic_field_builder.dart';
 import '../../widgets/shimmer_loading.dart';
@@ -24,6 +21,7 @@ class FarmerFormScreen extends StatefulWidget {
 
 class _FarmerFormScreenState extends State<FarmerFormScreen> {
   final _formKey = GlobalKey<FormState>();
+  final _locationService = LocationService();
 
   // ── Hardcoded controllers (location + land) ─────────────────────────────
   final _addressCtrl = TextEditingController();
@@ -54,12 +52,7 @@ class _FarmerFormScreenState extends State<FarmerFormScreen> {
   ApiForm? _form;
   bool _isLoadingForm = true;
 
-  final List<String> _landUnits = [
-    'Acres',
-    'Hectares',
-    'Bigha',
-    'Sq. Meters'
-  ];
+  final List<String> _landUnits = ['Acres', 'Hectares', 'Bigha', 'Sq. Meters'];
 
   // ── Lifecycle ───────────────────────────────────────────────────────────
 
@@ -202,83 +195,52 @@ class _FarmerFormScreenState extends State<FarmerFormScreen> {
   // ── Geolocation ─────────────────────────────────────────────────────────
 
   Future<void> _detectLocation() async {
-    if (EnvConfig.isDemoMode) {
-      setState(() {
-        _latitude = 26.8467;
-        _longitude = 80.9462;
-        _addressCtrl.text = 'Near Panchayat Bhavan, Village Road';
-        _villageCtrl.text = 'Sundarpur';
-        _districtCtrl.text = 'Lucknow';
-        _stateCtrl.text = 'Uttar Pradesh';
-      });
-      _snack('Demo location detected', success: true);
+    if (_isLocating) {
       return;
     }
 
+    FocusScope.of(context).unfocus();
     setState(() => _isLocating = true);
+
     try {
-      bool enabled = await Geolocator.isLocationServiceEnabled();
-      if (!enabled) {
-        _snack('Please enable location services.');
-        return;
+      final pos = await _locationService.getCurrentPosition();
+
+      if (mounted) {
+        setState(() {
+          _latitude = pos.latitude;
+          _longitude = pos.longitude;
+        });
       }
 
-      LocationPermission perm = await Geolocator.checkPermission();
-      if (perm == LocationPermission.denied) {
-        perm = await Geolocator.requestPermission();
-      }
-      if (perm == LocationPermission.denied ||
-          perm == LocationPermission.deniedForever) {
-        _snack('Location permission denied.');
-        return;
-      }
+      try {
+        final result =
+            await _locationService.reverseGeocode(pos.latitude, pos.longitude);
+        if (!mounted) {
+          return;
+        }
 
-      final pos = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.high,
-      );
-      setState(() {
-        _latitude = pos.latitude;
-        _longitude = pos.longitude;
-      });
-      await _reverseGeocode(pos.latitude, pos.longitude);
-    } catch (e) {
-      _snack('Location error: $e');
+        setState(() {
+          if (result.address.isNotEmpty) _addressCtrl.text = result.address;
+          if (result.village.isNotEmpty) _villageCtrl.text = result.village;
+          if (result.district.isNotEmpty) _districtCtrl.text = result.district;
+          if (result.state.isNotEmpty) _stateCtrl.text = result.state;
+        });
+        _snack('Location auto-filled', success: true);
+      } on LocationException catch (e) {
+        _snack(
+          'GPS detected. Address lookup timed out/failed: ${e.message}',
+          success: true,
+        );
+      } catch (_) {
+        _snack('GPS detected. Could not auto-fill address.');
+      }
+    } on LocationException catch (e) {
+      _snack(e.message);
+    } catch (_) {
+      _snack('Failed to detect location. Please try again.');
     } finally {
       if (mounted) setState(() => _isLocating = false);
     }
-  }
-
-  Future<void> _reverseGeocode(double lat, double lng) async {
-    try {
-      final uri = Uri.parse(
-        'https://maps.googleapis.com/maps/api/geocode/json'
-        '?latlng=$lat,$lng&key=${EnvConfig.googleMapsApiKey}',
-      );
-      final res = await http.get(uri);
-      if (res.statusCode != 200) return;
-      final data = jsonDecode(res.body) as Map<String, dynamic>;
-      if (data['status'] != 'OK') return;
-      final comps =
-          (data['results'] as List).first['address_components'] as List;
-      String village = '', district = '', state = '';
-      for (final c in comps) {
-        final types = List<String>.from(c['types'] as List);
-        final name = c['long_name'] as String;
-        if (types.contains('sublocality') || types.contains('locality')) {
-          village = name;
-        }
-        if (types.contains('administrative_area_level_2')) district = name;
-        if (types.contains('administrative_area_level_1')) state = name;
-      }
-      setState(() {
-        _addressCtrl.text =
-            (data['results'] as List).first['formatted_address'] ?? '';
-        if (village.isNotEmpty) _villageCtrl.text = village;
-        if (district.isNotEmpty) _districtCtrl.text = district;
-        if (state.isNotEmpty) _stateCtrl.text = state;
-      });
-      _snack('Location auto-filled', success: true);
-    } catch (_) {}
   }
 
   // ── Land map ────────────────────────────────────────────────────────────
@@ -288,8 +250,7 @@ class _FarmerFormScreenState extends State<FarmerFormScreen> {
         as Map<String, dynamic>?;
     if (result != null && mounted) {
       final area = result['area'] as double? ?? 0;
-      final coords =
-          result['coordinates'] as List<Map<String, double>>? ?? [];
+      final coords = result['coordinates'] as List<Map<String, double>>? ?? [];
       setState(() {
         _landCoordinates = coords;
         if (area > 0) {
@@ -450,9 +411,7 @@ class _FarmerFormScreenState extends State<FarmerFormScreen> {
 
                   // ── Location (hardcoded) ───────────────────────────────
                   const SizedBox(height: 20),
-                  _Section(
-                      title: 'Location',
-                      icon: Icons.location_on_outlined),
+                  _Section(title: 'Location', icon: Icons.location_on_outlined),
                   const SizedBox(height: 12),
                   ..._buildLocationSection(),
 
@@ -460,16 +419,14 @@ class _FarmerFormScreenState extends State<FarmerFormScreen> {
                   if (geoRequired) ...[
                     const SizedBox(height: 24),
                     _Section(
-                        title: 'Land Details',
-                        icon: Icons.landscape_outlined),
+                        title: 'Land Details', icon: Icons.landscape_outlined),
                     const SizedBox(height: 12),
                     ..._buildLandSection(),
                   ],
 
                   // ── Status (hardcoded) ─────────────────────────────────
                   const SizedBox(height: 24),
-                  _Section(
-                      title: 'Status', icon: Icons.toggle_on_outlined),
+                  _Section(title: 'Status', icon: Icons.toggle_on_outlined),
                   const SizedBox(height: 12),
                   _buildStatusSection(),
 
@@ -660,8 +617,7 @@ class _FarmerFormScreenState extends State<FarmerFormScreen> {
           prefixIcon: Icon(Icons.location_on_outlined),
         ),
         maxLines: 2,
-        validator: (v) =>
-            v == null || v.trim().isEmpty ? 'Required' : null,
+        validator: (v) => v == null || v.trim().isEmpty ? 'Required' : null,
       ),
       const SizedBox(height: 12),
       Row(children: [
@@ -720,8 +676,7 @@ class _FarmerFormScreenState extends State<FarmerFormScreen> {
               labelText: 'Land Area *',
               prefixIcon: Icon(Icons.square_foot_outlined),
             ),
-            keyboardType:
-                const TextInputType.numberWithOptions(decimal: true),
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
             validator: (v) {
               if (v == null || v.isEmpty) return 'Required';
               if (double.tryParse(v) == null) return 'Invalid';
@@ -794,8 +749,7 @@ class _Section extends StatelessWidget {
               color: color == AppColors.primary ? AppColors.dark : color)),
       const SizedBox(width: 8),
       Expanded(
-          child:
-              Divider(color: color.withValues(alpha: 0.35), thickness: 1.5)),
+          child: Divider(color: color.withValues(alpha: 0.35), thickness: 1.5)),
     ]);
   }
 }
@@ -881,8 +835,7 @@ class _PopupFieldSheetState extends State<_PopupFieldSheet> {
                   ),
                   IconButton(
                     onPressed: () => Navigator.pop(context),
-                    icon: const Icon(Icons.close,
-                        color: AppColors.textMedium),
+                    icon: const Icon(Icons.close, color: AppColors.textMedium),
                   ),
                 ],
               ),
@@ -954,16 +907,14 @@ class _PopupFieldSheetState extends State<_PopupFieldSheet> {
               : _localValues[f.key] as String?,
           decoration: InputDecoration(
             labelText: f.label,
-            prefixIcon: Icon(Icons.arrow_drop_down_circle_outlined,
-                color: color),
+            prefixIcon:
+                Icon(Icons.arrow_drop_down_circle_outlined, color: color),
           ),
           hint: Text('Select ${f.label}'),
           items: f.fieldData
-              .map(
-                  (o) => DropdownMenuItem(value: o, child: Text(o)))
+              .map((o) => DropdownMenuItem(value: o, child: Text(o)))
               .toList(),
-          onChanged: (v) =>
-              setState(() => _localValues[f.key] = v ?? ''),
+          onChanged: (v) => setState(() => _localValues[f.key] = v ?? ''),
         );
 
       default:
