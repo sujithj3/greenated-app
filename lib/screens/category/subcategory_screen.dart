@@ -49,7 +49,7 @@ class _SubcategoryScreenState extends State<SubcategoryScreen> {
             Container(
               width: double.infinity,
               padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
-              color: (catData?.color ?? AppColors.primary).withOpacity(0.1),
+              color: (catData?.color ?? AppColors.primary).withValues(alpha:0.1),
               child: Row(
                 children: [
                   Icon(
@@ -169,7 +169,7 @@ class _SubcategoryTile extends StatelessWidget {
               width: 44,
               height: 44,
               decoration: BoxDecoration(
-                color: color.withOpacity(0.12),
+                color: color.withValues(alpha:0.12),
                 borderRadius: BorderRadius.circular(12),
               ),
               child:
@@ -194,7 +194,7 @@ class _SubcategoryTile extends StatelessWidget {
                           padding: const EdgeInsets.symmetric(
                               horizontal: 10, vertical: 4),
                           decoration: BoxDecoration(
-                            color: color.withOpacity(0.12),
+                            color: color.withValues(alpha:0.12),
                             borderRadius: BorderRadius.circular(20),
                           ),
                           child: Text(

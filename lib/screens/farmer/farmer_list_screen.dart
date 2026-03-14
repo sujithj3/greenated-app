@@ -157,7 +157,7 @@ class _FarmerListScreenState extends State<FarmerListScreen> {
         style: const TextStyle(color: Colors.white),
         decoration: InputDecoration(
           hintText: 'Search by name, phone, village...',
-          hintStyle: TextStyle(color: Colors.white.withOpacity(0.7)),
+          hintStyle: TextStyle(color: Colors.white.withValues(alpha:0.7)),
           prefixIcon: const Icon(Icons.search, color: Colors.white),
           suffixIcon: _searchQuery.isNotEmpty
               ? IconButton(
@@ -168,7 +168,7 @@ class _FarmerListScreenState extends State<FarmerListScreen> {
                   },
                 )
               : null,
-          fillColor: Colors.white.withOpacity(0.2),
+          fillColor: Colors.white.withValues(alpha:0.2),
           filled: true,
           contentPadding:
               const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
@@ -203,7 +203,7 @@ class _FarmerCard extends StatelessWidget {
               // Avatar
               CircleAvatar(
                 radius: 26,
-                backgroundColor: color.withOpacity(0.15),
+                backgroundColor: color.withValues(alpha:0.15),
                 child: Text(
                   farmer.initials,
                   style: TextStyle(
@@ -294,7 +294,7 @@ class _Tag extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.12),
+        color: color.withValues(alpha:0.12),
         borderRadius: BorderRadius.circular(6),
       ),
       child: Text(label,
@@ -315,12 +315,12 @@ class _StatusBadge extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
         color: isActive
-            ? AppColors.primary.withOpacity(0.1)
+            ? AppColors.primary.withValues(alpha:0.1)
             : Colors.grey.shade100,
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
           color: isActive
-              ? AppColors.primary.withOpacity(0.3)
+              ? AppColors.primary.withValues(alpha:0.3)
               : Colors.grey.shade300,
         ),
       ),

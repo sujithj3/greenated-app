@@ -4,6 +4,7 @@ import 'package:pinput/pinput.dart';
 import 'package:provider/provider.dart';
 import '../../services/auth_service.dart';
 import '../../utils/app_colors.dart';
+import '../../utils/snack_bar_helper.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -40,15 +41,15 @@ class _LoginScreenState extends State<LoginScreen> {
       phoneNumber: phone,
       onCodeSent: () {
         setState(() => _codeSent = true);
-        _showSnack('OTP sent to $phone');
+        context.showSnack('OTP sent to $phone', success: true);
       },
-      onError: (msg) => _showSnack(msg, isError: true),
+      onError: (msg) => context.showSnack(msg),
     );
   }
 
   Future<void> _verifyOTP() async {
     if (_otpCtrl.text.length < 6) {
-      _showSnack('Please enter the 6-digit OTP', isError: true);
+      context.showSnack('Please enter the 6-digit OTP');
       return;
     }
     final auth = context.read<AuthService>();
@@ -56,17 +57,10 @@ class _LoginScreenState extends State<LoginScreen> {
     if (success && mounted) {
       Navigator.pushReplacementNamed(context, '/dashboard');
     } else if (mounted && auth.error != null) {
-      _showSnack(auth.error!, isError: true);
+      context.showSnack(auth.error!);
     }
   }
 
-  void _showSnack(String msg, {bool isError = false}) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(msg),
-      backgroundColor: isError ? AppColors.error : AppColors.primary,
-      behavior: SnackBarBehavior.floating,
-    ));
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -128,7 +122,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     Text(
                       'Greenated System',
                       style: TextStyle(
-                        color: Colors.white.withOpacity(0.75),
+                        color: Colors.white.withValues(alpha:0.75),
                         fontSize: (13 * scale).clamp(11.0, 15.0),
                       ),
                     ),
@@ -143,7 +137,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         borderRadius: BorderRadius.circular(24),
                         boxShadow: [
                           BoxShadow(
-                            color: AppColors.dark.withOpacity(0.25),
+                            color: AppColors.dark.withValues(alpha:0.25),
                             blurRadius: 24,
                             offset: const Offset(0, 8),
                           ),
@@ -253,7 +247,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   hintText: 'Enter mobile number',
                   hintStyle: TextStyle(
                     fontSize: (13 * scale).clamp(11.0, 15.0),
-                    color: AppColors.textMedium.withOpacity(0.5),
+                    color: AppColors.textMedium.withValues(alpha:0.5),
                   ),
                   prefixIcon: Icon(
                     Icons.phone,

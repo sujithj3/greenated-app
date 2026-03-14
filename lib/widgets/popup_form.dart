@@ -56,7 +56,7 @@ class _ConfirmDialog extends StatelessWidget {
             width: double.infinity,
             padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 20),
             decoration: BoxDecoration(
-              color: confirmColor.withOpacity(0.08),
+              color: confirmColor.withValues(alpha: 0.08),
               borderRadius:
                   const BorderRadius.vertical(top: Radius.circular(20)),
             ),

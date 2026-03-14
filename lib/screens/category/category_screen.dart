@@ -123,7 +123,7 @@ class _CategoryCard extends StatelessWidget {
           borderRadius: BorderRadius.circular(20),
           gradient: LinearGradient(
             colors: [
-              data.color.withOpacity(0.85),
+              data.color.withValues(alpha:0.85),
               data.color,
             ],
             begin: Alignment.topLeft,
@@ -131,7 +131,7 @@ class _CategoryCard extends StatelessWidget {
           ),
           boxShadow: [
             BoxShadow(
-              color: data.color.withOpacity(0.3),
+              color: data.color.withValues(alpha:0.3),
               blurRadius: 12,
               offset: const Offset(0, 6),
             ),
@@ -145,7 +145,7 @@ class _CategoryCard extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.2),
+                  color: Colors.white.withValues(alpha:0.2),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Icon(data.icon, color: Colors.white, size: 28),

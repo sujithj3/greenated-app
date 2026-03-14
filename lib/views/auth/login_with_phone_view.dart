@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:fluttertoast/fluttertoast.dart';
 import '../../utils/app_colors.dart';
+import '../../utils/snack_bar_helper.dart';
 import '../../view_models/auth/login_view_model.dart';
 
 /// Phone number input view — part of the login flow.
@@ -38,40 +38,22 @@ class _LoginWithPhoneViewState extends State<LoginWithPhoneView> {
   Future<void> _sendOTP() async {
     final phoneNumber = _phoneCtrl.text.trim();
     if (!_isValidPhoneNumber(phoneNumber)) {
-      _showValidationToast();
+      context.showSnack('Enter a valid 10-digit phone number');
       return;
     }
     FocusScope.of(context).unfocus();
 
     final success = await _vm.sendOTP(phoneNumber);
     if (success && mounted) {
-      _showSnack('OTP sent to ${_vm.selectedCountryCode}$phoneNumber');
+      context.showSnack('OTP sent to ${_vm.selectedCountryCode}$phoneNumber', success: true);
       widget.onOtpSent();
     } else if (_vm.error != null && mounted) {
-      _showSnack(_vm.error!, isError: true);
+      context.showSnack(_vm.error!);
     }
   }
 
   bool _isValidPhoneNumber(String value) => RegExp(r'^\d{10}$').hasMatch(value);
 
-  void _showValidationToast() {
-    Fluttertoast.cancel();
-    Fluttertoast.showToast(
-      msg: 'Enter a valid 10-digit phone number',
-      toastLength: Toast.LENGTH_SHORT,
-      gravity: ToastGravity.BOTTOM,
-      backgroundColor: AppColors.error,
-      textColor: Colors.white,
-    );
-  }
-
-  void _showSnack(String msg, {bool isError = false}) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(msg),
-      backgroundColor: isError ? AppColors.error : AppColors.dark,
-      behavior: SnackBarBehavior.floating,
-    ));
-  }
 
   @override
   Widget build(BuildContext context) {
