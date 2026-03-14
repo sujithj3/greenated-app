@@ -12,6 +12,8 @@ class AuthService extends ChangeNotifier {
   SharedPreferences? _prefs;
 
   static const String _userIdKey = 'app_user_id';
+  static const String _fullNameKey = 'app_user_name';
+  static const String _phoneKey = 'app_user_phone';
 
   String? _verificationId;
   int? _resendToken;
@@ -26,6 +28,8 @@ class AuthService extends ChangeNotifier {
 
   /// Retrieves the stored user ID. Falls back to Firebase UID if present,
   /// otherwise uses the ID stored in SharedPreferences.
+  /// Retrieves the stored user ID. Falls back to Firebase UID if present,
+  /// otherwise uses the ID stored in SharedPreferences.
   String? get userId {
     if (!EnvConfig.isDemoMode && _auth.currentUser != null) {
       return _auth.currentUser!.uid;
@@ -33,9 +37,14 @@ class AuthService extends ChangeNotifier {
     return _prefs?.getString(_userIdKey);
   }
 
-  String get displayPhone => EnvConfig.isDemoMode
-      ? _demoPhone
-      : (_auth.currentUser?.phoneNumber ?? '');
+  String? get fullName => _prefs?.getString(_fullNameKey);
+
+  String get displayPhone {
+    if (EnvConfig.isDemoMode) {
+      return _prefs?.getString(_phoneKey) ?? _demoPhone;
+    }
+    return _auth.currentUser?.phoneNumber ?? _prefs?.getString(_phoneKey) ?? '';
+  }
 
   bool get isLoggedIn =>
       EnvConfig.isDemoMode ? _demoLoggedIn : _auth.currentUser != null;
@@ -66,17 +75,26 @@ class AuthService extends ChangeNotifier {
     _prefs = await SharedPreferences.getInstance();
   }
 
-  Future<void> _saveUserId() async {
+  Future<void> _saveUserId({String? id, String? name, String? phone}) async {
     if (_prefs == null) await init();
-    // If we don't already have one, generate a UUID
-    if (userId == null) {
+    
+    // Save or generate User ID
+    if (id != null) {
+      await _prefs!.setString(_userIdKey, id);
+    } else if (userId == null) {
       final String newId = const Uuid().v4();
       await _prefs!.setString(_userIdKey, newId);
-      debugPrint(
-          '🔑 [AuthService] Generated and Saved New User ID to SharedPreferences: $newId');
-    } else {
-      debugPrint('🔑 [AuthService] User ID already exists in storage: $userId');
     }
+    
+    // Save additional user details
+    if (name != null) {
+      await _prefs!.setString(_fullNameKey, name);
+    }
+    if (phone != null) {
+      await _prefs!.setString(_phoneKey, phone);
+    }
+    
+    debugPrint('🔑 [AuthService] User Details Saved: ID=$userId, Name=$fullName, Phone=$displayPhone');
   }
 
   // ─── Demo Mode ────────────────────────────────────────────────────────────
@@ -92,7 +110,14 @@ class AuthService extends ChangeNotifier {
     _setLoading(true);
     await Future.delayed(const Duration(milliseconds: 600));
     _demoLoggedIn = true;
-    await _saveUserId();
+    
+    // Simulate parsing the user object from the mock API response
+    await _saveUserId(
+      id: 'demo-user-123',
+      name: 'Demo User',
+      phone: _demoPhone.isEmpty ? '+919876543210' : _demoPhone,
+    );
+    
     _logOtpVerificationResponse(success: true);
     _setLoading(false);
     notifyListeners();
@@ -123,8 +148,15 @@ class AuthService extends ChangeNotifier {
       forceResendingToken: _resendToken,
       verificationCompleted: (PhoneAuthCredential credential) async {
         try {
-          await _auth.signInWithCredential(credential);
-          await _saveUserId();
+          final userCredential = await _auth.signInWithCredential(credential);
+          
+          // Fallback parsing for phone/name from Firebase if needed
+          await _saveUserId(
+            id: userCredential.user?.uid,
+            name: userCredential.user?.displayName,
+            phone: userCredential.user?.phoneNumber ?? phoneNumber,
+          );
+          
           _logOtpVerificationResponse(success: true);
           notifyListeners();
           if (onAutoVerified != null) onAutoVerified(credential);
@@ -170,8 +202,14 @@ class AuthService extends ChangeNotifier {
         verificationId: _verificationId!,
         smsCode: otp,
       );
-      await _auth.signInWithCredential(credential);
-      await _saveUserId();
+      final userCredential = await _auth.signInWithCredential(credential);
+      
+      await _saveUserId(
+        id: userCredential.user?.uid,
+        name: userCredential.user?.displayName,
+        phone: userCredential.user?.phoneNumber,
+      );
+      
       _logOtpVerificationResponse(success: true);
       _setLoading(false);
       notifyListeners();
@@ -191,6 +229,8 @@ class AuthService extends ChangeNotifier {
   Future<void> signOut() async {
     if (_prefs != null) {
       await _prefs!.remove(_userIdKey);
+      await _prefs!.remove(_fullNameKey);
+      await _prefs!.remove(_phoneKey);
     }
 
     if (EnvConfig.isDemoMode) {
@@ -208,6 +248,7 @@ class AuthService extends ChangeNotifier {
   void _logOtpVerificationResponse({required bool success}) {
     final payload = <String, dynamic>{
       'userId': userId,
+      'fullName': fullName,
       'phone': displayPhone,
       'timestamp': DateTime.now().toIso8601String(),
       'success': success,

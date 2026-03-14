@@ -115,6 +115,8 @@ class MockHttpClient implements ApiClient {
 
   Map<String, dynamic> _mockVerifyOtp(ApiRequest request) {
     final Map<String, dynamic> body = _bodyAsMap(request.body);
+    final String paramPhone = (body['phoneNumber'] as String?) ?? '+919876543210';
+    final String phone = _digitsOnly(paramPhone).isEmpty ? '+919876543210' : paramPhone;
     final String otp =
         _digitsOnly((body['otpCode'] as String?) ?? '');
     if (otp.length != 6) {
@@ -134,6 +136,11 @@ class MockHttpClient implements ApiClient {
       data: <String, dynamic>{
         'token': 'mock-jwt-token-abc123',
         'refreshToken': 'mock-refresh-token-xyz789',
+        'user': <String, dynamic>{
+          'userId': 'demo-user-123',
+          'fullName': 'Demo User',
+          'phoneNumber': phone,
+        },
       },
     );
   }
