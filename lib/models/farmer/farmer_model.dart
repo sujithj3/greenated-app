@@ -12,6 +12,7 @@ class FarmerModel {
   final double? longitude;
   final String category;
   final String subcategory;
+  final int? subcategoryId;
   final double landArea;
   final String landUnit;
   final List<Map<String, double>> landCoordinates;
@@ -33,6 +34,7 @@ class FarmerModel {
     this.longitude,
     required this.category,
     required this.subcategory,
+    this.subcategoryId,
     required this.landArea,
     this.landUnit = 'Acres',
     this.landCoordinates = const [],
@@ -72,6 +74,7 @@ class FarmerModel {
       longitude: (map['longitude'] as num?)?.toDouble(),
       category: map['category'] ?? '',
       subcategory: map['subcategory'] ?? '',
+      subcategoryId: map['subcategoryId'] as int?,
       landArea: (map['landArea'] ?? 0.0).toDouble(),
       landUnit: map['landUnit'] ?? 'Acres',
       landCoordinates: coords,
@@ -96,6 +99,7 @@ class FarmerModel {
       'longitude': longitude,
       'category': category,
       'subcategory': subcategory,
+      'subcategoryId': subcategoryId,
       'landArea': landArea,
       'landUnit': landUnit,
       'landCoordinates': landCoordinates,
@@ -119,6 +123,7 @@ class FarmerModel {
     double? longitude,
     String? category,
     String? subcategory,
+    int? subcategoryId,
     double? landArea,
     String? landUnit,
     List<Map<String, double>>? landCoordinates,
@@ -140,6 +145,7 @@ class FarmerModel {
       longitude: longitude ?? this.longitude,
       category: category ?? this.category,
       subcategory: subcategory ?? this.subcategory,
+      subcategoryId: subcategoryId ?? this.subcategoryId,
       landArea: landArea ?? this.landArea,
       landUnit: landUnit ?? this.landUnit,
       landCoordinates: landCoordinates ?? this.landCoordinates,

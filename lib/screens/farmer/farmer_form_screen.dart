@@ -37,6 +37,7 @@ class _FarmerFormScreenState extends State<FarmerFormScreen> {
   // ── State ───────────────────────────────────────────────────────────────
   String _selectedCategory = '';
   String _selectedSubcategory = '';
+  int? _selectedSubcategoryId;
   String _selectedLandUnit = 'Acres';
   String _selectedStatus = 'Active';
   List<Map<String, double>> _landCoordinates = [];
@@ -67,6 +68,7 @@ class _FarmerFormScreenState extends State<FarmerFormScreen> {
       if (args != null) {
         _selectedCategory = args['category'] as String? ?? '';
         _selectedSubcategory = args['subcategory'] as String? ?? '';
+        _selectedSubcategoryId = args['subcategoryId'] as int?;
 
         if (args['farmer'] != null) {
           _editFarmer = args['farmer'] as FarmerModel;
@@ -166,6 +168,7 @@ class _FarmerFormScreenState extends State<FarmerFormScreen> {
     setState(() {
       _selectedCategory = f.category;
       _selectedSubcategory = f.subcategory;
+      _selectedSubcategoryId = f.subcategoryId;
       _selectedLandUnit = f.landUnit;
       _selectedStatus = f.status;
       _landCoordinates = f.landCoordinates;
@@ -327,12 +330,13 @@ class _FarmerFormScreenState extends State<FarmerFormScreen> {
       longitude: _longitude,
       category: _selectedCategory,
       subcategory: _selectedSubcategory,
+      subcategoryId: _selectedSubcategoryId,
       landArea: double.tryParse(_landAreaCtrl.text) ?? 0,
       landUnit: _selectedLandUnit,
       landCoordinates: _landCoordinates,
       dynamicFields: allDynValues,
       status: _selectedStatus,
-      registeredBy: auth.currentUser?.uid,
+      registeredBy: auth.userId, // Use locally stored User ID
     );
 
     try {

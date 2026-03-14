@@ -1,10 +1,15 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:uuid/uuid.dart';
 import '../config/env_config.dart';
 
 class AuthService extends ChangeNotifier {
   late final FirebaseAuth _auth =
       EnvConfig.isDemoMode ? _DummyAuth() : FirebaseAuth.instance;
+  SharedPreferences? _prefs;
+
+  static const String _userIdKey = 'app_user_id';
 
   String? _verificationId;
   int? _resendToken;
@@ -17,6 +22,15 @@ class AuthService extends ChangeNotifier {
 
   User? get currentUser =>
       EnvConfig.isDemoMode ? null : _auth.currentUser;
+
+  /// Retrieves the stored user ID. Falls back to Firebase UID if present, 
+  /// otherwise uses the ID stored in SharedPreferences.
+  String? get userId {
+    if (!EnvConfig.isDemoMode && _auth.currentUser != null) {
+      return _auth.currentUser!.uid;
+    }
+    return _prefs?.getString(_userIdKey);
+  }
 
   String get displayPhone =>
       EnvConfig.isDemoMode ? _demoPhone : (_auth.currentUser?.phoneNumber ?? '');
@@ -45,6 +59,20 @@ class AuthService extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Initialize SharedPreferences. Should be called early in the app lifecycle.
+  Future<void> init() async {
+    _prefs = await SharedPreferences.getInstance();
+  }
+
+  Future<void> _saveUserId() async {
+    if (_prefs == null) await init();
+    // If we don't already have one, generate a UUID
+    if (userId == null) {
+      final String newId = const Uuid().v4();
+      await _prefs!.setString(_userIdKey, newId);
+    }
+  }
+
   // ─── Demo Mode ────────────────────────────────────────────────────────────
 
   Future<void> _demoVerify({required VoidCallback onCodeSent}) async {
@@ -58,6 +86,7 @@ class AuthService extends ChangeNotifier {
     _setLoading(true);
     await Future.delayed(const Duration(milliseconds: 600));
     _demoLoggedIn = true;
+    await _saveUserId();
     _setLoading(false);
     notifyListeners();
     return true;
@@ -88,6 +117,7 @@ class AuthService extends ChangeNotifier {
       verificationCompleted: (PhoneAuthCredential credential) async {
         try {
           await _auth.signInWithCredential(credential);
+          await _saveUserId();
           notifyListeners();
           if (onAutoVerified != null) onAutoVerified(credential);
         } catch (e) {
@@ -136,6 +166,7 @@ class AuthService extends ChangeNotifier {
         smsCode: otp,
       );
       await _auth.signInWithCredential(credential);
+      await _saveUserId();
       _setLoading(false);
       notifyListeners();
       return true;
@@ -151,6 +182,10 @@ class AuthService extends ChangeNotifier {
   }
 
   Future<void> signOut() async {
+    if (_prefs != null) {
+      await _prefs!.remove(_userIdKey);
+    }
+
     if (EnvConfig.isDemoMode) {
       _demoLoggedIn = false;
       notifyListeners();

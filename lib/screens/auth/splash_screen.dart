@@ -117,7 +117,7 @@ class _SplashScreenState extends State<SplashScreen>
                           FittedBox(
                             fit: BoxFit.scaleDown,
                             child: Text(
-                              'FARMER REGISTRATION',
+                              'GREENATED',
                               maxLines: 1,
                               style: TextStyle(
                                 color: Colors.white,
@@ -129,7 +129,7 @@ class _SplashScreenState extends State<SplashScreen>
                           ),
                           SizedBox(height: 6 * scale),
                           Text(
-                            'Farmer Registration System',
+                            'Greenated System',
                             style: TextStyle(
                               color: Colors.white.withOpacity(0.85),
                               fontSize: (14 * scale).clamp(12.0, 17.0),

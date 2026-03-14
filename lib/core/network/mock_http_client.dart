@@ -321,7 +321,7 @@ class MockHttpClient implements ApiClient {
         'forms': <Map<String, dynamic>>[
           {
             'form_id': baseId * 10 + index,
-            'form_name': 'Farmer Registration',
+            'form_name': 'Greenated',
             'form_config': {
               'geoLocationRequired': geoRequired,
             },

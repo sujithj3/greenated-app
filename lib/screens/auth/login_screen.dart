@@ -114,7 +114,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     FittedBox(
                       fit: BoxFit.scaleDown,
                       child: Text(
-                        'FARMER REGISTRATION',
+                        'GREENATED',
                         maxLines: 1,
                         style: TextStyle(
                           color: Colors.white,
@@ -126,7 +126,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                     SizedBox(height: 4 * scale),
                     Text(
-                      'Farmer Registration System',
+                      'Greenated System',
                       style: TextStyle(
                         color: Colors.white.withOpacity(0.75),
                         fontSize: (13 * scale).clamp(11.0, 15.0),
