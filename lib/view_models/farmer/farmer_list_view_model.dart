@@ -13,6 +13,7 @@ class FarmerListViewModel extends ChangeNotifier {
   // Set from navigation arguments
   String? navCategory;
   String? navSubcategory;
+  bool viewOnly = false;
 
   String get searchQuery => _searchQuery;
   String? get filterStatus => _filterStatus;
@@ -20,6 +21,7 @@ class FarmerListViewModel extends ChangeNotifier {
   void init(Map? args) {
     navCategory = args?['category'] as String?;
     navSubcategory = args?['subcategory'] as String?;
+    viewOnly = args?['viewOnly'] as bool? ?? false;
   }
 
   void setSearch(String query) {

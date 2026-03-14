@@ -10,6 +10,7 @@ import '../../services/form_config_service.dart';
 import '../../services/location_service.dart';
 import '../../config/app_constants.dart';
 import '../../utils/app_colors.dart';
+import '../../utils/snack_bar_helper.dart';
 import '../../widgets/dynamic_field_builder.dart';
 import '../../widgets/shimmer_loading.dart';
 
@@ -229,19 +230,19 @@ class _FarmerFormScreenState extends State<FarmerFormScreen> {
           if (result.district.isNotEmpty) _districtCtrl.text = result.district;
           if (result.state.isNotEmpty) _stateCtrl.text = result.state;
         });
-        _snack('Location auto-filled', success: true);
+        context.showSnack('Location auto-filled', success: true);
       } on LocationException catch (e) {
-        _snack(
+        context.showSnack(
           'GPS detected. Address lookup timed out/failed: ${e.message}',
           success: true,
         );
       } catch (_) {
-        _snack('GPS detected. Could not auto-fill address.');
+        context.showSnack('GPS detected. Could not auto-fill address.');
       }
     } on LocationException catch (e) {
-      _snack(e.message);
+      context.showSnack(e.message);
     } catch (_) {
-      _snack('Failed to detect location. Please try again.');
+      context.showSnack('Failed to detect location. Please try again.');
     } finally {
       if (mounted) setState(() => _isLocating = false);
     }
@@ -262,7 +263,7 @@ class _FarmerFormScreenState extends State<FarmerFormScreen> {
           _selectedLandUnit = 'Acres';
         }
       });
-      _snack('Area: ${area.toStringAsFixed(4)} acres', success: true);
+      context.showSnack('Area: ${area.toStringAsFixed(4)} acres', success: true);
     }
   }
 
@@ -292,11 +293,11 @@ class _FarmerFormScreenState extends State<FarmerFormScreen> {
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
     if (_selectedCategory.isEmpty) {
-      _snack('Select a category.');
+      context.showSnack('Select a category.');
       return;
     }
     if (_selectedSubcategory.isEmpty) {
-      _snack('Select a subcategory.');
+      context.showSnack('Select a subcategory.');
       return;
     }
 
@@ -376,30 +377,31 @@ class _FarmerFormScreenState extends State<FarmerFormScreen> {
         await fs.updateFarmer(farmer);
         debugPrint(
             '=== FARMER REGISTRATION RESULT === action=update_farmer id=${farmer.id} success=true');
-        _snack('Updated successfully!', success: true);
+        context.showSnack('Updated successfully!', success: true);
       } else {
         final createdId = await fs.addFarmer(farmer);
         debugPrint(
             '=== FARMER REGISTRATION RESULT === action=create_farmer id=$createdId success=true');
-        _snack('Farmer registered!', success: true);
+        context.showSnack('Farmer registered!', success: true);
       }
-      if (mounted) Navigator.pop(context);
+      if (mounted) {
+        if (_editFarmer != null) {
+          Navigator.pop(context);
+        } else {
+          Navigator.pushNamedAndRemoveUntil(
+            context, '/dashboard', (route) => false,
+          );
+        }
+      }
     } catch (e) {
       debugPrint(
           '=== FARMER REGISTRATION RESULT === success=false error=${e.toString()}');
-      _snack('Error: $e');
+      context.showSnack('Error: $e');
     } finally {
       if (mounted) setState(() => _isSaving = false);
     }
   }
 
-  void _snack(String msg, {bool success = false}) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(msg),
-      backgroundColor: success ? AppColors.primary : AppColors.error,
-      behavior: SnackBarBehavior.floating,
-    ));
-  }
 
   // ── Build ───────────────────────────────────────────────────────────────
 

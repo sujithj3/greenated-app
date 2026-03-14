@@ -13,6 +13,7 @@ import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import '../../utils/app_colors.dart';
+import '../../utils/snack_bar_helper.dart';
 
 class LandMeasurementScreen extends StatefulWidget {
   const LandMeasurementScreen({super.key});
@@ -71,14 +72,14 @@ class _LandMeasurementScreenState extends State<LandMeasurementScreen> {
       await _refreshCurrentLocation();
     } catch (e) {
       if (mounted) setState(() => _locating = false);
-      _showSnack('Could not get location: $e');
+      context.showSnack('Could not get location: $e');
     }
   }
 
   Future<bool> _ensureLocationAccess() async {
     final serviceEnabled = await Geolocator.isLocationServiceEnabled();
     if (!serviceEnabled) {
-      _showSnack('Location services are disabled.');
+      context.showSnack('Location services are disabled.');
       return false;
     }
 
@@ -86,13 +87,13 @@ class _LandMeasurementScreenState extends State<LandMeasurementScreen> {
     if (permission == LocationPermission.denied) {
       permission = await Geolocator.requestPermission();
       if (permission == LocationPermission.denied) {
-        _showSnack('Location permission denied.');
+        context.showSnack('Location permission denied.');
         return false;
       }
     }
 
     if (permission == LocationPermission.deniedForever) {
-      _showSnack('Location permission permanently denied.');
+      context.showSnack('Location permission permanently denied.');
       return false;
     }
 
@@ -109,11 +110,11 @@ class _LandMeasurementScreenState extends State<LandMeasurementScreen> {
       _moveCameraToPosition(position, zoom: 18);
     } on TimeoutException {
       if (fallbackPosition == null) {
-        _showSnack('Timed out while fetching location. Please try again.');
+        context.showSnack('Timed out while fetching location. Please try again.');
       }
     } catch (e) {
       if (fallbackPosition == null) {
-        _showSnack('Could not get location: $e');
+        context.showSnack('Could not get location: $e');
       }
     } finally {
       if (mounted) setState(() => _locating = false);
@@ -236,13 +237,10 @@ class _LandMeasurementScreenState extends State<LandMeasurementScreen> {
     return areaM2 * 0.000247105; // convert to acres
   }
 
-  void _showSnack(String msg) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
-  }
 
   void _done() {
     if (_points.length < 3) {
-      _showSnack('Mark at least 3 points to define a land boundary.');
+      context.showSnack('Mark at least 3 points to define a land boundary.');
       return;
     }
     Navigator.pop(context, {

@@ -105,6 +105,7 @@ class SubcategoryView extends StatelessWidget {
                               arguments: {
                                 'category': category,
                                 'subcategory': sub,
+                                'viewOnly': true,
                               },
                             );
                           }
@@ -115,9 +116,8 @@ class SubcategoryView extends StatelessWidget {
                 ),
               ],
             ),
-            floatingActionButton: selectionMode
-                ? null
-                : FloatingActionButton.extended(
+            floatingActionButton: registrationFlow
+                ? FloatingActionButton.extended(
                     onPressed: () => Navigator.pushNamed(
                       context,
                       '/farmer-form',
@@ -127,7 +127,8 @@ class SubcategoryView extends StatelessWidget {
                     icon: const Icon(Icons.person_add, color: Colors.white),
                     label: const Text('Register Farmer',
                         style: TextStyle(color: Colors.white)),
-                  ),
+                  )
+                : null,
           );
         },
       ),

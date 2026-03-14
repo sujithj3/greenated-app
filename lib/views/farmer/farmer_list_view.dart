@@ -82,6 +82,7 @@ class _FarmerListViewState extends State<FarmerListView> {
             if (farmers.isEmpty) {
               return _EmptyList(
                 query: _vm.searchQuery,
+                viewOnly: _vm.viewOnly,
                 onRegister: () => Navigator.pushNamed(context, '/farmer-form'),
               );
             }
@@ -118,11 +119,13 @@ class _FarmerListViewState extends State<FarmerListView> {
             );
           },
         ),
-        floatingActionButton: FloatingActionButton(
-          onPressed: () => Navigator.pushNamed(context, '/farmer-form'),
-          backgroundColor: AppColors.primary,
-          child: const Icon(Icons.person_add, color: Colors.white),
-        ),
+        floatingActionButton: _vm.viewOnly
+            ? null
+            : FloatingActionButton(
+                onPressed: () => Navigator.pushNamed(context, '/farmer-form'),
+                backgroundColor: AppColors.primary,
+                child: const Icon(Icons.person_add, color: Colors.white),
+              ),
       ),
     );
   }
@@ -293,8 +296,13 @@ class _StatusBadge extends StatelessWidget {
 
 class _EmptyList extends StatelessWidget {
   final String query;
+  final bool viewOnly;
   final VoidCallback onRegister;
-  const _EmptyList({required this.query, required this.onRegister});
+  const _EmptyList({
+    required this.query,
+    this.viewOnly = false,
+    required this.onRegister,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -308,11 +316,13 @@ class _EmptyList extends StatelessWidget {
           Text(
               query.isNotEmpty
                   ? 'No results for "$query"'
-                  : 'No farmers registered yet',
+                  : viewOnly
+                      ? 'No data found'
+                      : 'No farmers registered yet',
               style:
                   const TextStyle(fontSize: 16, color: AppColors.textMedium)),
           const SizedBox(height: 8),
-          if (query.isEmpty) ...[
+          if (query.isEmpty && !viewOnly) ...[
             const Text('Tap the button to register the first farmer.',
                 style: TextStyle(color: AppColors.textMedium, fontSize: 13)),
             const SizedBox(height: 24),

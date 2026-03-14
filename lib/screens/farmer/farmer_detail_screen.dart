@@ -6,6 +6,7 @@ import '../../models/farmer/farmer_model.dart';
 import '../../services/firestore_service.dart';
 import '../../config/app_constants.dart';
 import '../../utils/app_colors.dart';
+import '../../utils/snack_bar_helper.dart';
 import '../../widgets/popup_form.dart';
 
 class FarmerDetailScreen extends StatelessWidget {
@@ -61,7 +62,7 @@ class _FarmerDetailView extends StatelessWidget {
               background: Container(
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
-                    colors: [color.withOpacity(0.8), color],
+                    colors: [color.withValues(alpha:0.8), color],
                     begin: Alignment.topCenter,
                     end: Alignment.bottomCenter,
                   ),
@@ -72,7 +73,7 @@ class _FarmerDetailView extends StatelessWidget {
                     const SizedBox(height: 40),
                     CircleAvatar(
                       radius: 44,
-                      backgroundColor: Colors.white.withOpacity(0.2),
+                      backgroundColor: Colors.white.withValues(alpha:0.2),
                       child: Text(
                         farmer.initials,
                         style: const TextStyle(
@@ -244,11 +245,10 @@ class _FarmerDetailView extends StatelessWidget {
     );
     if (confirmed == true && context.mounted) {
       await fs.deleteFarmer(farmer.id!);
-      Navigator.pop(context);
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text('Farmer record deleted.'),
-        backgroundColor: AppColors.error,
-      ));
+      if (context.mounted) {
+        context.showSnack('Farmer record deleted.');
+        Navigator.pop(context);
+      }
     }
   }
 
@@ -256,10 +256,7 @@ class _FarmerDetailView extends StatelessWidget {
     final newStatus = farmer.status == 'Active' ? 'Inactive' : 'Active';
     await fs.updateFarmer(farmer.copyWith(status: newStatus));
     if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text('Status updated to $newStatus.'),
-        backgroundColor: AppColors.primary,
-      ));
+      context.showSnack('Status updated to $newStatus.', success: true);
       Navigator.pop(context); // refresh by going back
     }
   }
@@ -334,7 +331,7 @@ class _LandMapCardState extends State<_LandMapCard> {
                   Polygon(
                     polygonId: const PolygonId('land'),
                     points: points,
-                    fillColor: AppColors.primary.withOpacity(0.25),
+                    fillColor: AppColors.primary.withValues(alpha:0.25),
                     strokeColor: AppColors.primary,
                     strokeWidth: 2,
                   ),
@@ -442,9 +439,9 @@ class _StatusChip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.2),
+        color: Colors.white.withValues(alpha:0.2),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.white.withOpacity(0.5)),
+        border: Border.all(color: Colors.white.withValues(alpha:0.5)),
       ),
       child: Text(status,
           style: const TextStyle(
@@ -465,9 +462,9 @@ class _InfoChip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
+        color: color.withValues(alpha:0.1),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: color.withOpacity(0.3)),
+        border: Border.all(color: color.withValues(alpha:0.3)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,

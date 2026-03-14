@@ -31,6 +31,7 @@ class _FarmerListScreenState extends State<FarmerListScreen> {
     final args = ModalRoute.of(context)?.settings.arguments as Map?;
     final String? navCategory = args?['category'] as String?;
     final String? navSubcategory = args?['subcategory'] as String?;
+    final bool viewOnly = args?['viewOnly'] as bool? ?? false;
 
     final fs = context.read<FirestoreService>();
     final bool hasNavFilter = navCategory != null;
@@ -102,6 +103,7 @@ class _FarmerListScreenState extends State<FarmerListScreen> {
           if (farmers.isEmpty) {
             return _EmptyList(
               query: _searchQuery,
+              viewOnly: viewOnly,
               onRegister: () => Navigator.pushNamed(context, '/farmer-form'),
             );
           }
@@ -140,11 +142,13 @@ class _FarmerListScreenState extends State<FarmerListScreen> {
           );
         },
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () => Navigator.pushNamed(context, '/farmer-form'),
-        backgroundColor: AppColors.primary,
-        child: const Icon(Icons.person_add, color: Colors.white),
-      ),
+      floatingActionButton: viewOnly
+          ? null
+          : FloatingActionButton(
+              onPressed: () => Navigator.pushNamed(context, '/farmer-form'),
+              backgroundColor: AppColors.primary,
+              child: const Icon(Icons.person_add, color: Colors.white),
+            ),
     );
   }
 
@@ -157,7 +161,7 @@ class _FarmerListScreenState extends State<FarmerListScreen> {
         style: const TextStyle(color: Colors.white),
         decoration: InputDecoration(
           hintText: 'Search by name, phone, village...',
-          hintStyle: TextStyle(color: Colors.white.withOpacity(0.7)),
+          hintStyle: TextStyle(color: Colors.white.withValues(alpha:0.7)),
           prefixIcon: const Icon(Icons.search, color: Colors.white),
           suffixIcon: _searchQuery.isNotEmpty
               ? IconButton(
@@ -168,7 +172,7 @@ class _FarmerListScreenState extends State<FarmerListScreen> {
                   },
                 )
               : null,
-          fillColor: Colors.white.withOpacity(0.2),
+          fillColor: Colors.white.withValues(alpha:0.2),
           filled: true,
           contentPadding:
               const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
@@ -203,7 +207,7 @@ class _FarmerCard extends StatelessWidget {
               // Avatar
               CircleAvatar(
                 radius: 26,
-                backgroundColor: color.withOpacity(0.15),
+                backgroundColor: color.withValues(alpha:0.15),
                 child: Text(
                   farmer.initials,
                   style: TextStyle(
@@ -294,7 +298,7 @@ class _Tag extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.12),
+        color: color.withValues(alpha:0.12),
         borderRadius: BorderRadius.circular(6),
       ),
       child: Text(label,
@@ -315,12 +319,12 @@ class _StatusBadge extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
         color: isActive
-            ? AppColors.primary.withOpacity(0.1)
+            ? AppColors.primary.withValues(alpha:0.1)
             : Colors.grey.shade100,
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
           color: isActive
-              ? AppColors.primary.withOpacity(0.3)
+              ? AppColors.primary.withValues(alpha:0.3)
               : Colors.grey.shade300,
         ),
       ),
@@ -338,8 +342,13 @@ class _StatusBadge extends StatelessWidget {
 
 class _EmptyList extends StatelessWidget {
   final String query;
+  final bool viewOnly;
   final VoidCallback onRegister;
-  const _EmptyList({required this.query, required this.onRegister});
+  const _EmptyList({
+    required this.query,
+    this.viewOnly = false,
+    required this.onRegister,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -356,11 +365,13 @@ class _EmptyList extends StatelessWidget {
           Text(
             query.isNotEmpty
                 ? 'No results for "$query"'
-                : 'No farmers registered yet',
+                : viewOnly
+                    ? 'No data found'
+                    : 'No farmers registered yet',
             style: const TextStyle(fontSize: 16, color: AppColors.textMedium),
           ),
           const SizedBox(height: 8),
-          if (query.isEmpty) ...[
+          if (query.isEmpty && !viewOnly) ...[
             const Text('Tap the button to register the first farmer.',
                 style: TextStyle(color: AppColors.textMedium, fontSize: 13)),
             const SizedBox(height: 24),

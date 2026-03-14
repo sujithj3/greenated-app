@@ -89,10 +89,10 @@ class _SplashScreenState extends State<SplashScreen>
                         width: (100 * scale).clamp(80.0, 130.0),
                         height: (100 * scale).clamp(80.0, 130.0),
                         decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.15),
+                          color: Colors.white.withValues(alpha:0.15),
                           shape: BoxShape.circle,
                           border: Border.all(
-                            color: Colors.white.withOpacity(0.4),
+                            color: Colors.white.withValues(alpha:0.4),
                             width: 2,
                           ),
                         ),
@@ -131,7 +131,7 @@ class _SplashScreenState extends State<SplashScreen>
                           Text(
                             'Greenated System',
                             style: TextStyle(
-                              color: Colors.white.withOpacity(0.85),
+                              color: Colors.white.withValues(alpha:0.85),
                               fontSize: (14 * scale).clamp(12.0, 17.0),
                               letterSpacing: 1.2,
                             ),
@@ -154,7 +154,7 @@ class _SplashScreenState extends State<SplashScreen>
                           child: CircularProgressIndicator(
                             strokeWidth: 2.5,
                             valueColor: AlwaysStoppedAnimation<Color>(
-                              Colors.white.withOpacity(0.7),
+                              Colors.white.withValues(alpha:0.7),
                             ),
                           ),
                         ),
@@ -162,7 +162,7 @@ class _SplashScreenState extends State<SplashScreen>
                         Text(
                           'Empowering Farmers',
                           style: TextStyle(
-                            color: Colors.white.withOpacity(0.6),
+                            color: Colors.white.withValues(alpha:0.6),
                             fontSize: (12 * scale).clamp(11.0, 15.0),
                           ),
                         ),
