@@ -22,6 +22,7 @@ class ApiEndpoints {
       '/subcategories/$subcategoryId/registration-fields';
 
   // ── Farmers ──────────────────────────────────────────────────────────────
-  static const String farmers = '/farmers';
-  static String farmerById(String id) => '/farmers/$id';
+  static const String listFarmers = '/list-farmers';
+  static const String registerFarmer = '/register-farmer';
+  static String farmerById(String id) => '/farmer/$id';
 }
