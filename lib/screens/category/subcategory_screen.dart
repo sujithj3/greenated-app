@@ -121,6 +121,7 @@ class _SubcategoryScreenState extends State<SubcategoryScreen> {
                               arguments: {
                                 'category': category,
                                 'subcategory': sub,
+                                'viewOnly': true,
                               },
                             );
                           }
