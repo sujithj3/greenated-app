@@ -208,7 +208,7 @@ class FarmerFormViewModel extends ChangeNotifier {
       landCoordinates: landCoordinates,
       dynamicFields: dynValues,
       status: selectedStatus,
-      registeredBy: _authService.currentUser?.uid,
+      userId: _authService.userId,
     );
 
     try {

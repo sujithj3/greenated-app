@@ -94,8 +94,15 @@ class ApiOption {
 
   const ApiOption({required this.id, required this.name});
 
-  factory ApiOption.fromJson(Map<String, dynamic> j) =>
-      ApiOption(id: j['id'] as int, name: j['name'] as String);
+  factory ApiOption.fromJson(Map<String, dynamic> j) {
+    final rawName = j['name'] ?? j['label'] ?? j['value'];
+    final String name = rawName?.toString() ?? '';
+    final rawId = j['id'] ?? j['option_id'] ?? j['value'];
+    return ApiOption(
+      id: _asInt(rawId, fallback: name.hashCode),
+      name: name,
+    );
+  }
 }
 
 // ─── ApiField ────────────────────────────────────────────────────────────────
@@ -104,7 +111,8 @@ class ApiField {
   final int fieldId;
   final String label;
   final String key;
-  final String type; // Legacy: TEXT | NUMBER | DROPDOWN | BUTTON | CHECKBOX | RADIO | DATE | CAMERA | FILE
+  final String
+      type; // Legacy: TEXT | NUMBER | DROPDOWN | BUTTON | CHECKBOX | RADIO | DATE | CAMERA | FILE
   final FieldType? _explicitFieldType;
   final FieldStyle? _explicitFieldStyle;
   final bool required;
@@ -138,9 +146,9 @@ class ApiField {
   factory ApiField.fromJson(Map<String, dynamic> j) {
     final type = (j['type'] as String? ?? 'TEXT').toUpperCase();
     return ApiField(
-      fieldId: j['field_id'] as int,
-      label: j['label'] as String,
-      key: j['key'] as String,
+      fieldId: _asInt(j['field_id']),
+      label: (j['label']?.toString() ?? ''),
+      key: (j['key']?.toString() ?? ''),
       type: type,
       fieldType: j['field_type'] != null
           ? FieldType.fromApiValue(j['field_type'])
@@ -242,8 +250,8 @@ class ApiForm {
         .toList();
 
     return ApiForm(
-      formId: j['form_id'] as int,
-      formName: j['form_name'] as String,
+      formId: _asInt(j['form_id']),
+      formName: j['form_name']?.toString() ?? '',
       formConfig: j['form_config'] != null
           ? ApiFormConfig.fromJson(j['form_config'] as Map<String, dynamic>)
           : const ApiFormConfig(),
@@ -269,9 +277,9 @@ class ApiSubcategory {
   ApiForm? get primaryForm => forms.isNotEmpty ? forms.first : null;
 
   factory ApiSubcategory.fromJson(Map<String, dynamic> j) => ApiSubcategory(
-        id: j['subcategory_id'] as int,
-        name: j['subcategory_name'] as String,
-        forms: (j['forms'] as List<dynamic>)
+        id: _asInt(j['subcategory_id']),
+        name: j['subcategory_name']?.toString() ?? '',
+        forms: (j['forms'] as List<dynamic>? ?? [])
             .map((f) => ApiForm.fromJson(f as Map<String, dynamic>))
             .toList(),
       );
@@ -290,9 +298,9 @@ class ApiCategory {
   });
 
   factory ApiCategory.fromJson(Map<String, dynamic> j) => ApiCategory(
-        id: j['category_id'] as int,
-        name: j['category_name'] as String,
-        subcategories: (j['subcategories'] as List<dynamic>)
+        id: _asInt(j['category_id']),
+        name: j['category_name']?.toString() ?? '',
+        subcategories: (j['subcategories'] as List<dynamic>? ?? [])
             .map((s) => ApiSubcategory.fromJson(s as Map<String, dynamic>))
             .toList(),
       );
@@ -305,4 +313,11 @@ class ApiCategory {
       return null;
     }
   }
+}
+
+int _asInt(Object? value, {int fallback = 0}) {
+  if (value is int) return value;
+  if (value is num) return value.toInt();
+  if (value is String) return int.tryParse(value) ?? fallback;
+  return fallback;
 }

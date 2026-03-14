@@ -221,7 +221,7 @@ class _FarmerCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      farmer.name,
+                      farmer.name ?? 'Unknown',
                       style: const TextStyle(
                         fontWeight: FontWeight.w700,
                         fontSize: 15,
@@ -234,7 +234,7 @@ class _FarmerCard extends StatelessWidget {
                         const Icon(Icons.phone,
                             size: 13, color: AppColors.textMedium),
                         const SizedBox(width: 4),
-                        Text(farmer.phone,
+                        Text(farmer.phone ?? 'N/A',
                             style: const TextStyle(
                                 fontSize: 12, color: AppColors.textMedium)),
                       ],

@@ -122,7 +122,7 @@ class MockApiService {
   ///     "forms": [
   ///       {
   ///         "form_id": 1000,
-  ///         "form_name": "Farmer Registration",
+  ///         "form_name": "Greenated",
   ///         "form_config": { "geoLocationRequired": true },
   ///         "sections": [
   ///           {
@@ -290,7 +290,7 @@ class MockApiService {
         'forms': [
           {
             'form_id': baseId * 10 + index,
-            'form_name': 'Farmer Registration',
+            'form_name': 'Greenated',
             'form_config': {
               'geoLocationRequired': geoRequired,
             },

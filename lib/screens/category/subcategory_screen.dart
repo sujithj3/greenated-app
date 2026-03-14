@@ -102,14 +102,15 @@ class _SubcategoryScreenState extends State<SubcategoryScreen> {
                           if (selectionMode) {
                             Navigator.pop(context, sub);
                           } else {
-                            // Both registrationFlow and normal flow
                             // navigate directly to farmer registration form
+                            final subData = svc.getCategoryByName(category)?.findSubcategory(sub);
                             Navigator.pushNamed(
                               context,
                               '/farmer-form',
                               arguments: {
                                 'category': category,
                                 'subcategory': sub,
+                                'subcategoryId': subData?.id,
                               },
                             );
                           }

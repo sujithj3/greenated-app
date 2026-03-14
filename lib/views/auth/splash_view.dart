@@ -138,7 +138,7 @@ class _SplashViewState extends State<SplashView>
                           ),
                           SizedBox(height: 6 * scale),
                           Text(
-                            'Farmer Registration System',
+                            'Greenated System',
                             style: TextStyle(
                               color:
                                   Colors.white.withValues(alpha: 0.85),

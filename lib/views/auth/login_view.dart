@@ -111,7 +111,7 @@ class _LoginViewState extends State<LoginView> {
                           ),
                           SizedBox(height: 4 * scale),
                           Text(
-                            'Farmer Registration System',
+                            'Greenated System',
                             style: TextStyle(
                               color: Colors.white.withValues(alpha: 0.75),
                               fontSize: (13 * scale).clamp(11.0, 15.0),

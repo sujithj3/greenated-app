@@ -2,8 +2,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 class FarmerModel {
   final String? id;
-  final String name;
-  final String phone;
+  final String? name; // Can be null if form doesn't request it
+  final String? phone; // Can be null if form doesn't request it
   final String address;
   final String village;
   final String district;
@@ -12,6 +12,7 @@ class FarmerModel {
   final double? longitude;
   final String category;
   final String subcategory;
+  final int? subcategoryId;
   final double landArea;
   final String landUnit;
   final List<Map<String, double>> landCoordinates;
@@ -19,12 +20,12 @@ class FarmerModel {
   final DateTime registrationDate;
   final String? photoUrl;
   final String status;
-  final String? registeredBy;
+  final String? userId; // Replaced registeredBy
 
   FarmerModel({
     this.id,
-    required this.name,
-    required this.phone,
+    this.name,
+    this.phone,
     required this.address,
     this.village = '',
     this.district = '',
@@ -33,6 +34,7 @@ class FarmerModel {
     this.longitude,
     required this.category,
     required this.subcategory,
+    this.subcategoryId,
     required this.landArea,
     this.landUnit = 'Acres',
     this.landCoordinates = const [],
@@ -40,7 +42,7 @@ class FarmerModel {
     DateTime? registrationDate,
     this.photoUrl,
     this.status = 'Active',
-    this.registeredBy,
+    this.userId, // Replaced registeredBy
   }) : registrationDate = registrationDate ?? DateTime.now();
 
   factory FarmerModel.fromMap(Map<String, dynamic> map, String id) {
@@ -62,8 +64,8 @@ class FarmerModel {
 
     return FarmerModel(
       id: id,
-      name: map['name'] ?? '',
-      phone: map['phone'] ?? '',
+      name: map['name'],
+      phone: map['phone'],
       address: map['address'] ?? '',
       village: map['village'] ?? '',
       district: map['district'] ?? '',
@@ -72,6 +74,7 @@ class FarmerModel {
       longitude: (map['longitude'] as num?)?.toDouble(),
       category: map['category'] ?? '',
       subcategory: map['subcategory'] ?? '',
+      subcategoryId: map['subcategoryId'] as int?,
       landArea: (map['landArea'] ?? 0.0).toDouble(),
       landUnit: map['landUnit'] ?? 'Acres',
       landCoordinates: coords,
@@ -80,7 +83,7 @@ class FarmerModel {
           (map['registrationDate'] as Timestamp?)?.toDate() ?? DateTime.now(),
       photoUrl: map['photoUrl'],
       status: map['status'] ?? 'Active',
-      registeredBy: map['registeredBy'],
+      userId: map['userId'],
     );
   }
 
@@ -94,16 +97,14 @@ class FarmerModel {
       'state': state,
       'latitude': latitude,
       'longitude': longitude,
-      'category': category,
-      'subcategory': subcategory,
+      'subcategoryId': subcategoryId,
       'landArea': landArea,
       'landUnit': landUnit,
       'landCoordinates': landCoordinates,
       'dynamicFields': dynamicFields,
       'registrationDate': Timestamp.fromDate(registrationDate),
-      'photoUrl': photoUrl,
       'status': status,
-      'registeredBy': registeredBy,
+      'userId': userId,
     };
   }
 
@@ -119,6 +120,7 @@ class FarmerModel {
     double? longitude,
     String? category,
     String? subcategory,
+    int? subcategoryId,
     double? landArea,
     String? landUnit,
     List<Map<String, double>>? landCoordinates,
@@ -126,7 +128,7 @@ class FarmerModel {
     DateTime? registrationDate,
     String? photoUrl,
     String? status,
-    String? registeredBy,
+    String? userId,
   }) {
     return FarmerModel(
       id: id ?? this.id,
@@ -140,6 +142,7 @@ class FarmerModel {
       longitude: longitude ?? this.longitude,
       category: category ?? this.category,
       subcategory: subcategory ?? this.subcategory,
+      subcategoryId: subcategoryId ?? this.subcategoryId,
       landArea: landArea ?? this.landArea,
       landUnit: landUnit ?? this.landUnit,
       landCoordinates: landCoordinates ?? this.landCoordinates,
@@ -147,15 +150,18 @@ class FarmerModel {
       registrationDate: registrationDate ?? this.registrationDate,
       photoUrl: photoUrl ?? this.photoUrl,
       status: status ?? this.status,
-      registeredBy: registeredBy ?? this.registeredBy,
+      userId: userId ?? this.userId,
     );
   }
 
   String get initials {
-    final parts = name.trim().split(' ');
+    final safeName = name?.trim() ?? '';
+    if (safeName.isEmpty) return 'F';
+    
+    final parts = safeName.split(' ');
     if (parts.length >= 2) {
       return '${parts[0][0]}${parts[1][0]}'.toUpperCase();
     }
-    return name.isNotEmpty ? name[0].toUpperCase() : 'F';
+    return safeName[0].toUpperCase();
   }
 }

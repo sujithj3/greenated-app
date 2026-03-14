@@ -243,8 +243,93 @@ class MockHttpClient implements ApiClient {
 
   static Map<String, dynamic> _personalInfoSectionJson() => {
         'section_id': 'personal_info',
-        'section_title': 'Personal Info',
+        'section_title': 'Basic Info',
         'fields': _personalInfoFieldsJson(),
+      };
+
+  static Map<String, dynamic> _agroforestryExtraSectionJson() => {
+        'section_id': 'agroforestry_details',
+        'section_title': 'Tree Details',
+        'fields': [
+          {
+            'field_id': 101,
+            'label': 'Tree Species',
+            'key': 'tree_species',
+            'type': 'TEXT',
+            'required': true,
+            'options': <dynamic>[],
+            'popup': null,
+          },
+          {
+            'field_id': 102,
+            'label': 'Estimated Tree Count',
+            'key': 'tree_count',
+            'type': 'NUMBER',
+            'required': true,
+            'options': <dynamic>[],
+            'popup': null,
+          },
+        ],
+      };
+
+  static Map<String, dynamic> _soilCarbonExtraSectionJson() => {
+        'section_id': 'soil_details',
+        'section_title': 'Soil & Tillage',
+        'fields': [
+          {
+            'field_id': 201,
+            'label': 'Soil Type',
+            'key': 'soil_type',
+            'type': 'DROPDOWN',
+            'required': true,
+            'options': [
+              {'label': 'Clay', 'value': 'Clay'},
+              {'label': 'Sandy', 'value': 'Sandy'},
+              {'label': 'Loam', 'value': 'Loam'},
+              {'label': 'Silt', 'value': 'Silt'},
+            ],
+            'popup': null,
+          },
+          {
+            'field_id': 202,
+            'label': 'Tillage Frequency (per year)',
+            'key': 'tillage_freq',
+            'type': 'NUMBER',
+            'required': false,
+            'options': <dynamic>[],
+            'popup': null,
+          },
+        ],
+      };
+
+  static Map<String, dynamic> _biocharExtraSectionJson() => {
+        'section_id': 'biochar_details',
+        'section_title': 'Production Details',
+        'fields': [
+          {
+            'field_id': 301,
+            'label': 'Biomass Source',
+            'key': 'biomass_source',
+            'type': 'TEXT',
+            'required': true,
+            'options': <dynamic>[],
+            'popup': null,
+          },
+          {
+            'field_id': 302,
+            'label': 'Production Method',
+            'key': 'production_method',
+            'type': 'DROPDOWN',
+            'required': true,
+            'options': [
+              {'label': 'Kon Tiki Kiln', 'value': 'Kon Tiki Kiln'},
+              {'label': 'Flame Curtain', 'value': 'Flame Curtain'},
+              {'label': 'Gasifier', 'value': 'Gasifier'},
+              {'label': 'Other', 'value': 'Other'},
+            ],
+            'popup': null,
+          },
+        ],
       };
 
   static Map<String, dynamic> _agroforestryCategoryJson() {
@@ -264,6 +349,7 @@ class MockHttpClient implements ApiClient {
         ],
         baseId: 100,
         geoRequired: true,
+        extraSections: [_agroforestryExtraSectionJson()],
       ),
     };
   }
@@ -284,6 +370,7 @@ class MockHttpClient implements ApiClient {
         ],
         baseId: 200,
         geoRequired: true,
+        extraSections: [_soilCarbonExtraSectionJson()],
       ),
     };
   }
@@ -303,6 +390,7 @@ class MockHttpClient implements ApiClient {
         ],
         baseId: 300,
         geoRequired: false,
+        extraSections: [_biocharExtraSectionJson()],
       ),
     };
   }
@@ -311,6 +399,7 @@ class MockHttpClient implements ApiClient {
     required List<String> names,
     required int baseId,
     required bool geoRequired,
+    List<Map<String, dynamic>>? extraSections,
   }) {
     return names.asMap().entries.map((e) {
       final index = e.key;
@@ -321,12 +410,13 @@ class MockHttpClient implements ApiClient {
         'forms': <Map<String, dynamic>>[
           {
             'form_id': baseId * 10 + index,
-            'form_name': 'Farmer Registration',
+            'form_name': 'Greenated',
             'form_config': {
               'geoLocationRequired': geoRequired,
             },
             'sections': <Map<String, dynamic>>[
               _personalInfoSectionJson(),
+              if (extraSections != null) ...extraSections,
             ],
           },
         ],

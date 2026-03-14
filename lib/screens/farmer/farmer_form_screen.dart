@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -37,6 +38,7 @@ class _FarmerFormScreenState extends State<FarmerFormScreen> {
   // ── State ───────────────────────────────────────────────────────────────
   String _selectedCategory = '';
   String _selectedSubcategory = '';
+  int? _selectedSubcategoryId;
   String _selectedLandUnit = 'Acres';
   String _selectedStatus = 'Active';
   List<Map<String, double>> _landCoordinates = [];
@@ -67,6 +69,7 @@ class _FarmerFormScreenState extends State<FarmerFormScreen> {
       if (args != null) {
         _selectedCategory = args['category'] as String? ?? '';
         _selectedSubcategory = args['subcategory'] as String? ?? '';
+        _selectedSubcategoryId = args['subcategoryId'] as int?;
 
         if (args['farmer'] != null) {
           _editFarmer = args['farmer'] as FarmerModel;
@@ -166,15 +169,16 @@ class _FarmerFormScreenState extends State<FarmerFormScreen> {
     setState(() {
       _selectedCategory = f.category;
       _selectedSubcategory = f.subcategory;
+      _selectedSubcategoryId = f.subcategoryId;
       _selectedLandUnit = f.landUnit;
       _selectedStatus = f.status;
       _landCoordinates = f.landCoordinates;
       _latitude = f.latitude;
       _longitude = f.longitude;
 
-      // Map known model fields back to dynamic field keys
-      _setDynValue('full_name', f.name);
-      _setDynValue('mobile_number', f.phone);
+      // Map known model fields back to dynamic field keys (if they exist)
+      if (f.name != null) _setDynValue('full_name', f.name!);
+      if (f.phone != null) _setDynValue('mobile_number', f.phone!);
 
       // Map dynamicFields
       f.dynamicFields.forEach((key, value) {
@@ -311,9 +315,10 @@ class _FarmerFormScreenState extends State<FarmerFormScreen> {
       }
     });
 
-    // Extract well-known keys for FarmerModel core fields
-    final name = allDynValues.remove('full_name') ?? '';
-    final phone = allDynValues.remove('mobile_number') ?? '';
+    // Extract well-known keys for FarmerModel core fields as fallback,
+    // but leave them inside the dynamic fields map
+    final name = allDynValues['full_name'];
+    final phone = allDynValues['mobile_number'];
 
     final farmer = FarmerModel(
       id: _editFarmer?.id,
@@ -327,24 +332,61 @@ class _FarmerFormScreenState extends State<FarmerFormScreen> {
       longitude: _longitude,
       category: _selectedCategory,
       subcategory: _selectedSubcategory,
+      subcategoryId: _selectedSubcategoryId,
       landArea: double.tryParse(_landAreaCtrl.text) ?? 0,
       landUnit: _selectedLandUnit,
       landCoordinates: _landCoordinates,
       dynamicFields: allDynValues,
       status: _selectedStatus,
-      registeredBy: auth.currentUser?.uid,
+      userId: auth.userId, // Use locally stored User ID
     );
+
+    // Print clean backend-ready payload structure for debugging
+    final submissionPayload = <String, dynamic>{
+      'registrationData': <String, dynamic>{
+        'subcategoryId': _selectedSubcategoryId ?? 0,
+        'registrationDate': farmer.registrationDate.toIso8601String(),
+        'status': _selectedStatus,
+        'userId': auth.userId ?? '',
+        'land': <String, dynamic>{
+          'areaInput': _landAreaCtrl.text.trim(),
+          'areaParsed': double.tryParse(_landAreaCtrl.text) ?? 0,
+          'landUnit': _selectedLandUnit,
+        },
+        'location': <String, dynamic>{
+          'address': _addressCtrl.text.trim(),
+          'village': _villageCtrl.text.trim(),
+          'district': _districtCtrl.text.trim(),
+          'state': _stateCtrl.text.trim(),
+          'latitude': _latitude,
+          'longitude': _longitude,
+          'landCoordinates': _landCoordinates,
+        },
+        'dynamicFields': allDynValues,
+      },
+    };
+    final prettyJson =
+        const JsonEncoder.withIndent('  ').convert(submissionPayload);
+    debugPrint('=== SUBMITTING FARMER REGISTRATION ===');
+    debugPrint(prettyJson);
+    debugPrint('======================================');
 
     try {
       if (_editFarmer != null) {
         await fs.updateFarmer(farmer);
+        debugPrint(
+            '=== FARMER REGISTRATION RESULT === action=update_farmer id=${farmer.id} success=true');
         _snack('Updated successfully!', success: true);
       } else {
-        await fs.addFarmer(farmer);
+        final createdId = await fs.addFarmer(farmer);
+        debugPrint(
+            '=== FARMER REGISTRATION RESULT === action=create_farmer id=$createdId success=true');
         _snack('Farmer registered!', success: true);
       }
       if (mounted) Navigator.pop(context);
     } catch (e) {
+      debugPrint(
+          '=== FARMER REGISTRATION RESULT === success=false error=${e.toString()}');
       _snack('Error: $e');
     } finally {
       if (mounted) setState(() => _isSaving = false);

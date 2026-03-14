@@ -35,22 +35,27 @@ void main() async {
     }
   }
 
-  runApp(const FarmerRegistrationApp());
-}
+  // Pre-initialize AuthService to ensure SharedPreferences is ready
+  final authService = AuthService();
+  await authService.init();
 
+  runApp(FarmerRegistrationApp(authService: authService));
+}
 class FarmerRegistrationApp extends StatelessWidget {
-  const FarmerRegistrationApp({super.key});
+  final AuthService authService;
+  
+  const FarmerRegistrationApp({super.key, required this.authService});
 
   @override
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
-        ChangeNotifierProvider(create: (_) => AuthService()),
+        ChangeNotifierProvider.value(value: authService),
         ChangeNotifierProvider(create: (_) => FirestoreService()),
         ChangeNotifierProvider(create: (_) => FormConfigService()),
       ],
       child: MaterialApp(
-        title: 'Farmer Registration',
+        title: 'Greenated',
         debugShowCheckedModeBanner: false,
         theme: AppTheme.theme,
         builder: (context, child) {

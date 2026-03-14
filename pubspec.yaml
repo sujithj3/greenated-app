@@ -1,5 +1,5 @@
 name: farmer_registration
-description: "Farmer Registration App with green agriculture theme and Firebase backend."
+description: "Greenated App with green agriculture theme and Firebase backend."
 publish_to: 'none'
 version: 1.0.0+1
 
@@ -33,9 +33,10 @@ dependencies:
   intl: ^0.19.0
   image_picker: ^1.1.0
   permission_handler: ^11.3.1
-  uuid: ^4.4.0
+  uuid: ^4.5.3
   http: ^1.2.0
   flutter_dotenv: ^5.1.0
+  shared_preferences: ^2.5.4
 
 dev_dependencies:
   flutter_test:
