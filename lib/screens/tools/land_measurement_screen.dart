@@ -7,6 +7,7 @@
 //   import GoogleMaps
 //   GMSServices.provideAPIKey("YOUR_GOOGLE_MAPS_API_KEY")
 
+import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
@@ -22,6 +23,7 @@ class LandMeasurementScreen extends StatefulWidget {
 
 class _LandMeasurementScreenState extends State<LandMeasurementScreen> {
   GoogleMapController? _mapController;
+  Position? _cachedPosition;
 
   final List<LatLng> _points = [];
   Set<Marker> _markers = {};
@@ -46,44 +48,87 @@ class _LandMeasurementScreenState extends State<LandMeasurementScreen> {
   // ─── Location ──────────────────────────────────────────────────────────
 
   Future<void> _goToMyLocation() async {
+    if (_locating) return;
     setState(() => _locating = true);
+
     try {
-      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
-      if (!serviceEnabled) {
-        _showSnack('Location services are disabled.');
+      final hasAccess = await _ensureLocationAccess();
+      if (!hasAccess) {
+        if (mounted) setState(() => _locating = false);
         return;
       }
 
-      LocationPermission permission = await Geolocator.checkPermission();
-      if (permission == LocationPermission.denied) {
-        permission = await Geolocator.requestPermission();
-        if (permission == LocationPermission.denied) {
-          _showSnack('Location permission denied.');
-          return;
-        }
-      }
-      if (permission == LocationPermission.deniedForever) {
-        _showSnack('Location permission permanently denied.');
+      final cachedPosition =
+          _cachedPosition ?? await Geolocator.getLastKnownPosition();
+      if (cachedPosition != null) {
+        _cachedPosition = cachedPosition;
+        _moveCameraToPosition(cachedPosition, zoom: 17);
+        if (mounted) setState(() => _locating = false);
+        unawaited(_refreshCurrentLocation(fallbackPosition: cachedPosition));
         return;
       }
 
-      final pos = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.high,
-      );
-
-      _mapController?.animateCamera(
-        CameraUpdate.newCameraPosition(
-          CameraPosition(
-            target: LatLng(pos.latitude, pos.longitude),
-            zoom: 18,
-          ),
-        ),
-      );
+      await _refreshCurrentLocation();
     } catch (e) {
+      if (mounted) setState(() => _locating = false);
       _showSnack('Could not get location: $e');
+    }
+  }
+
+  Future<bool> _ensureLocationAccess() async {
+    final serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    if (!serviceEnabled) {
+      _showSnack('Location services are disabled.');
+      return false;
+    }
+
+    var permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+      if (permission == LocationPermission.denied) {
+        _showSnack('Location permission denied.');
+        return false;
+      }
+    }
+
+    if (permission == LocationPermission.deniedForever) {
+      _showSnack('Location permission permanently denied.');
+      return false;
+    }
+
+    return true;
+  }
+
+  Future<void> _refreshCurrentLocation({Position? fallbackPosition}) async {
+    try {
+      final position = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.medium,
+        timeLimit: const Duration(seconds: 8),
+      );
+      _cachedPosition = position;
+      _moveCameraToPosition(position, zoom: 18);
+    } on TimeoutException {
+      if (fallbackPosition == null) {
+        _showSnack('Timed out while fetching location. Please try again.');
+      }
+    } catch (e) {
+      if (fallbackPosition == null) {
+        _showSnack('Could not get location: $e');
+      }
     } finally {
       if (mounted) setState(() => _locating = false);
     }
+  }
+
+  void _moveCameraToPosition(Position position, {double zoom = 18}) {
+    _mapController?.animateCamera(
+      CameraUpdate.newCameraPosition(
+        CameraPosition(
+          target: LatLng(position.latitude, position.longitude),
+          zoom: zoom,
+        ),
+      ),
+    );
   }
 
   // ─── Map Interactions ──────────────────────────────────────────────────
@@ -163,7 +208,7 @@ class _LandMeasurementScreenState extends State<LandMeasurementScreen> {
       Polygon(
         polygonId: const PolygonId('land'),
         points: _points,
-        fillColor: AppColors.primary.withOpacity(0.25),
+        fillColor: AppColors.primary.withValues(alpha: 0.25),
         strokeColor: AppColors.primary,
         strokeWidth: 2,
       ),

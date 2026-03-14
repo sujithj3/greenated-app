@@ -128,7 +128,6 @@ class _OtpVerificationViewState extends State<OtpVerificationView> {
                   color: AppColors.veryLight,
                 ),
               ),
-              onCompleted: (_) => _verifyOTP(),
             ),
           ),
         ),

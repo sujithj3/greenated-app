@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:fluttertoast/fluttertoast.dart';
 import '../../utils/app_colors.dart';
 import '../../view_models/auth/login_view_model.dart';
 
@@ -35,16 +36,33 @@ class _LoginWithPhoneViewState extends State<LoginWithPhoneView> {
   }
 
   Future<void> _sendOTP() async {
-    if (!_formKey.currentState!.validate()) return;
+    final phoneNumber = _phoneCtrl.text.trim();
+    if (!_isValidPhoneNumber(phoneNumber)) {
+      _showValidationToast();
+      return;
+    }
     FocusScope.of(context).unfocus();
 
-    final success = await _vm.sendOTP(_phoneCtrl.text.trim());
+    final success = await _vm.sendOTP(phoneNumber);
     if (success && mounted) {
-      _showSnack('OTP sent to ${_vm.selectedCountryCode}${_phoneCtrl.text.trim()}');
+      _showSnack('OTP sent to ${_vm.selectedCountryCode}$phoneNumber');
       widget.onOtpSent();
     } else if (_vm.error != null && mounted) {
       _showSnack(_vm.error!, isError: true);
     }
+  }
+
+  bool _isValidPhoneNumber(String value) => RegExp(r'^\d{10}$').hasMatch(value);
+
+  void _showValidationToast() {
+    Fluttertoast.cancel();
+    Fluttertoast.showToast(
+      msg: 'Enter a valid 10-digit phone number',
+      toastLength: Toast.LENGTH_SHORT,
+      gravity: ToastGravity.BOTTOM,
+      backgroundColor: AppColors.error,
+      textColor: Colors.white,
+    );
   }
 
   void _showSnack(String msg, {bool isError = false}) {
@@ -138,11 +156,6 @@ class _LoginWithPhoneViewState extends State<LoginWithPhoneView> {
                     ),
                     counterText: '',
                   ),
-                  validator: (v) {
-                    if (v == null || v.isEmpty) return 'Required';
-                    if (v.length < 7) return 'Invalid number';
-                    return null;
-                  },
                 ),
               ),
             ],
