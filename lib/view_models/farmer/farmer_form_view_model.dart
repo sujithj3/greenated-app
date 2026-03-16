@@ -1,23 +1,19 @@
 import 'package:flutter/foundation.dart';
-import '../../config/env_config.dart';
 import '../../models/api/api_models.dart';
 import '../../models/farmer/farmer_model.dart';
 import '../../services/auth_service.dart';
 import '../../services/firestore_service.dart';
 import '../../services/form_config_service.dart';
-import '../../services/location_service.dart';
 
 class FarmerFormViewModel extends ChangeNotifier {
   final AuthService _authService;
   final FirestoreService _firestoreService;
   final FormConfigService _formConfigService;
-  final LocationService _locationService;
 
   FarmerFormViewModel(
     this._authService,
     this._firestoreService,
     this._formConfigService,
-    this._locationService,
   );
 
   // State
@@ -26,10 +22,7 @@ class FarmerFormViewModel extends ChangeNotifier {
   String selectedLandUnit = 'Acres';
   String selectedStatus = 'Active';
   List<Map<String, double>> landCoordinates = [];
-  double? latitude;
-  double? longitude;
   bool isSaving = false;
-  bool isLocating = false;
   FarmerModel? editFarmer;
 
   // Dynamic field state - tracks which keys are dropdowns vs text
@@ -127,38 +120,6 @@ class FarmerFormViewModel extends ChangeNotifier {
   /// Returns the set of keys that need TextEditingControllers in the View.
   Set<String> get textFieldKeys => {..._textFieldKeys, ..._numberFieldKeys};
 
-  // Location
-  Future<AddressResult?> detectLocation() async {
-    if (EnvConfig.isDemoMode) {
-      latitude = 26.8467;
-      longitude = 80.9462;
-      notifyListeners();
-      return const AddressResult(
-        address: 'Near Panchayat Bhavan, Village Road',
-        village: 'Sundarpur',
-        district: 'Lucknow',
-        state: 'Uttar Pradesh',
-      );
-    }
-
-    isLocating = true;
-    notifyListeners();
-    try {
-      final pos = await _locationService.getCurrentPosition();
-      latitude = pos.latitude;
-      longitude = pos.longitude;
-      final result =
-          await _locationService.reverseGeocode(pos.latitude, pos.longitude);
-      isLocating = false;
-      notifyListeners();
-      return result;
-    } catch (e) {
-      isLocating = false;
-      notifyListeners();
-      rethrow;
-    }
-  }
-
   void setLandResult(Map<String, dynamic> result) {
     final area = result['area'] as double? ?? 0;
     final coords = result['coordinates'] as List<Map<String, double>>? ?? [];
@@ -199,8 +160,6 @@ class FarmerFormViewModel extends ChangeNotifier {
       village: village,
       district: district,
       state: state,
-      latitude: latitude,
-      longitude: longitude,
       category: selectedCategory,
       subcategory: selectedSubcategory,
       landArea: landArea,
@@ -235,8 +194,6 @@ class FarmerFormViewModel extends ChangeNotifier {
     selectedLandUnit = f.landUnit;
     selectedStatus = f.status;
     landCoordinates = f.landCoordinates;
-    latitude = f.latitude;
-    longitude = f.longitude;
     _rebuildDynFieldKeys(f.category);
 
     // Set dropdown values from farmer's dynamic fields

@@ -7,7 +7,6 @@ import '../../models/farmer/farmer_model.dart';
 import '../../services/auth_service.dart';
 import '../../services/firestore_service.dart';
 import '../../services/form_config_service.dart';
-import '../../services/location_service.dart';
 import '../../config/app_constants.dart';
 import '../../utils/app_colors.dart';
 import '../../utils/snack_bar_helper.dart';
@@ -23,7 +22,6 @@ class FarmerFormScreen extends StatefulWidget {
 
 class _FarmerFormScreenState extends State<FarmerFormScreen> {
   final _formKey = GlobalKey<FormState>();
-  final _locationService = LocationService();
 
   // ── Hardcoded controllers (location + land) ─────────────────────────────
   final _addressCtrl = TextEditingController();
@@ -43,11 +41,8 @@ class _FarmerFormScreenState extends State<FarmerFormScreen> {
   String _selectedLandUnit = 'Acres';
   String _selectedStatus = 'Active';
   List<Map<String, double>> _landCoordinates = [];
-  double? _latitude;
-  double? _longitude;
 
   bool _isSaving = false;
-  bool _isLocating = false;
   bool _argsProcessed = false;
   FarmerModel? _editFarmer;
 
@@ -174,8 +169,6 @@ class _FarmerFormScreenState extends State<FarmerFormScreen> {
       _selectedLandUnit = f.landUnit;
       _selectedStatus = f.status;
       _landCoordinates = f.landCoordinates;
-      _latitude = f.latitude;
-      _longitude = f.longitude;
 
       // Map known model fields back to dynamic field keys (if they exist)
       if (f.name != null) _setDynValue('full_name', f.name!);
@@ -194,57 +187,6 @@ class _FarmerFormScreenState extends State<FarmerFormScreen> {
       _dynTextCtrl[key]!.text = value;
     } else {
       _dynValues[key] = value;
-    }
-  }
-
-  // ── Geolocation ─────────────────────────────────────────────────────────
-
-  Future<void> _detectLocation() async {
-    if (_isLocating) {
-      return;
-    }
-
-    FocusScope.of(context).unfocus();
-    setState(() => _isLocating = true);
-
-    try {
-      final pos = await _locationService.getCurrentPosition();
-
-      if (mounted) {
-        setState(() {
-          _latitude = pos.latitude;
-          _longitude = pos.longitude;
-        });
-      }
-
-      try {
-        final result =
-            await _locationService.reverseGeocode(pos.latitude, pos.longitude);
-        if (!mounted) {
-          return;
-        }
-
-        setState(() {
-          if (result.address.isNotEmpty) _addressCtrl.text = result.address;
-          if (result.village.isNotEmpty) _villageCtrl.text = result.village;
-          if (result.district.isNotEmpty) _districtCtrl.text = result.district;
-          if (result.state.isNotEmpty) _stateCtrl.text = result.state;
-        });
-        context.showSnack('Location auto-filled', success: true);
-      } on LocationException catch (e) {
-        context.showSnack(
-          'GPS detected. Address lookup timed out/failed: ${e.message}',
-          success: true,
-        );
-      } catch (_) {
-        context.showSnack('GPS detected. Could not auto-fill address.');
-      }
-    } on LocationException catch (e) {
-      context.showSnack(e.message);
-    } catch (_) {
-      context.showSnack('Failed to detect location. Please try again.');
-    } finally {
-      if (mounted) setState(() => _isLocating = false);
     }
   }
 
@@ -329,8 +271,6 @@ class _FarmerFormScreenState extends State<FarmerFormScreen> {
       village: _villageCtrl.text.trim(),
       district: _districtCtrl.text.trim(),
       state: _stateCtrl.text.trim(),
-      latitude: _latitude,
-      longitude: _longitude,
       category: _selectedCategory,
       subcategory: _selectedSubcategory,
       subcategoryId: _selectedSubcategoryId,
@@ -359,8 +299,6 @@ class _FarmerFormScreenState extends State<FarmerFormScreen> {
           'village': _villageCtrl.text.trim(),
           'district': _districtCtrl.text.trim(),
           'state': _stateCtrl.text.trim(),
-          'latitude': _latitude,
-          'longitude': _longitude,
           'landCoordinates': _landCoordinates,
         },
         'dynamicFields': allDynValues,
@@ -409,7 +347,7 @@ class _FarmerFormScreenState extends State<FarmerFormScreen> {
   Widget build(BuildContext context) {
     final catData = AppCategories.all[_selectedCategory];
     final catColor = catData?.color ?? AppColors.primary;
-    final geoRequired = _form?.formConfig.geoLocationRequired ?? false;
+    final geoRequired = _form?.geoLocationRequired ?? false;
 
     return Scaffold(
       appBar: AppBar(
@@ -450,8 +388,8 @@ class _FarmerFormScreenState extends State<FarmerFormScreen> {
                     const SizedBox(height: 20),
                   ],
 
-                  // ── Dynamic sections from API ──────────────────────────
-                  ..._buildDynamicSections(catColor),
+                  // ── Dynamic fields from API ────────────────────────────
+                  ..._buildDynamicFields(catColor),
 
                   // ── Location (hardcoded) ───────────────────────────────
                   const SizedBox(height: 20),
@@ -545,50 +483,16 @@ class _FarmerFormScreenState extends State<FarmerFormScreen> {
     );
   }
 
-  // ── Dynamic sections ────────────────────────────────────────────────────
+  // ── Dynamic fields ──────────────────────────────────────────────────────
 
-  List<Widget> _buildDynamicSections(Color catColor) {
+  List<Widget> _buildDynamicFields(Color catColor) {
     if (_form == null) return [];
-    final sections = _form!.sections;
-    if (sections.isEmpty) {
-      // Fallback: render flat fields without section headers
-      return _form!.fields
-          .map((f) => Padding(
-                padding: const EdgeInsets.only(bottom: 12),
-                child: _buildDynamicField(f, catColor),
-              ))
-          .toList();
-    }
-
-    final widgets = <Widget>[];
-    for (int i = 0; i < sections.length; i++) {
-      final section = sections[i];
-      if (i > 0) widgets.add(const SizedBox(height: 24));
-
-      // Section header
-      widgets.add(_Section(
-        title: section.sectionTitle.isNotEmpty
-            ? section.sectionTitle
-            : 'Section ${i + 1}',
-        icon: _sectionIcon(section.sectionId),
-        color: catColor,
-      ));
-      widgets.add(const SizedBox(height: 12));
-
-      // Section fields
-      for (final field in section.fields) {
-        widgets.add(Padding(
-          padding: const EdgeInsets.only(bottom: 12),
-          child: _buildDynamicField(field, catColor),
-        ));
-      }
-    }
-    return widgets;
-  }
-
-  IconData _sectionIcon(String sectionId) {
-    if (sectionId.contains('personal')) return Icons.person_outline;
-    return Icons.info_outline;
+    return _form!.fields
+        .map((f) => Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: _buildDynamicField(f, catColor),
+            ))
+        .toList();
   }
 
   Widget _buildDynamicField(ApiField f, Color catColor) {
@@ -631,29 +535,6 @@ class _FarmerFormScreenState extends State<FarmerFormScreen> {
 
   List<Widget> _buildLocationSection() {
     return [
-      OutlinedButton.icon(
-        onPressed: _isLocating ? null : _detectLocation,
-        icon: _isLocating
-            ? const SizedBox(
-                width: 16,
-                height: 16,
-                child: CircularProgressIndicator(strokeWidth: 2))
-            : const Icon(Icons.my_location),
-        label: Text(_isLocating
-            ? 'Detecting...'
-            : _latitude != null
-                ? 'GPS: ${_latitude!.toStringAsFixed(4)}, ${_longitude!.toStringAsFixed(4)}'
-                : 'Auto-detect My Location'),
-        style: OutlinedButton.styleFrom(
-          minimumSize: const Size(double.infinity, 48),
-          foregroundColor:
-              _latitude != null ? AppColors.primary : AppColors.textMedium,
-          side: BorderSide(
-            color: _latitude != null ? AppColors.primary : AppColors.light,
-          ),
-        ),
-      ),
-      const SizedBox(height: 12),
       TextFormField(
         controller: _addressCtrl,
         decoration: const InputDecoration(
@@ -774,26 +655,24 @@ class _FarmerFormScreenState extends State<FarmerFormScreen> {
 class _Section extends StatelessWidget {
   final String title;
   final IconData icon;
-  final Color color;
   const _Section({
     required this.title,
     required this.icon,
-    this.color = AppColors.primary,
   });
 
   @override
   Widget build(BuildContext context) {
     return Row(children: [
-      Icon(icon, color: color, size: 18),
+      Icon(icon, color: AppColors.primary, size: 18),
       const SizedBox(width: 8),
       Text(title,
-          style: TextStyle(
+          style: const TextStyle(
               fontSize: 14,
               fontWeight: FontWeight.w700,
-              color: color == AppColors.primary ? AppColors.dark : color)),
+              color: AppColors.dark)),
       const SizedBox(width: 8),
       Expanded(
-          child: Divider(color: color.withValues(alpha: 0.35), thickness: 1.5)),
+          child: Divider(color: AppColors.primary.withValues(alpha: 0.35), thickness: 1.5)),
     ]);
   }
 }

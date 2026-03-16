@@ -182,81 +182,28 @@ class ApiPopup {
       );
 }
 
-// ─── ApiFormConfig ───────────────────────────────────────────────────────────
-
-class ApiFormConfig {
-  final bool geoLocationRequired;
-
-  const ApiFormConfig({this.geoLocationRequired = false});
-
-  factory ApiFormConfig.fromJson(Map<String, dynamic> j) => ApiFormConfig(
-        geoLocationRequired: j['geoLocationRequired'] as bool? ?? false,
-      );
-}
-
-// ─── ApiSection ──────────────────────────────────────────────────────────────
-
-class ApiSection {
-  final String sectionId;
-  final String sectionTitle;
-  final List<ApiField> fields;
-
-  const ApiSection({
-    required this.sectionId,
-    required this.sectionTitle,
-    required this.fields,
-  });
-
-  factory ApiSection.fromJson(Map<String, dynamic> j) => ApiSection(
-        sectionId:
-            (j['section_id'] as String? ?? j['sectionId'] as String? ?? ''),
-        sectionTitle: (j['section_title'] as String? ??
-            j['sectionTitle'] as String? ??
-            ''),
-        fields: (j['fields'] as List<dynamic>? ?? [])
-            .map((f) => ApiField.fromJson(f as Map<String, dynamic>))
-            .toList(),
-      );
-}
-
 // ─── ApiForm ─────────────────────────────────────────────────────────────────
 class ApiForm {
   final int formId;
   final String formName;
-  final ApiFormConfig formConfig;
-  final List<ApiSection> sections;
-  final List<ApiField> _directFields;
-
-  /// All fields — flattened from sections if available, otherwise direct list.
-  List<ApiField> get fields => sections.isNotEmpty
-      ? sections.expand((s) => s.fields).toList()
-      : _directFields;
+  final bool geoLocationRequired;
+  final List<ApiField> fields;
 
   const ApiForm({
     required this.formId,
     required this.formName,
-    this.formConfig = const ApiFormConfig(),
-    this.sections = const [],
-    List<ApiField> fields = const [],
-  }) : _directFields = fields;
+    this.geoLocationRequired = false,
+    this.fields = const [],
+  });
 
   factory ApiForm.fromJson(Map<String, dynamic> j) {
-    final sections = (j['sections'] as List<dynamic>? ?? [])
-        .map((s) => ApiSection.fromJson(s as Map<String, dynamic>))
-        .toList();
-
-    final directFields = (j['fields'] as List<dynamic>? ?? [])
-        .map((f) => ApiField.fromJson(f as Map<String, dynamic>))
-        .toList();
-
     return ApiForm(
       formId: _asInt(j['form_id']),
       formName: j['form_name']?.toString() ?? '',
-      formConfig: j['form_config'] != null
-          ? ApiFormConfig.fromJson(j['form_config'] as Map<String, dynamic>)
-          : const ApiFormConfig(),
-      sections: sections,
-      fields: directFields,
+      geoLocationRequired: j['geoLocationRequired'] as bool? ?? false,
+      fields: (j['fields'] as List<dynamic>? ?? [])
+          .map((f) => ApiField.fromJson(f as Map<String, dynamic>))
+          .toList(),
     );
   }
 }

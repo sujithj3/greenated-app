@@ -8,8 +8,6 @@ class FarmerModel {
   final String village;
   final String district;
   final String state;
-  final double? latitude;
-  final double? longitude;
   final String category;
   final String subcategory;
   final int? subcategoryId;
@@ -30,8 +28,6 @@ class FarmerModel {
     this.village = '',
     this.district = '',
     this.state = '',
-    this.latitude,
-    this.longitude,
     required this.category,
     required this.subcategory,
     this.subcategoryId,
@@ -70,8 +66,6 @@ class FarmerModel {
       village: map['village'] ?? '',
       district: map['district'] ?? '',
       state: map['state'] ?? '',
-      latitude: (map['latitude'] as num?)?.toDouble(),
-      longitude: (map['longitude'] as num?)?.toDouble(),
       category: map['category'] ?? '',
       subcategory: map['subcategory'] ?? '',
       subcategoryId: map['subcategoryId'] as int?,
@@ -95,8 +89,6 @@ class FarmerModel {
       'village': village,
       'district': district,
       'state': state,
-      'latitude': latitude,
-      'longitude': longitude,
       'subcategoryId': subcategoryId,
       'landArea': landArea,
       'landUnit': landUnit,
@@ -116,8 +108,6 @@ class FarmerModel {
     String? village,
     String? district,
     String? state,
-    double? latitude,
-    double? longitude,
     String? category,
     String? subcategory,
     int? subcategoryId,
@@ -138,8 +128,6 @@ class FarmerModel {
       village: village ?? this.village,
       district: district ?? this.district,
       state: state ?? this.state,
-      latitude: latitude ?? this.latitude,
-      longitude: longitude ?? this.longitude,
       category: category ?? this.category,
       subcategory: subcategory ?? this.subcategory,
       subcategoryId: subcategoryId ?? this.subcategoryId,

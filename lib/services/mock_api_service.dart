@@ -40,7 +40,7 @@ class MockApiService {
 
     // ── Mock JSON that mirrors the real backend response ──────────────────
     // Each category contains its subcategories; each subcategory contains
-    // its form configuration with sections and fields.
+    // its form configuration with fields.
     //
     // The JSON below is parsed through the existing fromJson() factories,
     // so it also serves as a contract reference for the backend team.
@@ -123,28 +123,16 @@ class MockApiService {
   ///       {
   ///         "form_id": 1000,
   ///         "form_name": "Greenated",
-  ///         "form_config": { "geoLocationRequired": true },
-  ///         "sections": [
+  ///         "geoLocationRequired": true,
+  ///         "fields": [
   ///           {
-  ///             "section_id": "personal_info",
-  ///             "section_title": "Personal Info",
-  ///             "fields": [
-  ///               {
-  ///                 "field_id": 1,
-  ///                 "label": "Full Name",
-  ///                 "key": "full_name",
-  ///                 "type": "TEXT",
-  ///                 "field_type": "string",
-  ///                 "field_style": "text",
-  ///                 "required": true,
-  ///                 "options": [],
-  ///                 "popup": null,
-  ///                 "validation_rules": {
-  ///                   "min_length": 2,
-  ///                   "max_length": 100
-  ///                 }
-  ///               }
-  ///             ]
+  ///             "field_id": 1,
+  ///             "label": "Full Name",
+  ///             "key": "full_name",
+  ///             "type": "TEXT",
+  ///             "required": true,
+  ///             "options": [],
+  ///             "popup": null
   ///           }
   ///         ]
   ///       }
@@ -195,12 +183,6 @@ class MockApiService {
           'popup': null,
         },
       ];
-
-  static Map<String, dynamic> _personalInfoSectionJson() => {
-        'section_id': 'personal_info',
-        'section_title': 'Personal Info',
-        'fields': _personalInfoFieldsJson(),
-      };
 
   // ── Agroforestry ─────────────────────────────────────────────────────────
 
@@ -291,12 +273,8 @@ class MockApiService {
           {
             'form_id': baseId * 10 + index,
             'form_name': 'Greenated',
-            'form_config': {
-              'geoLocationRequired': geoRequired,
-            },
-            'sections': [
-              _personalInfoSectionJson(),
-            ],
+            'geoLocationRequired': geoRequired,
+            'fields': _personalInfoFieldsJson(),
           },
         ],
       };
