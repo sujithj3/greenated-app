@@ -84,8 +84,12 @@ class MockHttpClient implements ApiClient {
     }
 
     // ── Farmers ──
-    if (key == 'GET /farmers') return _mockGetFarmers();
-    if (key == 'POST /farmers') return _mockCreateFarmer(request);
+    if (key == 'GET /list-farmers') return _mockGetFarmers();
+    if (key == 'POST /register-farmer') return _mockCreateFarmer(request);
+    if (request.method.value == 'GET' &&
+        RegExp(r'^/farmer/.*$').hasMatch(request.path)) {
+      return _mockGetFarmers(); // Return same list for now
+    }
 
     // ── Fallback ──
     return _error(
@@ -231,7 +235,7 @@ class MockHttpClient implements ApiClient {
         {
           'field_id': 1,
           'label': 'Full Name',
-          'key': 'full_name',
+          'key': 'fullName',
           'type': 'TEXT',
           'required': true,
           'options': <dynamic>[],
@@ -240,7 +244,7 @@ class MockHttpClient implements ApiClient {
         {
           'field_id': 2,
           'label': 'Mobile Number',
-          'key': 'mobile_number',
+          'key': 'mobileNumber',
           'type': 'TEXT',
           'required': true,
           'options': <dynamic>[],
@@ -252,7 +256,7 @@ class MockHttpClient implements ApiClient {
         {
           'field_id': 101,
           'label': 'Tree Species',
-          'key': 'tree_species',
+          'key': 'treeSpecies',
           'type': 'TEXT',
           'required': true,
           'options': <dynamic>[],
@@ -261,7 +265,7 @@ class MockHttpClient implements ApiClient {
         {
           'field_id': 102,
           'label': 'Estimated Tree Count',
-          'key': 'tree_count',
+          'key': 'treeCount',
           'type': 'NUMBER',
           'required': true,
           'options': <dynamic>[],
@@ -273,7 +277,7 @@ class MockHttpClient implements ApiClient {
         {
           'field_id': 201,
           'label': 'Soil Type',
-          'key': 'soil_type',
+          'key': 'soilType',
           'type': 'DROPDOWN',
           'required': true,
           'options': [
@@ -287,7 +291,7 @@ class MockHttpClient implements ApiClient {
         {
           'field_id': 202,
           'label': 'Tillage Frequency (per year)',
-          'key': 'tillage_freq',
+          'key': 'tillageFrequency',
           'type': 'NUMBER',
           'required': false,
           'options': <dynamic>[],
@@ -299,7 +303,7 @@ class MockHttpClient implements ApiClient {
         {
           'field_id': 301,
           'label': 'Biomass Source',
-          'key': 'biomass_source',
+          'key': 'biomassSource',
           'type': 'TEXT',
           'required': true,
           'options': <dynamic>[],
@@ -308,7 +312,7 @@ class MockHttpClient implements ApiClient {
         {
           'field_id': 302,
           'label': 'Production Method',
-          'key': 'production_method',
+          'key': 'productionMethod',
           'type': 'DROPDOWN',
           'required': true,
           'options': [

@@ -289,19 +289,19 @@ class _FarmerFormScreenState extends State<FarmerFormScreen> {
         'registrationDate': farmer.registrationDate.toIso8601String(),
         'status': _selectedStatus,
         'userId': auth.userId ?? '',
-        'land': <String, dynamic>{
+        'geoLocation': <String, dynamic>{
           'areaInput': _landAreaCtrl.text.trim(),
           'areaParsed': double.tryParse(_landAreaCtrl.text) ?? 0,
           'landUnit': _selectedLandUnit,
+          'landCoordinates': _landCoordinates,
         },
-        'location': <String, dynamic>{
+        'userLocation': <String, dynamic>{
           'address': _addressCtrl.text.trim(),
           'village': _villageCtrl.text.trim(),
           'district': _districtCtrl.text.trim(),
           'state': _stateCtrl.text.trim(),
-          'landCoordinates': _landCoordinates,
         },
-        'dynamicFields': allDynValues,
+        ...allDynValues, // Unpacked dynamic fields
       },
     };
     final prettyJson =
