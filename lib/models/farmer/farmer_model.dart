@@ -15,6 +15,7 @@ class FarmerModel {
   final String landUnit;
   final List<Map<String, double>> landCoordinates;
   final Map<String, dynamic> dynamicFields; // category-specific answers
+  final List<dynamic> formFields; // The structured list of fields
   final DateTime registrationDate;
   final String? photoUrl;
   final String status;
@@ -35,6 +36,7 @@ class FarmerModel {
     this.landUnit = 'Acres',
     this.landCoordinates = const [],
     this.dynamicFields = const {},
+    this.formFields = const [],
     DateTime? registrationDate,
     this.photoUrl,
     this.status = 'Active',
@@ -53,7 +55,18 @@ class FarmerModel {
 
     Map<String, dynamic> dynFields = {};
     if (map['dynamicFields'] != null) {
-      dynFields = Map<String, dynamic>.from(map['dynamicFields'] as Map);
+      if (map['dynamicFields'] is Map) {
+         dynFields = Map<String, dynamic>.from(map['dynamicFields'] as Map);
+      }
+    }
+
+    List<dynamic> fFields = [];
+    if (map['formFields'] != null) {
+      fFields = List<dynamic>.from(map['formFields']);
+    } else if (map['registrationData']?['fields'] != null) {
+      fFields = List<dynamic>.from(map['registrationData']['fields']);
+    } else if (map['dynamicFields'] is List) {
+      fFields = List<dynamic>.from(map['dynamicFields']);
     }
 
     return FarmerModel(
@@ -71,6 +84,7 @@ class FarmerModel {
       landUnit: map['landUnit'] ?? 'Acres',
       landCoordinates: coords,
       dynamicFields: dynFields,
+      formFields: fFields,
       registrationDate:
           (map['registrationDate'] as Timestamp?)?.toDate() ?? DateTime.now(),
       photoUrl: map['photoUrl'],
@@ -92,6 +106,7 @@ class FarmerModel {
       'landUnit': landUnit,
       'landCoordinates': landCoordinates,
       'dynamicFields': dynamicFields,
+      'formFields': formFields,
       'registrationDate': Timestamp.fromDate(registrationDate),
       'status': status,
       'userId': userId,
@@ -113,6 +128,7 @@ class FarmerModel {
     String? landUnit,
     List<Map<String, double>>? landCoordinates,
     Map<String, dynamic>? dynamicFields,
+    List<dynamic>? formFields,
     DateTime? registrationDate,
     String? photoUrl,
     String? status,
@@ -133,6 +149,7 @@ class FarmerModel {
       landUnit: landUnit ?? this.landUnit,
       landCoordinates: landCoordinates ?? this.landCoordinates,
       dynamicFields: dynamicFields ?? this.dynamicFields,
+      formFields: formFields ?? this.formFields,
       registrationDate: registrationDate ?? this.registrationDate,
       photoUrl: photoUrl ?? this.photoUrl,
       status: status ?? this.status,

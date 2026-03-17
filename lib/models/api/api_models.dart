@@ -91,6 +91,11 @@ class ApiOption {
       name: name,
     );
   }
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'name': name,
+      };
 }
 
 // ─── ApiField ────────────────────────────────────────────────────────────────
@@ -135,7 +140,8 @@ class ApiField {
     List<ApiField> subFields = const [];
 
     if (fieldStyle == FieldStyle.popupForm) {
-      subFields = rawOptions
+      final rawNested = (j['options'] as List<dynamic>?) ?? (j['fields'] as List<dynamic>?) ?? [];
+      subFields = rawNested
           .whereType<Map<String, dynamic>>()
           .map((o) => ApiField.fromJson(o))
           .toList();
@@ -155,6 +161,121 @@ class ApiField {
       required: j['required'] as bool? ?? false,
       options: options,
       subFields: subFields,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    String typeStr = switch (fieldType) {
+      FieldType.string => 'STRING',
+      FieldType.integer => 'INT',
+      FieldType.decimal => 'DOUBLE',
+      FieldType.boolean => 'BOOL',
+      FieldType.arrayString => 'ARRAY_STRING',
+      FieldType.arrayInt => 'ARRAY_INT',
+      FieldType.arrayDict => 'ARRAY_DICT',
+      FieldType.dict => 'DICT',
+      FieldType.image => 'IMAGE',
+      FieldType.multimedia => 'MULTIMEDIA',
+      FieldType.unknown => 'UNKNOWN',
+    };
+
+    String styleStr = switch (fieldStyle) {
+      FieldStyle.text => 'TEXT',
+      FieldStyle.number => 'NUMBER',
+      FieldStyle.dropdown => 'DROPDOWN',
+      FieldStyle.checkbox => 'CHECKBOX',
+      FieldStyle.radio => 'RADIO',
+      FieldStyle.date => 'DATE',
+      FieldStyle.camera => 'CAMERA',
+      FieldStyle.file => 'FILE',
+      FieldStyle.cameraFile => 'CAMERA_FILE',
+      FieldStyle.popupForm => 'POPUP_FORM',
+      FieldStyle.unknown => 'UNKNOWN',
+    };
+
+    return {
+      'field_id': fieldId,
+      'label': label,
+      'key': key,
+      'field_type': typeStr,
+      'field_style': styleStr,
+      'required': required,
+      'options': isPopupForm
+          ? subFields.map((f) => f.toJson()).toList()
+          : options.map((o) => o.toJson()).toList(),
+    };
+  }
+}
+
+// ─── Dynamic Field Model (State Container) ───────────────────────────────────
+
+class DynamicFieldModel {
+  final ApiField field;
+  dynamic value;
+
+  DynamicFieldModel({
+    required this.field,
+    this.value,
+  });
+
+  /// Hydrate from static schema for create flow
+  factory DynamicFieldModel.fromApiField(ApiField field) {
+    dynamic initialValue;
+    if (field.isPopupForm) {
+      initialValue = field.subFields.map((f) => DynamicFieldModel.fromApiField(f)).toList();
+    } else if (field.fieldStyle == FieldStyle.checkbox) {
+      initialValue = false;
+    }
+    return DynamicFieldModel(
+      field: field,
+      value: initialValue,
+    );
+  }
+
+  /// Hydrate from backend payload including existing value for edit flow
+  factory DynamicFieldModel.fromJson(Map<String, dynamic> json) {
+    final apiField = ApiField.fromJson(json);
+    dynamic val;
+
+    if (apiField.isPopupForm) {
+      final rawFields = json['fields'] as List<dynamic>? ?? [];
+      val = rawFields.map((e) => DynamicFieldModel.fromJson(e as Map<String, dynamic>)).toList();
+    } else {
+      val = json['value'];
+      if (val != null && val is List) {
+        val = List<dynamic>.from(val);
+      }
+    }
+
+    return DynamicFieldModel(
+      field: apiField,
+      value: val,
+    );
+  }
+
+  /// Serialize exactly matching backend requirements
+  Map<String, dynamic> toJson() {
+    final json = field.toJson();
+    if (field.isPopupForm) {
+      json.remove('options');
+      if (value is List<DynamicFieldModel>) {
+        json['fields'] = (value as List<DynamicFieldModel>).map((e) => e.toJson()).toList();
+      } else {
+        json['fields'] = [];
+      }
+    } else {
+      json['value'] = value;
+    }
+    return json;
+  }
+
+  DynamicFieldModel copyWith({
+    ApiField? field,
+    dynamic value,
+  }) {
+    return DynamicFieldModel(
+      field: field ?? this.field,
+      value: value ?? this.value,
     );
   }
 }
