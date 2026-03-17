@@ -14,9 +14,9 @@ class DynamicFieldBuilder extends StatelessWidget {
     this.textController,
     this.accentColor,
     this.onPickAttachment,
-    this.onPopupPressed,
-    this.popupFilledCount,
-    this.popupTotalCount,
+    this.onPopupFormPressed,
+    this.popupFormFilledCount,
+    this.popupFormTotalCount,
   });
 
   final ApiField field;
@@ -25,9 +25,9 @@ class DynamicFieldBuilder extends StatelessWidget {
   final TextEditingController? textController;
   final Color? accentColor;
   final Future<dynamic> Function(ApiField field)? onPickAttachment;
-  final VoidCallback? onPopupPressed;
-  final int? popupFilledCount;
-  final int? popupTotalCount;
+  final VoidCallback? onPopupFormPressed;
+  final int? popupFormFilledCount;
+  final int? popupFormTotalCount;
 
   Color get _accent => accentColor ?? AppColors.primary;
 
@@ -35,6 +35,8 @@ class DynamicFieldBuilder extends StatelessWidget {
   Widget build(BuildContext context) {
     switch (field.fieldStyle) {
       case FieldStyle.text:
+        return _buildTextField();
+      case FieldStyle.number:
         return _buildTextField();
       case FieldStyle.dropdown:
         return _buildDropdownField();
@@ -48,8 +50,8 @@ class DynamicFieldBuilder extends StatelessWidget {
       case FieldStyle.file:
       case FieldStyle.cameraFile:
         return _buildAttachmentField(context);
-      case FieldStyle.button:
-        return _buildButtonField();
+      case FieldStyle.popupForm:
+        return _buildPopupFormField();
       case FieldStyle.unknown:
         return const SizedBox.shrink();
     }
@@ -59,7 +61,8 @@ class DynamicFieldBuilder extends StatelessWidget {
 
   Widget _buildTextField() {
     final controller = textController ?? TextEditingController();
-    final isNumber = field.fieldType == FieldType.number;
+    final isNumber = field.fieldType == FieldType.integer ||
+        field.fieldType == FieldType.decimal;
     final isPhone = field.key.contains('phone') ||
         field.key.contains('mobile') ||
         field.label.toLowerCase().contains('phone') ||
@@ -86,13 +89,17 @@ class DynamicFieldBuilder extends StatelessWidget {
       textCapitalization:
           isNumber || isPhone ? TextCapitalization.none : TextCapitalization.sentences,
       inputFormatters: [
-        if (isNumber)
+        if (field.fieldType == FieldType.integer)
+          FilteringTextInputFormatter.digitsOnly,
+        if (field.fieldType == FieldType.decimal)
           FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*')),
         if (isPhone) FilteringTextInputFormatter.digitsOnly,
       ],
       maxLength: isPhone ? 15 : null,
       onChanged: (raw) {
-        if (isNumber) {
+        if (field.fieldType == FieldType.integer) {
+          onChanged(int.tryParse(raw.trim()));
+        } else if (field.fieldType == FieldType.decimal) {
           onChanged(double.tryParse(raw.trim()));
         } else {
           onChanged(raw.trim().isEmpty ? null : raw.trim());
@@ -437,17 +444,14 @@ class DynamicFieldBuilder extends StatelessWidget {
     return 'Selected file';
   }
 
-  // ── Button (opens popup) ───────────────────────────────────────────────────
+  // ── Popup Form (opens sub-form in bottom sheet) ───────────────────────────
 
-  Widget _buildButtonField() {
-    if (field.popup == null && onPopupPressed == null) {
-      return const SizedBox.shrink();
-    }
-    final filled = popupFilledCount ?? 0;
-    final total = popupTotalCount ?? field.popup?.fields.length ?? 0;
+  Widget _buildPopupFormField() {
+    final filled = popupFormFilledCount ?? 0;
+    final total = popupFormTotalCount ?? field.subFields.length;
 
     return OutlinedButton.icon(
-      onPressed: onPopupPressed,
+      onPressed: onPopupFormPressed,
       icon: Icon(
         filled > 0 ? Icons.check_circle_outline : Icons.add_circle_outline,
         color: filled > 0 ? _accent : AppColors.textMedium,

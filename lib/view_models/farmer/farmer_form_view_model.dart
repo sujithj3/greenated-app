@@ -99,21 +99,23 @@ class FarmerFormViewModel extends ChangeNotifier {
 
     for (final f in fieldsForCategory) {
       _initFieldKey(f);
-      if (f.type == 'BUTTON' && f.popup != null) {
-        for (final pf in f.popup!.fields) {
-          _initFieldKey(pf);
-        }
-      }
     }
   }
 
   void _initFieldKey(ApiField f) {
-    if (f.type == 'DROPDOWN') {
-      dynDropdownValues[f.key] = '';
-    } else if (f.type == 'TEXT') {
-      _textFieldKeys.add(f.key);
-    } else if (f.type == 'NUMBER') {
-      _numberFieldKeys.add(f.key);
+    switch (f.fieldStyle) {
+      case FieldStyle.dropdown:
+      case FieldStyle.radio:
+        dynDropdownValues[f.key] = '';
+      case FieldStyle.text:
+        _textFieldKeys.add(f.key);
+      case FieldStyle.number:
+        _numberFieldKeys.add(f.key);
+      case FieldStyle.popupForm:
+        // No text controller needed; value is Map<String, dynamic>
+        break;
+      default:
+        break;
     }
   }
 
@@ -132,7 +134,7 @@ class FarmerFormViewModel extends ChangeNotifier {
 
   // Save
   Future<bool> save(
-    Map<String, String> textFieldValues, {
+    Map<String, dynamic> textFieldValues, {
     required String name,
     required String phone,
     required String address,
@@ -144,9 +146,9 @@ class FarmerFormViewModel extends ChangeNotifier {
     isSaving = true;
     notifyListeners();
 
-    final Map<String, String> dynValues = {};
+    final Map<String, dynamic> dynValues = {};
     textFieldValues.forEach((k, v) {
-      if (v.isNotEmpty) dynValues[k] = v;
+      if (v != null && v.toString().isNotEmpty) dynValues[k] = v;
     });
     dynDropdownValues.forEach((k, v) {
       if (v.isNotEmpty) dynValues[k] = v;
@@ -188,7 +190,7 @@ class FarmerFormViewModel extends ChangeNotifier {
 
   /// Populate ViewModel state from an existing farmer (for editing).
   /// Returns the farmer's dynamicFields so the View can set TextEditingControllers.
-  Map<String, String> populateFromFarmer(FarmerModel f) {
+  Map<String, dynamic> populateFromFarmer(FarmerModel f) {
     selectedCategory = f.category;
     selectedSubcategory = f.subcategory;
     selectedLandUnit = f.landUnit;
@@ -199,7 +201,7 @@ class FarmerFormViewModel extends ChangeNotifier {
     // Set dropdown values from farmer's dynamic fields
     f.dynamicFields.forEach((key, value) {
       if (dynDropdownValues.containsKey(key)) {
-        dynDropdownValues[key] = value;
+        dynDropdownValues[key] = value.toString();
       }
     });
 

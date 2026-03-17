@@ -14,7 +14,7 @@ class FarmerModel {
   final double landArea;
   final String landUnit;
   final List<Map<String, double>> landCoordinates;
-  final Map<String, String> dynamicFields; // category-specific answers
+  final Map<String, dynamic> dynamicFields; // category-specific answers
   final DateTime registrationDate;
   final String? photoUrl;
   final String status;
@@ -51,11 +51,9 @@ class FarmerModel {
           .toList();
     }
 
-    Map<String, String> dynFields = {};
+    Map<String, dynamic> dynFields = {};
     if (map['dynamicFields'] != null) {
-      dynFields = Map<String, String>.from(
-          (map['dynamicFields'] as Map).map(
-              (k, v) => MapEntry(k.toString(), v.toString())));
+      dynFields = Map<String, dynamic>.from(map['dynamicFields'] as Map);
     }
 
     return FarmerModel(
@@ -114,7 +112,7 @@ class FarmerModel {
     double? landArea,
     String? landUnit,
     List<Map<String, double>>? landCoordinates,
-    Map<String, String>? dynamicFields,
+    Map<String, dynamic>? dynamicFields,
     DateTime? registrationDate,
     String? photoUrl,
     String? status,

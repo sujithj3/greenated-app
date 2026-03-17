@@ -1,6 +1,5 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../../models/api/api_models.dart';
 import '../../models/farmer/farmer_model.dart';
@@ -132,18 +131,14 @@ class _FarmerFormScreenState extends State<FarmerFormScreen> {
 
     for (final field in _form!.fields) {
       _initFieldController(field);
-      // Also init popup sub-fields
-      if (field.fieldStyle == FieldStyle.button && field.popup != null) {
-        for (final pf in field.popup!.fields) {
-          _initFieldController(pf);
-        }
-      }
     }
   }
 
   void _initFieldController(ApiField f) {
     final style = f.fieldStyle;
-    if (style == FieldStyle.text || style == FieldStyle.date) {
+    if (style == FieldStyle.text ||
+        style == FieldStyle.number ||
+        style == FieldStyle.date) {
       _dynTextCtrl[f.key] = TextEditingController();
     } else if (style == FieldStyle.dropdown) {
       _dynValues[f.key] = null;
@@ -151,6 +146,8 @@ class _FarmerFormScreenState extends State<FarmerFormScreen> {
       _dynValues[f.key] = false;
     } else if (style == FieldStyle.radio) {
       _dynValues[f.key] = null;
+    } else if (style == FieldStyle.popupForm) {
+      _dynValues[f.key] = <String, dynamic>{};
     }
   }
 
@@ -171,8 +168,8 @@ class _FarmerFormScreenState extends State<FarmerFormScreen> {
       _landCoordinates = f.landCoordinates;
 
       // Map known model fields back to dynamic field keys (if they exist)
-      if (f.name != null) _setDynValue('full_name', f.name!);
-      if (f.phone != null) _setDynValue('mobile_number', f.phone!);
+      if (f.name != null) _setDynValue('fullName', f.name!);
+      if (f.phone != null) _setDynValue('mobileNumber', f.phone!);
 
       // Map dynamicFields
       f.dynamicFields.forEach((key, value) {
@@ -181,10 +178,11 @@ class _FarmerFormScreenState extends State<FarmerFormScreen> {
     });
   }
 
-  void _setDynValue(String key, String value) {
-    if (value.isEmpty) return;
+  void _setDynValue(String key, dynamic value) {
+    if (value == null) return;
+    if (value is String && value.isEmpty) return;
     if (_dynTextCtrl.containsKey(key)) {
-      _dynTextCtrl[key]!.text = value;
+      _dynTextCtrl[key]!.text = value.toString();
     } else {
       _dynValues[key] = value;
     }
@@ -209,22 +207,21 @@ class _FarmerFormScreenState extends State<FarmerFormScreen> {
     }
   }
 
-  // ── Popup sheet ─────────────────────────────────────────────────────────
+  // ── Popup form sheet ──────────────────────────────────────────────────
 
-  void _openPopupSheet(ApiPopup popup, Color catColor) {
+  void _openPopupFormSheet(ApiField field, Color catColor) {
+    final currentValues =
+        _dynValues[field.key] as Map<String, dynamic>? ?? {};
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (_) => _PopupFieldSheet(
-        popup: popup,
+      builder: (_) => _PopupFormSheet(
+        parentField: field,
         catColor: catColor,
-        textCtrl: _dynTextCtrl,
-        dynValues: _dynValues,
-        onSaved: (updated) {
-          setState(() {
-            updated.forEach((k, v) => _dynValues[k] = v);
-          });
+        initialValues: Map<String, dynamic>.from(currentValues),
+        onSaved: (result) {
+          setState(() => _dynValues[field.key] = result);
         },
       ),
     );
@@ -248,20 +245,27 @@ class _FarmerFormScreenState extends State<FarmerFormScreen> {
     final fs = context.read<FirestoreService>();
 
     // Collect all dynamic field values
-    final Map<String, String> allDynValues = {};
+    final Map<String, dynamic> allDynValues = {};
     _dynTextCtrl.forEach((k, c) {
       if (c.text.isNotEmpty) allDynValues[k] = c.text.trim();
     });
     _dynValues.forEach((k, v) {
-      if (v != null && v.toString().isNotEmpty) {
-        allDynValues[k] = v.toString();
+      if (v == null) return;
+      if (v is Map && v.isNotEmpty) {
+        allDynValues[k] = v;
+      } else if (v is String && v.isNotEmpty) {
+        allDynValues[k] = v;
+      } else if (v is bool || v is num) {
+        allDynValues[k] = v;
+      } else if (v is List && v.isNotEmpty) {
+        allDynValues[k] = v;
       }
     });
 
     // Extract well-known keys for FarmerModel core fields as fallback,
     // but leave them inside the dynamic fields map
-    final name = allDynValues['full_name'];
-    final phone = allDynValues['mobile_number'];
+    final name = allDynValues['fullName']?.toString();
+    final phone = allDynValues['mobileNumber']?.toString();
 
     final farmer = FarmerModel(
       id: _editFarmer?.id,
@@ -315,12 +319,12 @@ class _FarmerFormScreenState extends State<FarmerFormScreen> {
         await fs.updateFarmer(farmer);
         debugPrint(
             '=== FARMER REGISTRATION RESULT === action=update_farmer id=${farmer.id} success=true');
-        context.showSnack('Updated successfully!', success: true);
+        if (mounted) context.showSnack('Updated successfully!', success: true);
       } else {
         final createdId = await fs.addFarmer(farmer);
         debugPrint(
             '=== FARMER REGISTRATION RESULT === action=create_farmer id=$createdId success=true');
-        context.showSnack('Farmer registered!', success: true);
+        if (mounted) context.showSnack('Farmer registered!', success: true);
       }
       if (mounted) {
         if (_editFarmer != null) {
@@ -334,7 +338,7 @@ class _FarmerFormScreenState extends State<FarmerFormScreen> {
     } catch (e) {
       debugPrint(
           '=== FARMER REGISTRATION RESULT === success=false error=${e.toString()}');
-      context.showSnack('Error: $e');
+      if (mounted) context.showSnack('Error: $e');
     } finally {
       if (mounted) setState(() => _isSaving = false);
     }
@@ -496,19 +500,14 @@ class _FarmerFormScreenState extends State<FarmerFormScreen> {
   }
 
   Widget _buildDynamicField(ApiField f, Color catColor) {
-    // For BUTTON type, compute popup filled count
-    int? popupFilled;
-    int? popupTotal;
-    if (f.fieldStyle == FieldStyle.button && f.popup != null) {
-      final popup = f.popup!;
-      popupTotal = popup.fields.length;
-      popupFilled = popup.fields.where((pf) {
-        if (_dynTextCtrl.containsKey(pf.key)) {
-          return (_dynTextCtrl[pf.key]?.text ?? '').isNotEmpty;
-        }
-        final val = _dynValues[pf.key];
-        return val != null && val.toString().isNotEmpty;
-      }).length;
+    // For POPUP-FORM, compute filled count
+    int? popupFormFilled;
+    int? popupFormTotal;
+    if (f.isPopupForm) {
+      final subValues =
+          _dynValues[f.key] as Map<String, dynamic>? ?? {};
+      popupFormTotal = f.subFields.length;
+      popupFormFilled = subValues.keys.length;
     }
 
     return DynamicFieldBuilder(
@@ -523,11 +522,11 @@ class _FarmerFormScreenState extends State<FarmerFormScreen> {
           setState(() => _dynValues[f.key] = val);
         }
       },
-      onPopupPressed: f.fieldStyle == FieldStyle.button && f.popup != null
-          ? () => _openPopupSheet(f.popup!, catColor)
+      onPopupFormPressed: f.isPopupForm
+          ? () => _openPopupFormSheet(f, catColor)
           : null,
-      popupFilledCount: popupFilled,
-      popupTotalCount: popupTotal,
+      popupFormFilledCount: popupFormFilled,
+      popupFormTotalCount: popupFormTotal,
     );
   }
 
@@ -677,42 +676,77 @@ class _Section extends StatelessWidget {
   }
 }
 
-// ─── Popup Field Sheet ────────────────────────────────────────────────────────
-class _PopupFieldSheet extends StatefulWidget {
-  final ApiPopup popup;
+// ─── Popup Form Sheet ─────────────────────────────────────────────────────────
+class _PopupFormSheet extends StatefulWidget {
+  final ApiField parentField;
   final Color catColor;
-  final Map<String, TextEditingController> textCtrl;
-  final Map<String, dynamic> dynValues;
+  final Map<String, dynamic> initialValues;
   final void Function(Map<String, dynamic> updated) onSaved;
 
-  const _PopupFieldSheet({
-    required this.popup,
+  const _PopupFormSheet({
+    required this.parentField,
     required this.catColor,
-    required this.textCtrl,
-    required this.dynValues,
+    required this.initialValues,
     required this.onSaved,
   });
 
   @override
-  State<_PopupFieldSheet> createState() => _PopupFieldSheetState();
+  State<_PopupFormSheet> createState() => _PopupFormSheetState();
 }
 
-class _PopupFieldSheetState extends State<_PopupFieldSheet> {
-  late Map<String, dynamic> _localValues;
+class _PopupFormSheetState extends State<_PopupFormSheet> {
+  final Map<String, TextEditingController> _textCtrl = {};
+  final Map<String, dynamic> _values = {};
 
   @override
   void initState() {
     super.initState();
-    _localValues = {
-      for (final f in widget.popup.fields)
-        if (f.fieldStyle == FieldStyle.dropdown ||
-            f.fieldStyle == FieldStyle.radio)
-          f.key: widget.dynValues[f.key] ?? '',
-    };
+    for (final f in widget.parentField.subFields) {
+      final init = widget.initialValues[f.key];
+      if (f.fieldStyle == FieldStyle.text ||
+          f.fieldStyle == FieldStyle.number ||
+          f.fieldStyle == FieldStyle.date) {
+        _textCtrl[f.key] =
+            TextEditingController(text: init?.toString() ?? '');
+      } else if (f.fieldStyle == FieldStyle.popupForm) {
+        _values[f.key] = init is Map<String, dynamic>
+            ? Map<String, dynamic>.from(init)
+            : <String, dynamic>{};
+      } else {
+        _values[f.key] = init;
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    for (final c in _textCtrl.values) {
+      c.dispose();
+    }
+    super.dispose();
   }
 
   void _save() {
-    widget.onSaved(_localValues);
+    final result = <String, dynamic>{};
+    for (final f in widget.parentField.subFields) {
+      if (_textCtrl.containsKey(f.key)) {
+        final text = _textCtrl[f.key]!.text.trim();
+        if (text.isNotEmpty) result[f.key] = text;
+      } else {
+        final v = _values[f.key];
+        if (v == null) continue;
+        if (v is Map && v.isNotEmpty) {
+          result[f.key] = v;
+        } else if (v is String && v.isNotEmpty) {
+          result[f.key] = v;
+        } else if (v is bool || v is num) {
+          result[f.key] = v;
+        } else if (v is List && v.isNotEmpty) {
+          result[f.key] = v;
+        }
+      }
+    }
+    widget.onSaved(result);
     Navigator.pop(context);
   }
 
@@ -749,7 +783,7 @@ class _PopupFieldSheetState extends State<_PopupFieldSheet> {
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      widget.popup.title,
+                      widget.parentField.label,
                       style: TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.w700,
@@ -764,16 +798,16 @@ class _PopupFieldSheetState extends State<_PopupFieldSheet> {
               ),
             ),
             const Divider(height: 1),
-            // Fields
+            // Sub-form fields
             Expanded(
               child: SingleChildScrollView(
                 controller: ctrl,
                 padding: const EdgeInsets.all(20),
                 child: Column(
                   children: [
-                    ...widget.popup.fields.map((f) => Padding(
+                    ...widget.parentField.subFields.map((f) => Padding(
                           padding: const EdgeInsets.only(bottom: 14),
-                          child: _buildPopupField(f, color),
+                          child: _buildSubField(f, color),
                         )),
                     const SizedBox(height: 8),
                     SizedBox(
@@ -797,51 +831,52 @@ class _PopupFieldSheetState extends State<_PopupFieldSheet> {
     );
   }
 
-  Widget _buildPopupField(ApiField f, Color color) {
-    switch (f.fieldStyle) {
-      case FieldStyle.text:
-        return TextFormField(
-          controller: widget.textCtrl[f.key],
-          decoration: InputDecoration(
-            labelText: f.label,
-            prefixIcon: Icon(
-              f.fieldType == FieldType.number
-                  ? Icons.numbers_outlined
-                  : Icons.edit_note_outlined,
-              color: color,
-            ),
-          ),
-          textCapitalization: f.fieldType == FieldType.number
-              ? TextCapitalization.none
-              : TextCapitalization.sentences,
-          keyboardType: f.fieldType == FieldType.number
-              ? const TextInputType.numberWithOptions(decimal: true)
-              : TextInputType.text,
-          inputFormatters: [
-            if (f.fieldType == FieldType.number)
-              FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*'))
-          ],
-        );
-
-      case FieldStyle.dropdown:
-        return DropdownButtonFormField<String>(
-          initialValue: (_localValues[f.key]?.toString().isEmpty ?? true)
-              ? null
-              : _localValues[f.key] as String?,
-          decoration: InputDecoration(
-            labelText: f.label,
-            prefixIcon:
-                Icon(Icons.arrow_drop_down_circle_outlined, color: color),
-          ),
-          hint: Text('Select ${f.label}'),
-          items: f.fieldData
-              .map((o) => DropdownMenuItem(value: o, child: Text(o)))
-              .toList(),
-          onChanged: (v) => setState(() => _localValues[f.key] = v ?? ''),
-        );
-
-      default:
-        return const SizedBox.shrink();
+  Widget _buildSubField(ApiField f, Color color) {
+    // Compute popup-form filled count for nested sub-forms
+    int? popupFormFilled;
+    int? popupFormTotal;
+    if (f.isPopupForm) {
+      final subValues =
+          _values[f.key] as Map<String, dynamic>? ?? {};
+      popupFormTotal = f.subFields.length;
+      popupFormFilled = subValues.keys.length;
     }
+
+    return DynamicFieldBuilder(
+      field: f,
+      value: _textCtrl.containsKey(f.key)
+          ? _textCtrl[f.key]!.text
+          : _values[f.key],
+      textController: _textCtrl[f.key],
+      accentColor: color,
+      onChanged: (val) {
+        if (!_textCtrl.containsKey(f.key)) {
+          setState(() => _values[f.key] = val);
+        }
+      },
+      onPopupFormPressed: f.isPopupForm
+          ? () => _openNestedPopupForm(f, color)
+          : null,
+      popupFormFilledCount: popupFormFilled,
+      popupFormTotalCount: popupFormTotal,
+    );
+  }
+
+  void _openNestedPopupForm(ApiField field, Color color) {
+    final currentValues =
+        _values[field.key] as Map<String, dynamic>? ?? {};
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _PopupFormSheet(
+        parentField: field,
+        catColor: color,
+        initialValues: Map<String, dynamic>.from(currentValues),
+        onSaved: (result) {
+          setState(() => _values[field.key] = result);
+        },
+      ),
+    );
   }
 }
