@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
+// import 'package:intl/intl.dart'; // commented out – only used by _RecentFarmers
 import 'package:provider/provider.dart';
-import '../../models/farmer/farmer_model.dart';
+// import '../../models/farmer/farmer_model.dart'; // commented out – only used by _RecentFarmers
+import '../../models/flow_type.dart';
 import '../../services/auth_service.dart';
 import '../../services/firestore_service.dart';
+import '../../config/app_constants.dart';
 import '../../utils/app_colors.dart';
 import '../../widgets/popup_form.dart';
 
@@ -101,27 +103,40 @@ class DashboardScreen extends StatelessWidget {
                   // _QuickActions(),
                   // const SizedBox(height: 24),
 
-                  // ── Recent Farmers ─────────────────────────────────────
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text(
-                        'Recent Registrations',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w700,
-                          color: AppColors.dark,
-                        ),
-                      ),
-                      TextButton(
-                        onPressed: () =>
-                            Navigator.pushNamed(context, '/farmer-list'),
-                        child: const Text('See All'),
-                      ),
-                    ],
+                  // ── Recent Registrations (hidden – replaced by categories grid) ──
+                  // Row(
+                  //   mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  //   children: [
+                  //     const Text(
+                  //       'Recent Registrations',
+                  //       style: TextStyle(
+                  //         fontSize: 16,
+                  //         fontWeight: FontWeight.w700,
+                  //         color: AppColors.dark,
+                  //       ),
+                  //     ),
+                  //     TextButton(
+                  //       onPressed: () =>
+                  //           Navigator.pushNamed(context, '/farmer-list'),
+                  //       child: const Text('See All'),
+                  //     ),
+                  //   ],
+                  // ),
+                  // const SizedBox(height: 8),
+                  // _RecentFarmers(fs: fs),
+                  // const SizedBox(height: 24),
+
+                  // ── Categories Grid ────────────────────────────────────
+                  const Text(
+                    'Categories',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.dark,
+                    ),
                   ),
-                  const SizedBox(height: 8),
-                  _RecentFarmers(fs: fs),
+                  const SizedBox(height: 12),
+                  _CategoriesGrid(),
                   const SizedBox(height: 24),
                 ],
               ),
@@ -129,14 +144,16 @@ class DashboardScreen extends StatelessWidget {
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => Navigator.pushNamed(context, '/categories',
-            arguments: {'registrationFlow': true}),
-        backgroundColor: AppColors.primary,
-        icon: const Icon(Icons.person_add, color: Colors.white),
-        label: const Text('Register Farmer',
-            style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
-      ),
+
+      // ── Register Farmer FAB (hidden) ─────────────────────────────────
+      // floatingActionButton: FloatingActionButton.extended(
+      //   onPressed: () => Navigator.pushNamed(context, '/categories',
+      //       arguments: {'flowType': FlowType.registration}),
+      //   backgroundColor: AppColors.primary,
+      //   icon: const Icon(Icons.person_add, color: Colors.white),
+      //   label: const Text('Register Farmer',
+      //       style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
+      // ),
     );
   }
 
@@ -183,9 +200,10 @@ class DashboardScreen extends StatelessWidget {
           _drawerItem(context, Icons.dashboard, 'Dashboard', '/dashboard'),
           _drawerItem(
               context, Icons.person_add, 'Register Farmer', '/categories',
-              arguments: {'registrationFlow': true}),
+              arguments: {'flowType': FlowType.registration}),
           _drawerItem(context, Icons.people, 'Farmers List', '/farmer-list'),
-          _drawerItem(context, Icons.category, 'Categories', '/categories'),
+          _drawerItem(context, Icons.category, 'Categories', '/categories',
+              arguments: {'flowType': FlowType.listing}),
           _drawerItem(
               context, Icons.map, 'Land Measurement', '/land-measurement'),
           const Divider(),
@@ -314,18 +332,135 @@ class _StatCard extends StatelessWidget {
   }
 }
 
-// ─── Quick Actions ──────────────────────────────────────────────────────────
+// ─── Categories Grid ───────────────────────────────────────────────────────
+class _CategoriesGrid extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    final categories = AppCategories.all.entries.toList();
+
+    return GridView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2,
+        mainAxisSpacing: 12,
+        crossAxisSpacing: 12,
+        childAspectRatio: 1.15,
+      ),
+      itemCount: categories.length,
+      itemBuilder: (_, i) {
+        final name = categories[i].key;
+        final data = categories[i].value;
+
+        return _CategoryTile(
+          name: name,
+          data: data,
+          onTap: () {
+            Navigator.pushNamed(
+              context,
+              '/subcategories',
+              arguments: {
+                'category': name,
+                'flowType': FlowType.registration,
+              },
+            );
+          },
+        );
+      },
+    );
+  }
+}
+
+class _CategoryTile extends StatelessWidget {
+  final String name;
+  final CategoryData data;
+  final VoidCallback onTap;
+
+  const _CategoryTile({
+    required this.name,
+    required this.data,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(20),
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(20),
+          gradient: LinearGradient(
+            colors: [
+              data.color.withValues(alpha: 0.85),
+              data.color,
+            ],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: data.color.withValues(alpha: 0.3),
+              blurRadius: 12,
+              offset: const Offset(0, 6),
+            ),
+          ],
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.2),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(data.icon, color: Colors.white, size: 28),
+              ),
+              const Spacer(),
+              Text(
+                name,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Row(
+                children: [
+                  const Icon(Icons.list, color: Colors.white70, size: 14),
+                  const SizedBox(width: 4),
+                  Text(
+                    '${data.subcategories.length} subcategories',
+                    style: const TextStyle(color: Colors.white70, fontSize: 12),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ─── Quick Actions (hidden – kept for future use) ──────────────────────────
+// ignore: unused_element
 class _QuickActions extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final actions = [
       _QAction(Icons.person_add, 'New\nRegister', AppColors.primary,
           () => Navigator.pushNamed(context, '/categories',
-              arguments: {'registrationFlow': true})),
+              arguments: {'flowType': FlowType.registration})),
       _QAction(Icons.people, 'View\nFarmers', AppColors.medium,
           () => Navigator.pushNamed(context, '/farmer-list')),
       _QAction(Icons.category, 'Categories', AppColors.dark,
-          () => Navigator.pushNamed(context, '/categories')),
+          () => Navigator.pushNamed(context, '/categories',
+              arguments: {'flowType': FlowType.listing})),
       _QAction(Icons.map, 'Land\nMap', AppColors.accent,
           () => Navigator.pushNamed(context, '/land-measurement')),
     ];
@@ -345,9 +480,9 @@ class _QuickActions extends StatelessWidget {
       borderRadius: BorderRadius.circular(16),
       child: Container(
         decoration: BoxDecoration(
-          color: a.color.withValues(alpha:0.1),
+          color: a.color.withValues(alpha: 0.1),
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: a.color.withValues(alpha:0.3)),
+          border: Border.all(color: a.color.withValues(alpha: 0.3)),
         ),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -375,120 +510,120 @@ class _QAction {
   _QAction(this.icon, this.label, this.color, this.onTap);
 }
 
-// ─── Recent Farmers ─────────────────────────────────────────────────────────
-class _RecentFarmers extends StatelessWidget {
-  final FirestoreService fs;
-  const _RecentFarmers({required this.fs});
-
-  @override
-  Widget build(BuildContext context) {
-    return StreamBuilder<List<FarmerModel>>(
-      stream: fs.getFarmers(),
-      builder: (_, snap) {
-        if (snap.connectionState == ConnectionState.waiting) {
-          return const Center(
-            child: Padding(
-              padding: EdgeInsets.all(24),
-              child: CircularProgressIndicator(),
-            ),
-          );
-        }
-        final farmers = (snap.data ?? []).take(5).toList();
-        if (farmers.isEmpty) {
-          return _EmptyState();
-        }
-        return Column(
-          children: farmers
-              .map((f) => _FarmerTile(
-                    farmer: f,
-                    onTap: () => Navigator.pushNamed(context, '/farmer-detail',
-                        arguments: f.id),
-                  ))
-              .toList(),
-        );
-      },
-    );
-  }
-}
-
-class _EmptyState extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(32),
-      decoration: BoxDecoration(
-        color: AppColors.veryLight,
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: const Column(
-        children: [
-          Icon(Icons.people_outline, size: 48, color: AppColors.light),
-          SizedBox(height: 12),
-          Text('No farmers registered yet.',
-              style: TextStyle(color: AppColors.textMedium)),
-          SizedBox(height: 4),
-          Text('Tap the button below to add one.',
-              style: TextStyle(color: AppColors.textMedium, fontSize: 12)),
-        ],
-      ),
-    );
-  }
-}
-
-class _FarmerTile extends StatelessWidget {
-  final FarmerModel farmer;
-  final VoidCallback onTap;
-  const _FarmerTile({required this.farmer, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      margin: const EdgeInsets.only(bottom: 8),
-      child: ListTile(
-        onTap: onTap,
-        leading: CircleAvatar(
-          backgroundColor: AppColors.light,
-          child: Text(
-            farmer.initials,
-            style: const TextStyle(
-                color: AppColors.dark, fontWeight: FontWeight.w700),
-          ),
-        ),
-        title: Text(farmer.name ?? 'Unknown',
-            style: const TextStyle(fontWeight: FontWeight.w600)),
-        subtitle:
-            Text('${farmer.category} · ${farmer.landArea} ${farmer.landUnit}'),
-        trailing: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: [
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-              decoration: BoxDecoration(
-                color: farmer.status == 'Active'
-                    ? AppColors.veryLight
-                    : Colors.grey.shade100,
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Text(
-                farmer.status,
-                style: TextStyle(
-                  fontSize: 11,
-                  color: farmer.status == 'Active'
-                      ? AppColors.primary
-                      : Colors.grey,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              DateFormat('dd MMM').format(farmer.registrationDate),
-              style: const TextStyle(fontSize: 11, color: AppColors.textMedium),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
+// ─── Recent Farmers (hidden – kept for future use) ─────────────────────────
+// class _RecentFarmers extends StatelessWidget {
+//   final FirestoreService fs;
+//   const _RecentFarmers({required this.fs});
+//
+//   @override
+//   Widget build(BuildContext context) {
+//     return StreamBuilder<List<FarmerModel>>(
+//       stream: fs.getFarmers(),
+//       builder: (_, snap) {
+//         if (snap.connectionState == ConnectionState.waiting) {
+//           return const Center(
+//             child: Padding(
+//               padding: EdgeInsets.all(24),
+//               child: CircularProgressIndicator(),
+//             ),
+//           );
+//         }
+//         final farmers = (snap.data ?? []).take(5).toList();
+//         if (farmers.isEmpty) {
+//           return _EmptyState();
+//         }
+//         return Column(
+//           children: farmers
+//               .map((f) => _FarmerTile(
+//                     farmer: f,
+//                     onTap: () => Navigator.pushNamed(context, '/farmer-detail',
+//                         arguments: f.id),
+//                   ))
+//               .toList(),
+//         );
+//       },
+//     );
+//   }
+// }
+//
+// class _EmptyState extends StatelessWidget {
+//   @override
+//   Widget build(BuildContext context) {
+//     return Container(
+//       padding: const EdgeInsets.all(32),
+//       decoration: BoxDecoration(
+//         color: AppColors.veryLight,
+//         borderRadius: BorderRadius.circular(16),
+//       ),
+//       child: const Column(
+//         children: [
+//           Icon(Icons.people_outline, size: 48, color: AppColors.light),
+//           SizedBox(height: 12),
+//           Text('No farmers registered yet.',
+//               style: TextStyle(color: AppColors.textMedium)),
+//           SizedBox(height: 4),
+//           Text('Tap the button below to add one.',
+//               style: TextStyle(color: AppColors.textMedium, fontSize: 12)),
+//         ],
+//       ),
+//     );
+//   }
+// }
+//
+// class _FarmerTile extends StatelessWidget {
+//   final FarmerModel farmer;
+//   final VoidCallback onTap;
+//   const _FarmerTile({required this.farmer, required this.onTap});
+//
+//   @override
+//   Widget build(BuildContext context) {
+//     return Card(
+//       margin: const EdgeInsets.only(bottom: 8),
+//       child: ListTile(
+//         onTap: onTap,
+//         leading: CircleAvatar(
+//           backgroundColor: AppColors.light,
+//           child: Text(
+//             farmer.initials,
+//             style: const TextStyle(
+//                 color: AppColors.dark, fontWeight: FontWeight.w700),
+//           ),
+//         ),
+//         title: Text(farmer.name ?? 'Unknown',
+//             style: const TextStyle(fontWeight: FontWeight.w600)),
+//         subtitle:
+//             Text('${farmer.category} · ${farmer.landArea} ${farmer.landUnit}'),
+//         trailing: Column(
+//           mainAxisAlignment: MainAxisAlignment.center,
+//           crossAxisAlignment: CrossAxisAlignment.end,
+//           children: [
+//             Container(
+//               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+//               decoration: BoxDecoration(
+//                 color: farmer.status == 'Active'
+//                     ? AppColors.veryLight
+//                     : Colors.grey.shade100,
+//                 borderRadius: BorderRadius.circular(20),
+//               ),
+//               child: Text(
+//                 farmer.status,
+//                 style: TextStyle(
+//                   fontSize: 11,
+//                   color: farmer.status == 'Active'
+//                       ? AppColors.primary
+//                       : Colors.grey,
+//                   fontWeight: FontWeight.w600,
+//                 ),
+//               ),
+//             ),
+//             const SizedBox(height: 4),
+//             Text(
+//               DateFormat('dd MMM').format(farmer.registrationDate),
+//               style: const TextStyle(fontSize: 11, color: AppColors.textMedium),
+//             ),
+//           ],
+//         ),
+//       ),
+//     );
+//   }
+// }
