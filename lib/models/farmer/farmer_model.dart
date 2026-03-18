@@ -8,15 +8,14 @@ class FarmerModel {
   final String village;
   final String district;
   final String state;
-  final double? latitude;
-  final double? longitude;
   final String category;
   final String subcategory;
   final int? subcategoryId;
   final double landArea;
   final String landUnit;
   final List<Map<String, double>> landCoordinates;
-  final Map<String, String> dynamicFields; // category-specific answers
+  final Map<String, dynamic> dynamicFields; // category-specific answers
+  final List<dynamic> formFields; // The structured list of fields
   final DateTime registrationDate;
   final String? photoUrl;
   final String status;
@@ -30,8 +29,6 @@ class FarmerModel {
     this.village = '',
     this.district = '',
     this.state = '',
-    this.latitude,
-    this.longitude,
     required this.category,
     required this.subcategory,
     this.subcategoryId,
@@ -39,6 +36,7 @@ class FarmerModel {
     this.landUnit = 'Acres',
     this.landCoordinates = const [],
     this.dynamicFields = const {},
+    this.formFields = const [],
     DateTime? registrationDate,
     this.photoUrl,
     this.status = 'Active',
@@ -55,11 +53,20 @@ class FarmerModel {
           .toList();
     }
 
-    Map<String, String> dynFields = {};
+    Map<String, dynamic> dynFields = {};
     if (map['dynamicFields'] != null) {
-      dynFields = Map<String, String>.from(
-          (map['dynamicFields'] as Map).map(
-              (k, v) => MapEntry(k.toString(), v.toString())));
+      if (map['dynamicFields'] is Map) {
+         dynFields = Map<String, dynamic>.from(map['dynamicFields'] as Map);
+      }
+    }
+
+    List<dynamic> fFields = [];
+    if (map['formFields'] != null) {
+      fFields = List<dynamic>.from(map['formFields']);
+    } else if (map['registrationData']?['fields'] != null) {
+      fFields = List<dynamic>.from(map['registrationData']['fields']);
+    } else if (map['dynamicFields'] is List) {
+      fFields = List<dynamic>.from(map['dynamicFields']);
     }
 
     return FarmerModel(
@@ -70,8 +77,6 @@ class FarmerModel {
       village: map['village'] ?? '',
       district: map['district'] ?? '',
       state: map['state'] ?? '',
-      latitude: (map['latitude'] as num?)?.toDouble(),
-      longitude: (map['longitude'] as num?)?.toDouble(),
       category: map['category'] ?? '',
       subcategory: map['subcategory'] ?? '',
       subcategoryId: map['subcategoryId'] as int?,
@@ -79,6 +84,7 @@ class FarmerModel {
       landUnit: map['landUnit'] ?? 'Acres',
       landCoordinates: coords,
       dynamicFields: dynFields,
+      formFields: fFields,
       registrationDate:
           (map['registrationDate'] as Timestamp?)?.toDate() ?? DateTime.now(),
       photoUrl: map['photoUrl'],
@@ -95,13 +101,12 @@ class FarmerModel {
       'village': village,
       'district': district,
       'state': state,
-      'latitude': latitude,
-      'longitude': longitude,
       'subcategoryId': subcategoryId,
       'landArea': landArea,
       'landUnit': landUnit,
       'landCoordinates': landCoordinates,
       'dynamicFields': dynamicFields,
+      'formFields': formFields,
       'registrationDate': Timestamp.fromDate(registrationDate),
       'status': status,
       'userId': userId,
@@ -116,15 +121,14 @@ class FarmerModel {
     String? village,
     String? district,
     String? state,
-    double? latitude,
-    double? longitude,
     String? category,
     String? subcategory,
     int? subcategoryId,
     double? landArea,
     String? landUnit,
     List<Map<String, double>>? landCoordinates,
-    Map<String, String>? dynamicFields,
+    Map<String, dynamic>? dynamicFields,
+    List<dynamic>? formFields,
     DateTime? registrationDate,
     String? photoUrl,
     String? status,
@@ -138,8 +142,6 @@ class FarmerModel {
       village: village ?? this.village,
       district: district ?? this.district,
       state: state ?? this.state,
-      latitude: latitude ?? this.latitude,
-      longitude: longitude ?? this.longitude,
       category: category ?? this.category,
       subcategory: subcategory ?? this.subcategory,
       subcategoryId: subcategoryId ?? this.subcategoryId,
@@ -147,6 +149,7 @@ class FarmerModel {
       landUnit: landUnit ?? this.landUnit,
       landCoordinates: landCoordinates ?? this.landCoordinates,
       dynamicFields: dynamicFields ?? this.dynamicFields,
+      formFields: formFields ?? this.formFields,
       registrationDate: registrationDate ?? this.registrationDate,
       photoUrl: photoUrl ?? this.photoUrl,
       status: status ?? this.status,

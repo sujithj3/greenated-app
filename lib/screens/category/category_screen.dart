@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../../models/flow_type.dart';
 import '../../services/firestore_service.dart';
 import '../../services/form_config_service.dart';
 import '../../config/app_constants.dart';
@@ -28,16 +29,16 @@ class _CategoryScreenState extends State<CategoryScreen> {
     // selectionMode = true means this screen is used to PICK a category
     // (e.g. from FarmerFormScreen). Otherwise it navigates to subcategories.
     final bool selectionMode = args['selectionMode'] as bool? ?? false;
-    final bool registrationFlow = args['registrationFlow'] as bool? ?? false;
+    final FlowType flowType =
+        args['flowType'] as FlowType? ?? FlowType.listing;
 
     final fs = context.read<FirestoreService>();
     final svc = context.watch<FormConfigService>();
 
-    final String title = registrationFlow
+    final bool isRegistration = flowType == FlowType.registration;
+    final String title = (isRegistration || selectionMode)
         ? 'Select Category'
-        : selectionMode
-            ? 'Select Category'
-            : 'Farm Categories';
+        : 'Farm Categories';
 
     return Scaffold(
       appBar: AppBar(title: Text(title)),
@@ -71,22 +72,13 @@ class _CategoryScreenState extends State<CategoryScreen> {
                       onTap: () {
                         if (selectionMode) {
                           Navigator.pop(context, name);
-                        } else if (registrationFlow) {
-                          Navigator.pushNamed(
-                            context,
-                            '/subcategories',
-                            arguments: {
-                              'category': name,
-                              'registrationFlow': true,
-                            },
-                          );
                         } else {
                           Navigator.pushNamed(
                             context,
                             '/subcategories',
                             arguments: {
                               'category': name,
-                              'selectionMode': false,
+                              'flowType': flowType,
                             },
                           );
                         }

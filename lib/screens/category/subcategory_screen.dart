@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../../models/flow_type.dart';
 import '../../services/firestore_service.dart';
 import '../../services/form_config_service.dart';
 import '../../config/app_constants.dart';
@@ -28,14 +29,16 @@ class _SubcategoryScreenState extends State<SubcategoryScreen> {
     final args = ModalRoute.of(context)?.settings.arguments as Map? ?? {};
     final String category = args['category'] as String? ?? '';
     final bool selectionMode = args['selectionMode'] as bool? ?? false;
-    final bool registrationFlow = args['registrationFlow'] as bool? ?? false;
+    final FlowType flowType =
+        args['flowType'] as FlowType? ?? FlowType.listing;
 
     final catData = AppCategories.all[category];
     final svc = context.watch<FormConfigService>();
     final subcategories = svc.getSubcategoryNames(category);
     final fs = context.read<FirestoreService>();
 
-    final bool isPickMode = selectionMode || registrationFlow;
+    final bool isRegistration = flowType == FlowType.registration;
+    final bool isPickMode = selectionMode || isRegistration;
 
     return Scaffold(
       appBar: AppBar(
@@ -101,7 +104,7 @@ class _SubcategoryScreenState extends State<SubcategoryScreen> {
                         onTap: () {
                           if (selectionMode) {
                             Navigator.pop(context, sub);
-                          } else if (registrationFlow) {
+                          } else if (isRegistration) {
                             // Registration flow → open farmer form
                             final subData = svc.getCategoryByName(category)?.findSubcategory(sub);
                             Navigator.pushNamed(

@@ -1,13 +1,11 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../../models/api/api_models.dart';
 import '../../models/farmer/farmer_model.dart';
 import '../../services/auth_service.dart';
 import '../../services/firestore_service.dart';
 import '../../services/form_config_service.dart';
-import '../../services/location_service.dart';
 import '../../config/app_constants.dart';
 import '../../utils/app_colors.dart';
 import '../../utils/snack_bar_helper.dart';
@@ -23,7 +21,6 @@ class FarmerFormScreen extends StatefulWidget {
 
 class _FarmerFormScreenState extends State<FarmerFormScreen> {
   final _formKey = GlobalKey<FormState>();
-  final _locationService = LocationService();
 
   // ── Hardcoded controllers (location + land) ─────────────────────────────
   final _addressCtrl = TextEditingController();
@@ -34,7 +31,7 @@ class _FarmerFormScreenState extends State<FarmerFormScreen> {
 
   // ── Dynamic field state ─────────────────────────────────────────────────
   final Map<String, TextEditingController> _dynTextCtrl = {};
-  final Map<String, dynamic> _dynValues = {};
+  List<DynamicFieldModel> _dynamicFields = [];
 
   // ── State ───────────────────────────────────────────────────────────────
   String _selectedCategory = '';
@@ -43,11 +40,8 @@ class _FarmerFormScreenState extends State<FarmerFormScreen> {
   String _selectedLandUnit = 'Acres';
   String _selectedStatus = 'Active';
   List<Map<String, double>> _landCoordinates = [];
-  double? _latitude;
-  double? _longitude;
 
   bool _isSaving = false;
-  bool _isLocating = false;
   bool _argsProcessed = false;
   FarmerModel? _editFarmer;
 
@@ -131,31 +125,22 @@ class _FarmerFormScreenState extends State<FarmerFormScreen> {
       c.dispose();
     }
     _dynTextCtrl.clear();
-    _dynValues.clear();
+    _dynamicFields.clear();
 
     if (_form == null) return;
 
     for (final field in _form!.fields) {
+      _dynamicFields.add(DynamicFieldModel.fromApiField(field));
       _initFieldController(field);
-      // Also init popup sub-fields
-      if (field.fieldStyle == FieldStyle.button && field.popup != null) {
-        for (final pf in field.popup!.fields) {
-          _initFieldController(pf);
-        }
-      }
     }
   }
 
-  void _initFieldController(ApiField f) {
+  void _initFieldController(ApiField f, {dynamic initialValue}) {
     final style = f.fieldStyle;
-    if (style == FieldStyle.text || style == FieldStyle.date) {
-      _dynTextCtrl[f.key] = TextEditingController();
-    } else if (style == FieldStyle.dropdown) {
-      _dynValues[f.key] = null;
-    } else if (style == FieldStyle.checkbox) {
-      _dynValues[f.key] = false;
-    } else if (style == FieldStyle.radio) {
-      _dynValues[f.key] = null;
+    if (style == FieldStyle.text ||
+        style == FieldStyle.number ||
+        style == FieldStyle.date) {
+      _dynTextCtrl[f.key] = TextEditingController(text: initialValue?.toString() ?? '');
     }
   }
 
@@ -174,77 +159,37 @@ class _FarmerFormScreenState extends State<FarmerFormScreen> {
       _selectedLandUnit = f.landUnit;
       _selectedStatus = f.status;
       _landCoordinates = f.landCoordinates;
-      _latitude = f.latitude;
-      _longitude = f.longitude;
 
-      // Map known model fields back to dynamic field keys (if they exist)
-      if (f.name != null) _setDynValue('full_name', f.name!);
-      if (f.phone != null) _setDynValue('mobile_number', f.phone!);
+      // Handle form fields
+      if (f.formFields.isNotEmpty) {
+        _dynamicFields = f.formFields
+            .map((e) => DynamicFieldModel.fromJson(Map<String, dynamic>.from(e as Map)))
+            .toList();
+      } else {
+        // Map known model fields back to dynamic field keys (if they exist)
+        if (f.name != null) _setDynValue('fullName', f.name!);
+        if (f.phone != null) _setDynValue('mobileNumber', f.phone!);
 
-      // Map dynamicFields
-      f.dynamicFields.forEach((key, value) {
-        _setDynValue(key, value);
-      });
+        // Map dynamicFields legacy
+        f.dynamicFields.forEach((key, value) {
+          _setDynValue(key, value);
+        });
+      }
+
+      // Re-init text controllers to match the correct values
+      _dynTextCtrl.clear();
+      for (final df in _dynamicFields) {
+        _initFieldController(df.field, initialValue: df.value);
+      }
     });
   }
 
-  void _setDynValue(String key, String value) {
-    if (value.isEmpty) return;
-    if (_dynTextCtrl.containsKey(key)) {
-      _dynTextCtrl[key]!.text = value;
-    } else {
-      _dynValues[key] = value;
-    }
-  }
-
-  // ── Geolocation ─────────────────────────────────────────────────────────
-
-  Future<void> _detectLocation() async {
-    if (_isLocating) {
-      return;
-    }
-
-    FocusScope.of(context).unfocus();
-    setState(() => _isLocating = true);
-
-    try {
-      final pos = await _locationService.getCurrentPosition();
-
-      if (mounted) {
-        setState(() {
-          _latitude = pos.latitude;
-          _longitude = pos.longitude;
-        });
-      }
-
-      try {
-        final result =
-            await _locationService.reverseGeocode(pos.latitude, pos.longitude);
-        if (!mounted) {
-          return;
-        }
-
-        setState(() {
-          if (result.address.isNotEmpty) _addressCtrl.text = result.address;
-          if (result.village.isNotEmpty) _villageCtrl.text = result.village;
-          if (result.district.isNotEmpty) _districtCtrl.text = result.district;
-          if (result.state.isNotEmpty) _stateCtrl.text = result.state;
-        });
-        context.showSnack('Location auto-filled', success: true);
-      } on LocationException catch (e) {
-        context.showSnack(
-          'GPS detected. Address lookup timed out/failed: ${e.message}',
-          success: true,
-        );
-      } catch (_) {
-        context.showSnack('GPS detected. Could not auto-fill address.');
-      }
-    } on LocationException catch (e) {
-      context.showSnack(e.message);
-    } catch (_) {
-      context.showSnack('Failed to detect location. Please try again.');
-    } finally {
-      if (mounted) setState(() => _isLocating = false);
+  void _setDynValue(String key, dynamic value) {
+    if (value == null) return;
+    if (value is String && value.isEmpty) return;
+    final idx = _dynamicFields.indexWhere((df) => df.field.key == key);
+    if (idx != -1) {
+      _dynamicFields[idx].value = value;
     }
   }
 
@@ -267,22 +212,21 @@ class _FarmerFormScreenState extends State<FarmerFormScreen> {
     }
   }
 
-  // ── Popup sheet ─────────────────────────────────────────────────────────
+  // ── Popup form sheet ──────────────────────────────────────────────────
 
-  void _openPopupSheet(ApiPopup popup, Color catColor) {
+  void _openPopupFormSheet(DynamicFieldModel df, Color catColor) {
+    final currentValues =
+        df.value as List<DynamicFieldModel>? ?? [];
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (_) => _PopupFieldSheet(
-        popup: popup,
+      builder: (_) => _PopupFormSheet(
+        parentField: df.field,
         catColor: catColor,
-        textCtrl: _dynTextCtrl,
-        dynValues: _dynValues,
-        onSaved: (updated) {
-          setState(() {
-            updated.forEach((k, v) => _dynValues[k] = v);
-          });
+        initialFields: currentValues,
+        onSaved: (result) {
+          setState(() => df.value = result);
         },
       ),
     );
@@ -305,21 +249,38 @@ class _FarmerFormScreenState extends State<FarmerFormScreen> {
     final auth = context.read<AuthService>();
     final fs = context.read<FirestoreService>();
 
-    // Collect all dynamic field values
-    final Map<String, String> allDynValues = {};
-    _dynTextCtrl.forEach((k, c) {
-      if (c.text.isNotEmpty) allDynValues[k] = c.text.trim();
-    });
-    _dynValues.forEach((k, v) {
-      if (v != null && v.toString().isNotEmpty) {
-        allDynValues[k] = v.toString();
+    // Collect all dynamic field values for legacy structure & model properties extraction
+    final Map<String, dynamic> allDynValues = {};
+    for (final df in _dynamicFields) {
+      final k = df.field.key;
+      final v = df.value;
+      if (v == null) continue;
+      
+      if (df.field.isPopupForm && v is List<DynamicFieldModel>) {
+        final asMap = <String, dynamic>{};
+        for (final subDf in v) {
+          if (subDf.value != null && subDf.value != '') {
+            asMap[subDf.field.key] = subDf.value;
+          }
+        }
+        if (asMap.isNotEmpty) allDynValues[k] = asMap;
+      } else if (v is Map && v.isNotEmpty) {
+        allDynValues[k] = v;
+      } else if (v is String && v.isNotEmpty) {
+        allDynValues[k] = v;
+      } else if (v is bool || v is num) {
+        allDynValues[k] = v;
+      } else if (v is List && v.isNotEmpty) {
+        allDynValues[k] = v;
       }
-    });
+    }
+
+    final List<dynamic> serializedFields = _dynamicFields.map((e) => e.toJson()).toList();
 
     // Extract well-known keys for FarmerModel core fields as fallback,
     // but leave them inside the dynamic fields map
-    final name = allDynValues['full_name'];
-    final phone = allDynValues['mobile_number'];
+    final name = allDynValues['fullName']?.toString();
+    final phone = allDynValues['mobileNumber']?.toString();
 
     final farmer = FarmerModel(
       id: _editFarmer?.id,
@@ -329,8 +290,6 @@ class _FarmerFormScreenState extends State<FarmerFormScreen> {
       village: _villageCtrl.text.trim(),
       district: _districtCtrl.text.trim(),
       state: _stateCtrl.text.trim(),
-      latitude: _latitude,
-      longitude: _longitude,
       category: _selectedCategory,
       subcategory: _selectedSubcategory,
       subcategoryId: _selectedSubcategoryId,
@@ -338,6 +297,7 @@ class _FarmerFormScreenState extends State<FarmerFormScreen> {
       landUnit: _selectedLandUnit,
       landCoordinates: _landCoordinates,
       dynamicFields: allDynValues,
+      formFields: serializedFields,
       status: _selectedStatus,
       userId: auth.userId, // Use locally stored User ID
     );
@@ -349,21 +309,19 @@ class _FarmerFormScreenState extends State<FarmerFormScreen> {
         'registrationDate': farmer.registrationDate.toIso8601String(),
         'status': _selectedStatus,
         'userId': auth.userId ?? '',
-        'land': <String, dynamic>{
-          'areaInput': _landAreaCtrl.text.trim(),
-          'areaParsed': double.tryParse(_landAreaCtrl.text) ?? 0,
-          'landUnit': _selectedLandUnit,
-        },
-        'location': <String, dynamic>{
-          'address': _addressCtrl.text.trim(),
-          'village': _villageCtrl.text.trim(),
-          'district': _districtCtrl.text.trim(),
-          'state': _stateCtrl.text.trim(),
-          'latitude': _latitude,
-          'longitude': _longitude,
-          'landCoordinates': _landCoordinates,
-        },
-        'dynamicFields': allDynValues,
+        // 'geoLocation': <String, dynamic>{
+        //   'areaInput': _landAreaCtrl.text.trim(),
+        //   'areaParsed': double.tryParse(_landAreaCtrl.text) ?? 0,
+        //   'landUnit': _selectedLandUnit,
+        //   'landCoordinates': _landCoordinates,
+        // },
+        // 'userLocation': <String, dynamic>{
+        //   'address': _addressCtrl.text.trim(),
+        //   'village': _villageCtrl.text.trim(),
+        //   'district': _districtCtrl.text.trim(),
+        //   'state': _stateCtrl.text.trim(),
+        // },
+        'fields': serializedFields,
       },
     };
     final prettyJson =
@@ -377,12 +335,12 @@ class _FarmerFormScreenState extends State<FarmerFormScreen> {
         await fs.updateFarmer(farmer);
         debugPrint(
             '=== FARMER REGISTRATION RESULT === action=update_farmer id=${farmer.id} success=true');
-        context.showSnack('Updated successfully!', success: true);
+        if (mounted) context.showSnack('Updated successfully!', success: true);
       } else {
         final createdId = await fs.addFarmer(farmer);
         debugPrint(
             '=== FARMER REGISTRATION RESULT === action=create_farmer id=$createdId success=true');
-        context.showSnack('Farmer registered!', success: true);
+        if (mounted) context.showSnack('Farmer registered!', success: true);
       }
       if (mounted) {
         if (_editFarmer != null) {
@@ -396,7 +354,7 @@ class _FarmerFormScreenState extends State<FarmerFormScreen> {
     } catch (e) {
       debugPrint(
           '=== FARMER REGISTRATION RESULT === success=false error=${e.toString()}');
-      context.showSnack('Error: $e');
+      if (mounted) context.showSnack('Error: $e');
     } finally {
       if (mounted) setState(() => _isSaving = false);
     }
@@ -409,7 +367,7 @@ class _FarmerFormScreenState extends State<FarmerFormScreen> {
   Widget build(BuildContext context) {
     final catData = AppCategories.all[_selectedCategory];
     final catColor = catData?.color ?? AppColors.primary;
-    final geoRequired = _form?.formConfig.geoLocationRequired ?? false;
+    final geoRequired = _form?.geoLocationRequired ?? false;
 
     return Scaffold(
       appBar: AppBar(
@@ -450,8 +408,8 @@ class _FarmerFormScreenState extends State<FarmerFormScreen> {
                     const SizedBox(height: 20),
                   ],
 
-                  // ── Dynamic sections from API ──────────────────────────
-                  ..._buildDynamicSections(catColor),
+                  // ── Dynamic fields from API ────────────────────────────
+                  ..._buildDynamicFields(catColor),
 
                   // ── Location (hardcoded) ───────────────────────────────
                   const SizedBox(height: 20),
@@ -545,85 +503,43 @@ class _FarmerFormScreenState extends State<FarmerFormScreen> {
     );
   }
 
-  // ── Dynamic sections ────────────────────────────────────────────────────
+  // ── Dynamic fields ──────────────────────────────────────────────────────
 
-  List<Widget> _buildDynamicSections(Color catColor) {
-    if (_form == null) return [];
-    final sections = _form!.sections;
-    if (sections.isEmpty) {
-      // Fallback: render flat fields without section headers
-      return _form!.fields
-          .map((f) => Padding(
-                padding: const EdgeInsets.only(bottom: 12),
-                child: _buildDynamicField(f, catColor),
-              ))
-          .toList();
-    }
-
-    final widgets = <Widget>[];
-    for (int i = 0; i < sections.length; i++) {
-      final section = sections[i];
-      if (i > 0) widgets.add(const SizedBox(height: 24));
-
-      // Section header
-      widgets.add(_Section(
-        title: section.sectionTitle.isNotEmpty
-            ? section.sectionTitle
-            : 'Section ${i + 1}',
-        icon: _sectionIcon(section.sectionId),
-        color: catColor,
-      ));
-      widgets.add(const SizedBox(height: 12));
-
-      // Section fields
-      for (final field in section.fields) {
-        widgets.add(Padding(
-          padding: const EdgeInsets.only(bottom: 12),
-          child: _buildDynamicField(field, catColor),
-        ));
-      }
-    }
-    return widgets;
+  List<Widget> _buildDynamicFields(Color catColor) {
+    if (_dynamicFields.isEmpty) return [];
+    return _dynamicFields
+        .map((df) => Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: _buildDynamicField(df, catColor),
+            ))
+        .toList();
   }
 
-  IconData _sectionIcon(String sectionId) {
-    if (sectionId.contains('personal')) return Icons.person_outline;
-    return Icons.info_outline;
-  }
-
-  Widget _buildDynamicField(ApiField f, Color catColor) {
-    // For BUTTON type, compute popup filled count
-    int? popupFilled;
-    int? popupTotal;
-    if (f.fieldStyle == FieldStyle.button && f.popup != null) {
-      final popup = f.popup!;
-      popupTotal = popup.fields.length;
-      popupFilled = popup.fields.where((pf) {
-        if (_dynTextCtrl.containsKey(pf.key)) {
-          return (_dynTextCtrl[pf.key]?.text ?? '').isNotEmpty;
-        }
-        final val = _dynValues[pf.key];
-        return val != null && val.toString().isNotEmpty;
-      }).length;
+  Widget _buildDynamicField(DynamicFieldModel df, Color catColor) {
+    final f = df.field;
+    // For POPUP-FORM, compute filled count
+    int? popupFormFilled;
+    int? popupFormTotal;
+    if (f.isPopupForm) {
+      final subFieldsList =
+          df.value as List<DynamicFieldModel>? ?? [];
+      popupFormTotal = subFieldsList.length;
+      popupFormFilled = subFieldsList.where((e) => e.value != null && e.value != '').length;
     }
 
     return DynamicFieldBuilder(
       field: f,
-      value: _dynTextCtrl.containsKey(f.key)
-          ? _dynTextCtrl[f.key]!.text
-          : _dynValues[f.key],
+      value: df.value,
       textController: _dynTextCtrl[f.key],
       accentColor: catColor,
       onChanged: (val) {
-        if (!_dynTextCtrl.containsKey(f.key)) {
-          setState(() => _dynValues[f.key] = val);
-        }
+        setState(() => df.value = val);
       },
-      onPopupPressed: f.fieldStyle == FieldStyle.button && f.popup != null
-          ? () => _openPopupSheet(f.popup!, catColor)
+      onPopupFormPressed: f.isPopupForm
+          ? () => _openPopupFormSheet(df, catColor)
           : null,
-      popupFilledCount: popupFilled,
-      popupTotalCount: popupTotal,
+      popupFormFilledCount: popupFormFilled,
+      popupFormTotalCount: popupFormTotal,
     );
   }
 
@@ -631,29 +547,6 @@ class _FarmerFormScreenState extends State<FarmerFormScreen> {
 
   List<Widget> _buildLocationSection() {
     return [
-      OutlinedButton.icon(
-        onPressed: _isLocating ? null : _detectLocation,
-        icon: _isLocating
-            ? const SizedBox(
-                width: 16,
-                height: 16,
-                child: CircularProgressIndicator(strokeWidth: 2))
-            : const Icon(Icons.my_location),
-        label: Text(_isLocating
-            ? 'Detecting...'
-            : _latitude != null
-                ? 'GPS: ${_latitude!.toStringAsFixed(4)}, ${_longitude!.toStringAsFixed(4)}'
-                : 'Auto-detect My Location'),
-        style: OutlinedButton.styleFrom(
-          minimumSize: const Size(double.infinity, 48),
-          foregroundColor:
-              _latitude != null ? AppColors.primary : AppColors.textMedium,
-          side: BorderSide(
-            color: _latitude != null ? AppColors.primary : AppColors.light,
-          ),
-        ),
-      ),
-      const SizedBox(height: 12),
       TextFormField(
         controller: _addressCtrl,
         decoration: const InputDecoration(
@@ -774,66 +667,83 @@ class _FarmerFormScreenState extends State<FarmerFormScreen> {
 class _Section extends StatelessWidget {
   final String title;
   final IconData icon;
-  final Color color;
   const _Section({
     required this.title,
     required this.icon,
-    this.color = AppColors.primary,
   });
 
   @override
   Widget build(BuildContext context) {
     return Row(children: [
-      Icon(icon, color: color, size: 18),
+      Icon(icon, color: AppColors.primary, size: 18),
       const SizedBox(width: 8),
       Text(title,
-          style: TextStyle(
+          style: const TextStyle(
               fontSize: 14,
               fontWeight: FontWeight.w700,
-              color: color == AppColors.primary ? AppColors.dark : color)),
+              color: AppColors.dark)),
       const SizedBox(width: 8),
       Expanded(
-          child: Divider(color: color.withValues(alpha: 0.35), thickness: 1.5)),
+          child: Divider(color: AppColors.primary.withValues(alpha: 0.35), thickness: 1.5)),
     ]);
   }
 }
 
-// ─── Popup Field Sheet ────────────────────────────────────────────────────────
-class _PopupFieldSheet extends StatefulWidget {
-  final ApiPopup popup;
+// ─── Popup Form Sheet ─────────────────────────────────────────────────────────
+class _PopupFormSheet extends StatefulWidget {
+  final ApiField parentField;
   final Color catColor;
-  final Map<String, TextEditingController> textCtrl;
-  final Map<String, dynamic> dynValues;
-  final void Function(Map<String, dynamic> updated) onSaved;
+  final List<DynamicFieldModel> initialFields;
+  final void Function(List<DynamicFieldModel> updated) onSaved;
 
-  const _PopupFieldSheet({
-    required this.popup,
+  const _PopupFormSheet({
+    required this.parentField,
     required this.catColor,
-    required this.textCtrl,
-    required this.dynValues,
+    required this.initialFields,
     required this.onSaved,
   });
 
   @override
-  State<_PopupFieldSheet> createState() => _PopupFieldSheetState();
+  State<_PopupFormSheet> createState() => _PopupFormSheetState();
 }
 
-class _PopupFieldSheetState extends State<_PopupFieldSheet> {
-  late Map<String, dynamic> _localValues;
+class _PopupFormSheetState extends State<_PopupFormSheet> {
+  final Map<String, TextEditingController> _textCtrl = {};
+  late List<DynamicFieldModel> _fields;
 
   @override
   void initState() {
     super.initState();
-    _localValues = {
-      for (final f in widget.popup.fields)
-        if (f.fieldStyle == FieldStyle.dropdown ||
-            f.fieldStyle == FieldStyle.radio)
-          f.key: widget.dynValues[f.key] ?? '',
-    };
+    _fields = widget.initialFields.map((e) => e.copyWith()).toList();
+
+    for (final df in _fields) {
+      final f = df.field;
+      final init = df.value;
+      if (f.fieldStyle == FieldStyle.text ||
+          f.fieldStyle == FieldStyle.number ||
+          f.fieldStyle == FieldStyle.date) {
+        _textCtrl[f.key] =
+            TextEditingController(text: init?.toString() ?? '');
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    for (final c in _textCtrl.values) {
+      c.dispose();
+    }
+    super.dispose();
   }
 
   void _save() {
-    widget.onSaved(_localValues);
+    for (final df in _fields) {
+      if (_textCtrl.containsKey(df.field.key)) {
+        final text = _textCtrl[df.field.key]!.text.trim();
+        df.value = text.isNotEmpty ? text : null;
+      }
+    }
+    widget.onSaved(_fields);
     Navigator.pop(context);
   }
 
@@ -870,7 +780,7 @@ class _PopupFieldSheetState extends State<_PopupFieldSheet> {
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      widget.popup.title,
+                      widget.parentField.label,
                       style: TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.w700,
@@ -885,16 +795,16 @@ class _PopupFieldSheetState extends State<_PopupFieldSheet> {
               ),
             ),
             const Divider(height: 1),
-            // Fields
+            // Sub-form fields
             Expanded(
               child: SingleChildScrollView(
                 controller: ctrl,
                 padding: const EdgeInsets.all(20),
                 child: Column(
                   children: [
-                    ...widget.popup.fields.map((f) => Padding(
+                    ..._fields.map((df) => Padding(
                           padding: const EdgeInsets.only(bottom: 14),
-                          child: _buildPopupField(f, color),
+                          child: _buildSubField(df, color),
                         )),
                     const SizedBox(height: 8),
                     SizedBox(
@@ -918,51 +828,53 @@ class _PopupFieldSheetState extends State<_PopupFieldSheet> {
     );
   }
 
-  Widget _buildPopupField(ApiField f, Color color) {
-    switch (f.fieldStyle) {
-      case FieldStyle.text:
-        return TextFormField(
-          controller: widget.textCtrl[f.key],
-          decoration: InputDecoration(
-            labelText: f.label,
-            prefixIcon: Icon(
-              f.fieldType == FieldType.number
-                  ? Icons.numbers_outlined
-                  : Icons.edit_note_outlined,
-              color: color,
-            ),
-          ),
-          textCapitalization: f.fieldType == FieldType.number
-              ? TextCapitalization.none
-              : TextCapitalization.sentences,
-          keyboardType: f.fieldType == FieldType.number
-              ? const TextInputType.numberWithOptions(decimal: true)
-              : TextInputType.text,
-          inputFormatters: [
-            if (f.fieldType == FieldType.number)
-              FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*'))
-          ],
-        );
-
-      case FieldStyle.dropdown:
-        return DropdownButtonFormField<String>(
-          initialValue: (_localValues[f.key]?.toString().isEmpty ?? true)
-              ? null
-              : _localValues[f.key] as String?,
-          decoration: InputDecoration(
-            labelText: f.label,
-            prefixIcon:
-                Icon(Icons.arrow_drop_down_circle_outlined, color: color),
-          ),
-          hint: Text('Select ${f.label}'),
-          items: f.fieldData
-              .map((o) => DropdownMenuItem(value: o, child: Text(o)))
-              .toList(),
-          onChanged: (v) => setState(() => _localValues[f.key] = v ?? ''),
-        );
-
-      default:
-        return const SizedBox.shrink();
+  Widget _buildSubField(DynamicFieldModel df, Color color) {
+    final f = df.field;
+    // Compute popup-form filled count for nested sub-forms
+    int? popupFormFilled;
+    int? popupFormTotal;
+    if (f.isPopupForm) {
+      final subFieldsList =
+          df.value as List<DynamicFieldModel>? ?? [];
+      popupFormTotal = subFieldsList.length;
+      popupFormFilled = subFieldsList.where((e) => e.value != null && e.value != '').length;
     }
+
+    return DynamicFieldBuilder(
+      field: f,
+      value: _textCtrl.containsKey(f.key)
+          ? _textCtrl[f.key]!.text
+          : df.value,
+      textController: _textCtrl[f.key],
+      accentColor: color,
+      onChanged: (val) {
+        if (!_textCtrl.containsKey(f.key)) {
+          setState(() => df.value = val);
+        }
+      },
+      onPopupFormPressed: f.isPopupForm
+          ? () => _openNestedPopupForm(df, color)
+          : null,
+      popupFormFilledCount: popupFormFilled,
+      popupFormTotalCount: popupFormTotal,
+    );
+  }
+
+  void _openNestedPopupForm(DynamicFieldModel df, Color color) {
+    final currentValues =
+        df.value as List<DynamicFieldModel>? ?? [];
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _PopupFormSheet(
+        parentField: df.field,
+        catColor: color,
+        initialFields: currentValues,
+        onSaved: (result) {
+          setState(() => df.value = result);
+        },
+      ),
+    );
   }
 }
