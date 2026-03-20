@@ -2,17 +2,17 @@ import 'package:flutter/foundation.dart';
 import '../../models/api/api_models.dart';
 import '../../models/farmer/farmer_model.dart';
 import '../../services/auth_service.dart';
-import '../../services/firestore_service.dart';
 import '../../services/form_config_service.dart';
 
+/// ViewModel for the farmer registration form.
+/// Firestore save/update logic removed; form submission is now handled
+/// directly via [RegistrationFormService] in the screen layer.
 class FarmerFormViewModel extends ChangeNotifier {
   final AuthService _authService;
-  final FirestoreService _firestoreService;
   final FormConfigService _formConfigService;
 
   FarmerFormViewModel(
     this._authService,
-    this._firestoreService,
     this._formConfigService,
   );
 
@@ -39,6 +39,7 @@ class FarmerFormViewModel extends ChangeNotifier {
 
   // FormConfigService proxies
   bool get isConfigLoading => _formConfigService.isLoading;
+  int? get userId => _authService.userId;
 
   Future<void> fetchConfig() async {
     await _formConfigService.fetchCategories();
@@ -126,62 +127,6 @@ class FarmerFormViewModel extends ChangeNotifier {
       selectedLandUnit = 'Acres';
     }
     notifyListeners();
-  }
-
-  // Save
-  Future<bool> save(
-    Map<String, dynamic> textFieldValues, {
-    required String name,
-    required String phone,
-    required String address,
-    required String village,
-    required String district,
-    required String state,
-    required double landArea,
-  }) async {
-    isSaving = true;
-    notifyListeners();
-
-    final Map<String, dynamic> dynValues = {};
-    textFieldValues.forEach((k, v) {
-      if (v != null && v.toString().isNotEmpty) dynValues[k] = v;
-    });
-    dynDropdownValues.forEach((k, v) {
-      if (v.isNotEmpty) dynValues[k] = v;
-    });
-
-    final farmer = FarmerModel(
-      id: editFarmer?.id,
-      name: name,
-      phone: phone,
-      address: address,
-      village: village,
-      district: district,
-      state: state,
-      category: selectedCategory,
-      subcategory: selectedSubcategory,
-      landArea: landArea,
-      landUnit: selectedLandUnit,
-      landCoordinates: landCoordinates,
-      dynamicFields: dynValues,
-      status: selectedStatus,
-      userId: _authService.userId,
-    );
-
-    try {
-      if (editFarmer != null) {
-        await _firestoreService.updateFarmer(farmer);
-      } else {
-        await _firestoreService.addFarmer(farmer);
-      }
-      isSaving = false;
-      notifyListeners();
-      return true;
-    } catch (e) {
-      isSaving = false;
-      notifyListeners();
-      rethrow;
-    }
   }
 
   /// Populate ViewModel state from an existing farmer (for editing).

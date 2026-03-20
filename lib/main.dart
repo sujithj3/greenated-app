@@ -13,7 +13,6 @@ import 'core/network/interceptor/logging_interceptor.dart';
 import 'repositories/category_repository.dart';
 import 'services/auth_service.dart';
 import 'services/category_api_service.dart';
-import 'services/firestore_service.dart';
 import 'services/form_config_service.dart';
 import 'services/registration_form_service.dart';
 import 'utils/app_colors.dart';
@@ -48,7 +47,6 @@ class FarmerRegistrationApp extends StatelessWidget {
     return MultiProvider(
       providers: [
         ChangeNotifierProvider.value(value: authService),
-        ChangeNotifierProvider(create: (_) => FirestoreService()),
         Provider<ApiClient>(
           create: (_) => HttpClientImpl(
             interceptors: [

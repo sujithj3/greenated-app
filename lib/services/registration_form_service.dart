@@ -7,6 +7,37 @@ class RegistrationFormService {
 
   final ApiClient _apiClient;
 
+  /// Submits a new farmer registration to the backend.
+  ///
+  /// [payload] should be the full `registrationData` map as constructed by
+  /// the form screen (contains subcategoryId, registrationDate, fields, etc.).
+  ///
+  /// Throws [ApiException] on non-success responses or network errors.
+  Future<void> submitRegistration(Map<String, dynamic> payload) async {
+    final response = await _apiClient.send<Map<String, dynamic>>(
+      ApiRequest(
+        method: ApiMethod.post,
+        path: ApiEndpoints.registerFarmer,
+        body: payload,
+      ),
+      decoder: (raw) {
+        if (raw is Map) {
+          return Map<String, dynamic>.from(raw);
+        }
+        return {};
+      },
+    );
+
+    if (!response.isSuccess) {
+      throw ApiException(
+        response.message.isNotEmpty
+            ? response.message
+            : 'Farmer registration failed. Please try again.',
+        statusCode: response.statusCode,
+      );
+    }
+  }
+
   Future<ApiForm?> fetchRegistrationForm(int subcategoryId) async {
     final response = await _apiClient.send<Map<String, dynamic>>(
       ApiRequest(

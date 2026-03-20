@@ -4,7 +4,6 @@ import 'package:provider/provider.dart';
 // import '../../models/farmer/farmer_model.dart'; // commented out – only used by _RecentFarmers
 import '../../models/flow_type.dart';
 import '../../services/auth_service.dart';
-import '../../services/firestore_service.dart';
 import '../../services/form_config_service.dart';
 import '../../config/app_constants.dart';
 import '../../utils/app_colors.dart';
@@ -17,7 +16,6 @@ class DashboardScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthService>();
-    final fs = context.read<FirestoreService>();
     final categoriesService = context.watch<FormConfigService>();
     final phone = auth.displayPhone.isNotEmpty ? auth.displayPhone : 'User';
 
@@ -102,15 +100,6 @@ class DashboardScreen extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // ── Stats Row ──────────────────────────────────────────
-                  _StatsRow(
-                    fs: fs,
-                    categoryCount: categoriesService.categories.length,
-                    isCategoryCountLoading: categoriesService.isLoading &&
-                        categoriesService.categories.isEmpty,
-                  ),
-                  const SizedBox(height: 24),
-
                   // ── Quick Actions (hidden for now) ────────────────────
                   // const Text(
                   //   'Quick Actions',
@@ -273,95 +262,8 @@ class DashboardScreen extends StatelessWidget {
   }
 }
 
-// ─── Stats Row ─────────────────────────────────────────────────────────────
-class _StatsRow extends StatelessWidget {
-  final FirestoreService fs;
-  final int categoryCount;
-  final bool isCategoryCountLoading;
-
-  const _StatsRow({
-    required this.fs,
-    required this.categoryCount,
-    required this.isCategoryCountLoading,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Expanded(
-          child: StreamBuilder<int>(
-            stream: fs.getTotalCount(),
-            builder: (_, snap) => _StatCard(
-              label: 'Total Farmers',
-              value: '${snap.data ?? 0}',
-              icon: Icons.people,
-              color: AppColors.primary,
-            ),
-          ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: StreamBuilder<int>(
-            stream: fs.getActiveCount(),
-            builder: (_, snap) => _StatCard(
-              label: 'Active',
-              value: '${snap.data ?? 0}',
-              icon: Icons.check_circle_outline,
-              color: AppColors.accent,
-            ),
-          ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: _StatCard(
-            label: 'Categories',
-            value: isCategoryCountLoading ? '...' : '$categoryCount',
-            icon: Icons.category,
-            color: AppColors.medium,
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _StatCard extends StatelessWidget {
-  final String label;
-  final String value;
-  final IconData icon;
-  final Color color;
-  const _StatCard(
-      {required this.label,
-      required this.value,
-      required this.icon,
-      required this.color});
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
-        child: Column(
-          children: [
-            Icon(icon, color: color, size: 28),
-            const SizedBox(height: 8),
-            Text(value,
-                style: TextStyle(
-                    fontSize: 22, fontWeight: FontWeight.w800, color: color)),
-            const SizedBox(height: 4),
-            Text(label,
-                style:
-                    const TextStyle(fontSize: 11, color: AppColors.textMedium),
-                textAlign: TextAlign.center),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
 // ─── Categories Grid ───────────────────────────────────────────────────────
+
 class _CategoriesGrid extends StatelessWidget {
   final FormConfigService service;
 

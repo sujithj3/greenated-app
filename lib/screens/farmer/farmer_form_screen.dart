@@ -4,8 +4,8 @@ import 'package:provider/provider.dart';
 import '../../models/api/api_models.dart';
 import '../../models/farmer/farmer_model.dart';
 import '../../services/auth_service.dart';
-import '../../services/firestore_service.dart';
 import '../../services/form_config_service.dart';
+import '../../services/registration_form_service.dart';
 import '../../config/app_constants.dart';
 import '../../utils/app_colors.dart';
 import '../../utils/snack_bar_helper.dart';
@@ -269,11 +269,18 @@ class _FarmerFormScreenState extends State<FarmerFormScreen> {
       return;
     }
 
-    setState(() => _isSaving = true);
-    final auth = context.read<AuthService>();
-    final fs = context.read<FirestoreService>();
+    // Edit flow: not yet supported via API — surface a message and return.
+    if (_editFarmer != null) {
+      context.showSnack('Edit not yet supported via API.');
+      return;
+    }
 
-    // Collect all dynamic field values for legacy structure & model properties extraction
+    setState(() => _isSaving = true);
+
+    final auth = context.read<AuthService>();
+    final registrationSvc = context.read<RegistrationFormService>();
+
+    // Collect all dynamic field values
     final Map<String, dynamic> allDynValues = {};
     for (final df in _dynamicFields) {
       final k = df.field.key;
@@ -302,53 +309,17 @@ class _FarmerFormScreenState extends State<FarmerFormScreen> {
     final List<dynamic> serializedFields =
         _dynamicFields.map((e) => e.toJson()).toList();
 
-    // Extract well-known keys for FarmerModel core fields as fallback,
-    // but leave them inside the dynamic fields map
-    final name = allDynValues['fullName']?.toString();
-    final phone = allDynValues['mobileNumber']?.toString();
-
-    final farmer = FarmerModel(
-      id: _editFarmer?.id,
-      name: name,
-      phone: phone,
-      address: _addressCtrl.text.trim(),
-      village: _villageCtrl.text.trim(),
-      district: _districtCtrl.text.trim(),
-      state: _stateCtrl.text.trim(),
-      category: _selectedCategory,
-      subcategory: _selectedSubcategory,
-      subcategoryId: _selectedSubcategoryId,
-      landArea: double.tryParse(_landAreaCtrl.text) ?? 0,
-      landUnit: _selectedLandUnit,
-      landCoordinates: _landCoordinates,
-      dynamicFields: allDynValues,
-      formFields: serializedFields,
-      status: _selectedStatus,
-      userId: auth.userId, // Use locally stored User ID
-    );
-
-    // Print clean backend-ready payload structure for debugging
+    // Build the backend-ready payload
     final submissionPayload = <String, dynamic>{
       'registrationData': <String, dynamic>{
         'subcategoryId': _selectedSubcategoryId ?? 0,
-        'registrationDate': farmer.registrationDate.toIso8601String(),
+        'registrationDate': DateTime.now().toIso8601String(),
         'status': _selectedStatus,
         'userId': auth.userId,
-        // 'geoLocation': <String, dynamic>{
-        //   'areaInput': _landAreaCtrl.text.trim(),
-        //   'areaParsed': double.tryParse(_landAreaCtrl.text) ?? 0,
-        //   'landUnit': _selectedLandUnit,
-        //   'landCoordinates': _landCoordinates,
-        // },
-        // 'userLocation': <String, dynamic>{
-        //   'address': _addressCtrl.text.trim(),
-        //   'village': _villageCtrl.text.trim(),
-        //   'district': _districtCtrl.text.trim(),
-        //   'state': _stateCtrl.text.trim(),
-        // },
         'fields': serializedFields,
       },
     };
+
     final prettyJson =
         const JsonEncoder.withIndent('  ').convert(submissionPayload);
     debugPrint('=== SUBMITTING FARMER REGISTRATION ===');
@@ -356,32 +327,21 @@ class _FarmerFormScreenState extends State<FarmerFormScreen> {
     debugPrint('======================================');
 
     try {
-      if (_editFarmer != null) {
-        await fs.updateFarmer(farmer);
-        debugPrint(
-            '=== FARMER REGISTRATION RESULT === action=update_farmer id=${farmer.id} success=true');
-        if (mounted) context.showSnack('Updated successfully!', success: true);
-      } else {
-        final createdId = await fs.addFarmer(farmer);
-        debugPrint(
-            '=== FARMER REGISTRATION RESULT === action=create_farmer id=$createdId success=true');
-        if (mounted) context.showSnack('Farmer registered!', success: true);
-      }
+      await registrationSvc.submitRegistration(submissionPayload);
+      debugPrint(
+          '=== FARMER REGISTRATION RESULT === action=create_farmer success=true');
       if (mounted) {
-        if (_editFarmer != null) {
-          Navigator.pop(context);
-        } else {
-          Navigator.pushNamedAndRemoveUntil(
-            context,
-            '/dashboard',
-            (route) => false,
-          );
-        }
+        context.showSnack('Farmer registered!', success: true);
+        Navigator.pushNamedAndRemoveUntil(
+          context,
+          '/dashboard',
+          (route) => false,
+        );
       }
     } catch (e) {
       debugPrint(
           '=== FARMER REGISTRATION RESULT === success=false error=${e.toString()}');
-      if (mounted) context.showSnack('Error: $e');
+      if (mounted) context.showSnack('Error: ${e.toString()}');
     } finally {
       if (mounted) setState(() => _isSaving = false);
     }
@@ -395,85 +355,101 @@ class _FarmerFormScreenState extends State<FarmerFormScreen> {
     final catColor = catData?.color ?? AppColors.primary;
     final geoRequired = _form?.geoLocationRequired ?? false;
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(
-            _editFarmer != null ? 'Edit Registration' : 'New Registration'),
-        actions: [
-          _isSaving
-              ? const Center(
-                  child: Padding(
-                    padding: EdgeInsets.all(16),
-                    child: SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(
-                          strokeWidth: 2, color: Colors.white),
-                    ),
-                  ),
-                )
-              : TextButton.icon(
-                  onPressed: _isLoadingForm ? null : _save,
-                  icon: const Icon(Icons.save, color: Colors.white),
-                  label: const Text('Save',
-                      style: TextStyle(
-                          color: Colors.white, fontWeight: FontWeight.w700)),
-                ),
-        ],
-      ),
-      body: _isLoadingForm
-          ? const ShimmerFormSkeleton()
-          : _formLoadError != null && _dynamicFields.isEmpty
-              ? _FormLoadErrorState(
-                  message: _formLoadError!,
-                  onRetry: _loadForm,
-                )
-              : Form(
-                  key: _formKey,
-                  child: ListView(
-                    padding: const EdgeInsets.all(16),
-                    children: [
-                      // ── Category / Subcategory badge ────────────────────────
-                      if (_selectedCategory.isNotEmpty) ...[
-                        _buildCategoryBadge(catColor, catData),
-                        const SizedBox(height: 20),
-                      ],
+    return Stack(
+      children: [
+        Scaffold(
+          appBar: AppBar(
+            title: Text(
+                _editFarmer != null ? 'Edit Registration' : 'New Registration'),
+            actions: [
+              TextButton.icon(
+                onPressed: (_isLoadingForm || _isSaving) ? null : _save,
+                icon: const Icon(Icons.save, color: Colors.white),
+                label: const Text('Save',
+                    style: TextStyle(
+                        color: Colors.white, fontWeight: FontWeight.w700)),
+              ),
+            ],
+          ),
+          body: _isLoadingForm
+              ? const ShimmerFormSkeleton()
+              : _formLoadError != null && _dynamicFields.isEmpty
+                  ? _FormLoadErrorState(
+                      message: _formLoadError!,
+                      onRetry: _loadForm,
+                    )
+                  : Form(
+                      key: _formKey,
+                      child: ListView(
+                        padding: const EdgeInsets.all(16),
+                        children: [
+                          // ── Category / Subcategory badge ──────────────────
+                          if (_selectedCategory.isNotEmpty) ...[
+                            _buildCategoryBadge(catColor, catData),
+                            const SizedBox(height: 20),
+                          ],
 
-                      // ── Dynamic fields from API ────────────────────────────
-                      ..._buildDynamicFields(catColor),
+                          // ── Dynamic fields from API ────────────────────────
+                          ..._buildDynamicFields(catColor),
 
-                      // ── Location (hardcoded) ───────────────────────────────
-                      const SizedBox(height: 20),
-                      ..._buildLocationSection(),
+                          // ── Location (hardcoded) ───────────────────────────
+                          const SizedBox(height: 20),
+                          ..._buildLocationSection(),
 
-                      // ── Land Details (conditional) ─────────────────────────
-                      if (geoRequired) ...[
-                        const SizedBox(height: 24),
-                        _Section(
-                            title: 'Land Details',
-                            icon: Icons.landscape_outlined),
-                        const SizedBox(height: 12),
-                        ..._buildLandSection(),
-                      ],
+                          // ── Land Details (conditional) ─────────────────────
+                          if (geoRequired) ...[
+                            const SizedBox(height: 24),
+                            _Section(
+                                title: 'Land Details',
+                                icon: Icons.landscape_outlined),
+                            const SizedBox(height: 12),
+                            ..._buildLandSection(),
+                          ],
 
-
-
-                      // ── Submit ─────────────────────────────────────────────
-                      const SizedBox(height: 32),
-                      SizedBox(
-                        width: double.infinity,
-                        child: ElevatedButton.icon(
-                          onPressed: _isSaving ? null : _save,
-                          icon: const Icon(Icons.how_to_reg),
-                          label: Text(_editFarmer != null
-                              ? 'Update Registration'
-                              : 'Complete Registration'),
-                        ),
+                          // ── Submit ─────────────────────────────────────────
+                          const SizedBox(height: 32),
+                          SizedBox(
+                            width: double.infinity,
+                            child: ElevatedButton.icon(
+                              onPressed: _isSaving ? null : _save,
+                              icon: const Icon(Icons.how_to_reg),
+                              label: Text(_editFarmer != null
+                                  ? 'Update Registration'
+                                  : 'Complete Registration'),
+                            ),
+                          ),
+                          const SizedBox(height: 32),
+                        ],
                       ),
-                      const SizedBox(height: 32),
-                    ],
-                  ),
+                    ),
+        ),
+
+        // ── Full-screen blocking loader ──────────────────────────────────
+        if (_isSaving)
+          AbsorbPointer(
+            absorbing: true,
+            child: Container(
+              color: Colors.black.withValues(alpha: 0.45),
+              child: const Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    CircularProgressIndicator(color: Colors.white),
+                    SizedBox(height: 16),
+                    Text(
+                      'Submitting registration…',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
                 ),
+              ),
+            ),
+          ),
+      ],
     );
   }
 
