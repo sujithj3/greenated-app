@@ -97,90 +97,93 @@ class _SubcategoryScreenState extends State<SubcategoryScreen> {
       );
     }
 
-    return Column(
-      children: <Widget>[
-        if (!isPickMode)
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
-            color: (catData?.color ?? AppColors.primary).withValues(alpha: 0.1),
-            child: Row(
-              children: <Widget>[
-                Icon(
-                  catData?.icon ?? Icons.category,
-                  color: catData?.color ?? AppColors.primary,
-                  size: 36,
-                ),
-                const SizedBox(width: 12),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    Text(
-                      category.categoryName,
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w700,
-                        color: catData?.color ?? AppColors.primary,
+    return RefreshIndicator(
+      onRefresh: () => service.fetchCategories(forceRefresh: true),
+      child: Column(
+        children: <Widget>[
+          if (!isPickMode)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
+              color: (catData?.color ?? AppColors.primary).withValues(alpha: 0.1),
+              child: Row(
+                children: <Widget>[
+                  Icon(
+                    catData?.icon ?? Icons.category,
+                    color: catData?.color ?? AppColors.primary,
+                    size: 36,
+                  ),
+                  const SizedBox(width: 12),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      Text(
+                        category.categoryName,
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w700,
+                          color: catData?.color ?? AppColors.primary,
+                        ),
                       ),
-                    ),
-                    Text(
-                      '${category.subcategoryCount} subcategories',
-                      style: const TextStyle(
-                        color: AppColors.textMedium,
-                        fontSize: 13,
+                      Text(
+                        '${category.subcategoryCount} subcategories',
+                        style: const TextStyle(
+                          color: AppColors.textMedium,
+                          fontSize: 13,
+                        ),
                       ),
-                    ),
-                  ],
-                ),
-              ],
+                    ],
+                  ),
+                ],
+              ),
             ),
-          ),
-        Expanded(
-          child: ListView.separated(
-            padding: const EdgeInsets.all(16),
-            itemCount: subcategories.length,
-            separatorBuilder: (_, __) => const SizedBox(height: 8),
-            itemBuilder: (_, index) {
-              final subcategory = subcategories[index];
-              return _SubcategoryTile(
-                subcategory: subcategory,
-                categoryName: categoryName,
-                catData: catData,
-                selectionMode: isPickMode,
-                onTap: () {
-                  if (isPickMode && !isRegistration) {
-                    Navigator.pop(context, subcategory.subcategoryName);
-                    return;
-                  }
+          Expanded(
+            child: ListView.separated(
+              padding: const EdgeInsets.all(16),
+              itemCount: subcategories.length,
+              separatorBuilder: (_, __) => const SizedBox(height: 8),
+              itemBuilder: (_, index) {
+                final subcategory = subcategories[index];
+                return _SubcategoryTile(
+                  subcategory: subcategory,
+                  categoryName: categoryName,
+                  catData: catData,
+                  selectionMode: isPickMode,
+                  onTap: () {
+                    if (isPickMode && !isRegistration) {
+                      Navigator.pop(context, subcategory.subcategoryName);
+                      return;
+                    }
 
-                  if (isRegistration) {
+                    if (isRegistration) {
+                      Navigator.pushNamed(
+                        context,
+                        '/farmer-form',
+                        arguments: <String, dynamic>{
+                          'category': categoryName,
+                          'subcategory': subcategory.subcategoryName,
+                          'subcategoryId': subcategory.subcategoryId,
+                        },
+                      );
+                      return;
+                    }
+
                     Navigator.pushNamed(
                       context,
-                      '/farmer-form',
+                      '/farmer-list',
                       arguments: <String, dynamic>{
                         'category': categoryName,
                         'subcategory': subcategory.subcategoryName,
-                        'subcategoryId': subcategory.subcategoryId,
+                        'viewOnly': true,
                       },
                     );
-                    return;
-                  }
-
-                  Navigator.pushNamed(
-                    context,
-                    '/farmer-list',
-                    arguments: <String, dynamic>{
-                      'category': categoryName,
-                      'subcategory': subcategory.subcategoryName,
-                      'viewOnly': true,
-                    },
-                  );
-                },
-              );
-            },
+                  },
+                );
+              },
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }

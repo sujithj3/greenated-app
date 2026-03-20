@@ -32,8 +32,11 @@ class DashboardScreen extends StatelessWidget {
     }
 
     return Scaffold(
-      drawer: _buildDrawer(context, auth, phone, categoriesService),
-      body: CustomScrollView(
+      drawer: _buildDrawer(context, auth, phone),
+      body: RefreshIndicator(
+        onRefresh: () =>
+            context.read<FormConfigService>().fetchCategories(forceRefresh: true),
+        child: CustomScrollView(
         slivers: [
           // ── SliverAppBar ──────────────────────────────────────────────
           SliverAppBar(
@@ -161,6 +164,7 @@ class DashboardScreen extends StatelessWidget {
             ),
           ),
         ],
+        ),
       ),
 
       // ── Register Farmer FAB (hidden) ─────────────────────────────────
@@ -186,7 +190,6 @@ class DashboardScreen extends StatelessWidget {
     BuildContext context,
     AuthService auth,
     String phone,
-    FormConfigService categoriesService,
   ) {
     return Drawer(
       child: ListView(
@@ -227,58 +230,6 @@ class DashboardScreen extends StatelessWidget {
           _drawerItem(context, Icons.people, 'Farmers List', '/farmer-list'),
           _drawerItem(context, Icons.category, 'Categories', '/categories',
               arguments: {'flowType': FlowType.listing}),
-          if (categoriesService.isLoading &&
-              categoriesService.categories.isEmpty)
-            const ListTile(
-              leading: SizedBox(
-                width: 20,
-                height: 20,
-                child: CircularProgressIndicator(strokeWidth: 2),
-              ),
-              title: Text('Loading categories...'),
-            )
-          else if (categoriesService.categories.isNotEmpty)
-            ExpansionTile(
-              leading: const Icon(Icons.format_list_bulleted,
-                  color: AppColors.primary),
-              title: const Text('Category Shortcuts'),
-              children: categoriesService.categories
-                  .map(
-                    (category) => ListTile(
-                      dense: true,
-                      leading: Icon(
-                        AppCategories.styleFor(category.categoryName)?.icon ??
-                            Icons.category_outlined,
-                        color: AppCategories.styleFor(category.categoryName)
-                                ?.color ??
-                            AppColors.primary,
-                      ),
-                      title: Text(category.categoryName),
-                      subtitle:
-                          Text('${category.subcategoryCount} subcategories'),
-                      onTap: () {
-                        Navigator.pop(context);
-                        Navigator.pushNamed(
-                          context,
-                          '/subcategories',
-                          arguments: <String, dynamic>{
-                            'category': category.categoryName,
-                            'flowType': FlowType.listing,
-                          },
-                        );
-                      },
-                    ),
-                  )
-                  .toList(),
-            )
-          else if (categoriesService.error != null)
-            ListTile(
-              leading: const Icon(Icons.refresh, color: AppColors.primary),
-              title: const Text('Retry categories'),
-              subtitle: Text(categoriesService.error!),
-              onTap: () =>
-                  categoriesService.fetchCategories(forceRefresh: true),
-            ),
           _drawerItem(
               context, Icons.map, 'Land Measurement', '/land-measurement'),
           const Divider(),

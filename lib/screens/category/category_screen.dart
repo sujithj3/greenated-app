@@ -77,39 +77,42 @@ class _CategoryScreenState extends State<CategoryScreen> {
       );
     }
 
-    return GridView.builder(
-      padding: const EdgeInsets.all(16),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
-        mainAxisSpacing: 16,
-        crossAxisSpacing: 16,
-        childAspectRatio: 1.05,
+    return RefreshIndicator(
+      onRefresh: () => service.fetchCategories(forceRefresh: true),
+      child: GridView.builder(
+        padding: const EdgeInsets.all(16),
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 2,
+          mainAxisSpacing: 16,
+          crossAxisSpacing: 16,
+          childAspectRatio: 1.05,
+        ),
+        itemCount: service.categories.length,
+        itemBuilder: (_, index) {
+          final category = service.categories[index];
+          final data = AppCategories.styleFor(category.categoryName);
+
+          return _CategoryCard(
+            category: category,
+            data: data,
+            onTap: () {
+              if (selectionMode) {
+                Navigator.pop(context, category.categoryName);
+                return;
+              }
+
+              Navigator.pushNamed(
+                context,
+                '/subcategories',
+                arguments: <String, dynamic>{
+                  'category': category.categoryName,
+                  'flowType': flowType,
+                },
+              );
+            },
+          );
+        },
       ),
-      itemCount: service.categories.length,
-      itemBuilder: (_, index) {
-        final category = service.categories[index];
-        final data = AppCategories.styleFor(category.categoryName);
-
-        return _CategoryCard(
-          category: category,
-          data: data,
-          onTap: () {
-            if (selectionMode) {
-              Navigator.pop(context, category.categoryName);
-              return;
-            }
-
-            Navigator.pushNamed(
-              context,
-              '/subcategories',
-              arguments: <String, dynamic>{
-                'category': category.categoryName,
-                'flowType': flowType,
-              },
-            );
-          },
-        );
-      },
     );
   }
 }
