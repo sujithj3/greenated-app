@@ -25,6 +25,7 @@ import 'views/farmer/farmer_form_view.dart';
 import 'views/farmer/farmer_list_view.dart';
 import 'views/farmer/farmer_detail_view.dart';
 import 'views/tools/land_measurement_view.dart';
+import 'views/tools/camera_capture_view.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -131,6 +132,8 @@ class FarmerRegistrationApp extends StatelessWidget {
               page = const FarmerFormView();
             case '/land-measurement':
               page = const LandMeasurementView();
+            case '/camera-capture':
+              page = const CameraCaptureView();
             case '/farmer-list':
               page = const FarmerListView();
             case '/farmer-detail':

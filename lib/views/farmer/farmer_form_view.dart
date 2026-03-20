@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -124,6 +125,49 @@ class _FarmerFormViewState extends State<FarmerFormView> {
             success: true);
       }
     }
+  }
+
+  // ── Camera ────────────────────────────────────────────────────────────────
+
+  Future<void> _openCamera() async {
+    final result = await Navigator.pushNamed(context, '/camera-capture') as String?;
+    if (result != null && mounted) {
+      _vm.capturedImagePath = result;
+      setState(() {});
+    }
+  }
+
+  void _clearPhoto() {
+    _vm.capturedImagePath = null;
+    setState(() {});
+  }
+
+  void _openFullScreenImage() {
+    if (_vm.capturedImagePath == null) return;
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => Scaffold(
+          backgroundColor: Colors.black,
+          appBar: AppBar(
+            backgroundColor: Colors.black,
+            foregroundColor: Colors.white,
+            elevation: 0,
+            actions: [
+              IconButton(
+                icon: const Icon(Icons.close),
+                onPressed: () => Navigator.pop(context),
+              ),
+            ],
+          ),
+          body: Center(
+            child: InteractiveViewer(
+              child: Image.file(File(_vm.capturedImagePath!)),
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   // ── Popup form sheet ──────────────────────────────────────────────────────
@@ -260,6 +304,13 @@ class _FarmerFormViewState extends State<FarmerFormView> {
                                 const SizedBox(height: 12),
                                 ..._buildLandSection(),
                               ],
+                              const SizedBox(height: 24),
+                              const _Section(
+                                title: 'Photo Verification',
+                                icon: Icons.camera_alt_outlined,
+                              ),
+                              const SizedBox(height: 12),
+                              _buildPhotoSection(),
                               const SizedBox(height: 32),
                               SizedBox(
                                 width: double.infinity,
@@ -431,7 +482,61 @@ class _FarmerFormViewState extends State<FarmerFormView> {
       ),
     ];
   }
+
+  Widget _buildPhotoSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (_vm.capturedImagePath != null) ...[
+          GestureDetector(
+            onTap: _openFullScreenImage,
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: Image.file(
+                File(_vm.capturedImagePath!),
+                height: 200,
+                width: double.infinity,
+                fit: BoxFit.cover,
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: _openCamera,
+                  icon: const Icon(Icons.refresh),
+                  label: const Text('Retake'),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: _clearPhoto,
+                  icon: const Icon(Icons.delete_outline, color: AppColors.error),
+                  label: const Text('Delete', style: TextStyle(color: AppColors.error)),
+                  style: OutlinedButton.styleFrom(
+                    side: const BorderSide(color: AppColors.error),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ] else
+          OutlinedButton.icon(
+            onPressed: _openCamera,
+            icon: const Icon(Icons.camera_alt),
+            label: const Text('Capture Photo'),
+            style: OutlinedButton.styleFrom(
+              minimumSize: const Size(double.infinity, 48),
+            ),
+          ),
+      ],
+    );
+  }
 }
+
 
 // ─── Error State ──────────────────────────────────────────────────────────────
 

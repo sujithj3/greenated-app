@@ -29,6 +29,7 @@ class FarmerFormViewModel extends ChangeNotifier {
   bool isLoadingForm = true;
   bool isSaving = false;
   String? formLoadError;
+  String? capturedImagePath;
 
   ApiForm? form;
   List<DynamicFieldModel> dynamicFields = [];
