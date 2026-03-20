@@ -14,7 +14,7 @@ abstract class ApiInterceptor {
   ApiRequest onRequest(ApiRequest request) => request;
 
   /// Intercept and optionally modify the incoming [response].
-  ApiResponse<T> onResponse<T>(ApiResponse<T> response) => response;
+  ApiResponse<T> onResponse<T>(ApiResponse<T> response, ApiRequest request) => response;
 
   /// Called when an error occurs during the request lifecycle.
   /// Re-throw or return a recovery response.

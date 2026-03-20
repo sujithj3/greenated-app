@@ -1,16 +1,21 @@
 import 'package:flutter/foundation.dart';
+import '../../core/network/network.dart';
 import '../../services/auth_service.dart';
 
 class LoginViewModel extends ChangeNotifier {
   final AuthService _authService;
+  final ApiClient _apiClient;
 
-  LoginViewModel(this._authService);
+  LoginViewModel(this._authService, {ApiClient? apiClient})
+      : _apiClient =
+            apiClient ?? HttpClientImpl(interceptors: [LoggingInterceptor()]);
 
   bool _isLoading = false;
   String? _error;
   bool _codeSent = false;
   String _selectedCountryCode = '+91';
   String _lastPhoneNumber = '';
+  String? _verificationId;
 
   bool get isLoading => _isLoading;
   String? get error => _error;
@@ -31,7 +36,8 @@ class LoginViewModel extends ChangeNotifier {
   }
 
   Future<bool> sendOTP(String phone) async {
-    final fullPhone = '$_selectedCountryCode$phone';
+    // final fullPhone = '$_selectedCountryCode$phone';
+    final fullPhone = phone;
     _lastPhoneNumber = phone;
     bool success = false;
 
@@ -39,19 +45,38 @@ class LoginViewModel extends ChangeNotifier {
     _error = null;
     notifyListeners();
 
-    await _authService.verifyPhoneNumber(
-      phoneNumber: fullPhone,
-      onCodeSent: () {
+    try {
+      final requestBody = {'phoneNumber': fullPhone};
+
+      final response = await _apiClient.send<Map<String, dynamic>>(
+        ApiRequest(
+          method: ApiMethod.post,
+          path: ApiEndpoints.requestOtp,
+          body: requestBody,
+        ),
+        decoder: (raw) => raw is Map<String, dynamic> ? raw : null,
+      );
+
+      if (response.isSuccess) {
         _codeSent = true;
         success = true;
-      },
-      onError: (msg) {
-        _error = msg;
-      },
-    );
+        
+        if (response.data != null && response.data!['verificationId'] != null) {
+          _verificationId = response.data!['verificationId'] as String;
+        }
+      } else {
+        _error = response.message;
+      }
+    } on ApiException catch (e) {
+      _error = e.message;
+    } catch (e) {
+      _error = e.toString();
+    } finally {
+      // Bypassing Firebase auth for this test as per user request
+      _isLoading = false;
+      notifyListeners();
+    }
 
-    _isLoading = false;
-    notifyListeners();
     return success;
   }
 
@@ -64,15 +89,42 @@ class LoginViewModel extends ChangeNotifier {
   Future<bool> verifyOTP(String otp) async {
     _isLoading = true;
     _error = null;
+    bool success = false;
     notifyListeners();
 
-    final success = await _authService.signInWithOTP(otp);
-    if (!success) {
-      _error = _authService.error ?? 'Invalid OTP. Please try again.';
+    try {
+      final requestBody = {
+        'phoneNumber': _lastPhoneNumber,
+        'otp': otp,
+        if (_verificationId != null) 'verificationId': _verificationId,
+      };
+
+      final response = await _apiClient.send<Map<String, dynamic>>(
+        ApiRequest(
+          method: ApiMethod.post,
+          path: ApiEndpoints.verifyOtp,
+          body: requestBody,
+        ),
+        decoder: (raw) => raw is Map<String, dynamic> ? raw : null,
+      );
+
+      if (response.isSuccess) {
+        success = true;
+        if (response.data != null) {
+          await _authService.signInWithApiTokens(response.data!);
+        }
+      } else {
+        _error = response.message;
+      }
+    } on ApiException catch (e) {
+      _error = e.message;
+    } catch (e) {
+      _error = e.toString();
+    } finally {
+      _isLoading = false;
+      notifyListeners();
     }
 
-    _isLoading = false;
-    notifyListeners();
     return success;
   }
 }

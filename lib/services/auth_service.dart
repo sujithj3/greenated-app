@@ -14,6 +14,8 @@ class AuthService extends ChangeNotifier {
   static const String _userIdKey = 'app_user_id';
   static const String _fullNameKey = 'app_user_name';
   static const String _phoneKey = 'app_user_phone';
+  static const String _tokenKey = 'app_auth_token';
+  static const String _refreshTokenKey = 'app_refresh_token';
 
   String? _verificationId;
   int? _resendToken;
@@ -106,22 +108,28 @@ class AuthService extends ChangeNotifier {
     onCodeSent();
   }
 
-  Future<bool> _demoSignIn() async {
-    _setLoading(true);
-    await Future.delayed(const Duration(milliseconds: 600));
-    _demoLoggedIn = true;
-    
-    // Simulate parsing the user object from the mock API response
+  // ─── API Token SignIn ─────────────────────────────────────────────────────
+
+  /// Ingests token data from the real backend verify-otp endpoint and stores it.
+  Future<void> signInWithApiTokens(Map<String, dynamic> data) async {
+    final String? token = data['token'] as String?;
+    final String? refreshToken = data['refreshToken'] as String?;
+    final Map<String, dynamic>? user = data['user'] as Map<String, dynamic>?;
+
+    if (_prefs == null) await init();
+
+    if (token != null) await _prefs!.setString(_tokenKey, token);
+    if (refreshToken != null) await _prefs!.setString(_refreshTokenKey, refreshToken);
+
     await _saveUserId(
-      id: 'demo-user-123',
-      name: 'Demo User',
-      phone: _demoPhone.isEmpty ? '+919876543210' : _demoPhone,
+      id: user?['userId'] as String?,
+      name: user?['fullName'] as String?,
+      phone: user?['phoneNumber'] as String?,
     );
-    
+
+    _demoLoggedIn = true; // Use this to tell app we are authenticated
     _logOtpVerificationResponse(success: true);
-    _setLoading(false);
     notifyListeners();
-    return true;
   }
 
   // ─── Phone OTP ────────────────────────────────────────────────────────────
@@ -187,10 +195,8 @@ class AuthService extends ChangeNotifier {
     );
   }
 
-  /// Step 2 – verify OTP
+  /// Step 2 – verify OTP fallback
   Future<bool> signInWithOTP(String otp) async {
-    if (EnvConfig.isDemoMode) return _demoSignIn();
-
     if (_verificationId == null) {
       _setError('Verification session expired. Please retry.');
       return false;
@@ -231,6 +237,8 @@ class AuthService extends ChangeNotifier {
       await _prefs!.remove(_userIdKey);
       await _prefs!.remove(_fullNameKey);
       await _prefs!.remove(_phoneKey);
+      await _prefs!.remove(_tokenKey);
+      await _prefs!.remove(_refreshTokenKey);
     }
 
     if (EnvConfig.isDemoMode) {

@@ -8,8 +8,8 @@ class ApiEndpoints {
   ApiEndpoints._();
 
   // ── Auth ─────────────────────────────────────────────────────────────────
-  static const String requestOtp = '/auth/request-otp';
-  static const String verifyOtp = '/auth/verify-otp';
+  static const String requestOtp = 'login/request-otp';
+  static const String verifyOtp = 'login/verify-otp';
   static const String refreshToken = '/auth/refresh-token';
 
   // ── Categories ───────────────────────────────────────────────────────────

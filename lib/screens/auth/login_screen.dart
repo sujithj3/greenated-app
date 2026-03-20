@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../../services/auth_service.dart';
 import '../../utils/app_colors.dart';
 import '../../utils/snack_bar_helper.dart';
+import '../../view_models/auth/login_view_model.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -23,6 +24,14 @@ class _LoginScreenState extends State<LoginScreen> {
 
   final List<String> _countryCodes = ['+91', '+1', '+44', '+61', '+971'];
 
+  late final LoginViewModel _vm;
+
+  @override
+  void initState() {
+    super.initState();
+    _vm = LoginViewModel(context.read<AuthService>());
+  }
+
   @override
   void dispose() {
     _phoneCtrl.dispose();
@@ -34,17 +43,16 @@ class _LoginScreenState extends State<LoginScreen> {
     if (!_formKey.currentState!.validate()) return;
     FocusScope.of(context).unfocus();
 
-    final auth = context.read<AuthService>();
+    _vm.setCountryCode(_selectedCountryCode);
     final phone = '$_selectedCountryCode${_phoneCtrl.text.trim()}';
 
-    await auth.verifyPhoneNumber(
-      phoneNumber: phone,
-      onCodeSent: () {
-        setState(() => _codeSent = true);
-        context.showSnack('OTP sent to $phone', success: true);
-      },
-      onError: (msg) => context.showSnack(msg),
-    );
+    final success = await _vm.sendOTP(phone);
+    if (success && mounted) {
+      setState(() => _codeSent = true);
+      context.showSnack('OTP sent to $phone', success: true);
+    } else if (mounted && _vm.error != null) {
+      context.showSnack(_vm.error!);
+    }
   }
 
   Future<void> _verifyOTP() async {
@@ -52,19 +60,18 @@ class _LoginScreenState extends State<LoginScreen> {
       context.showSnack('Please enter the 6-digit OTP');
       return;
     }
-    final auth = context.read<AuthService>();
-    final success = await auth.signInWithOTP(_otpCtrl.text.trim());
+    
+    final success = await _vm.verifyOTP(_otpCtrl.text.trim());
     if (success && mounted) {
       Navigator.pushReplacementNamed(context, '/dashboard');
-    } else if (mounted && auth.error != null) {
-      context.showSnack(auth.error!);
+    } else if (mounted && _vm.error != null) {
+      context.showSnack(_vm.error!);
     }
   }
 
 
   @override
   Widget build(BuildContext context) {
-    final auth = context.watch<AuthService>();
     final screenWidth = MediaQuery.of(context).size.width;
     final screenHeight = MediaQuery.of(context).size.height;
 
@@ -162,8 +169,8 @@ class _LoginScreenState extends State<LoginScreen> {
                             );
                           },
                           child: _codeSent
-                              ? _buildOtpView(auth, scale)
-                              : _buildPhoneView(auth, scale),
+                              ? _buildOtpView(scale)
+                              : _buildPhoneView(scale),
                         ),
                       ),
                     ),
@@ -178,8 +185,10 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
-  Widget _buildPhoneView(AuthService auth, double scale) {
-    return Column(
+  Widget _buildPhoneView(double scale) {
+    return ListenableBuilder(
+      listenable: _vm,
+      builder: (context, _) => Column(
       key: const ValueKey('phone'),
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -270,11 +279,11 @@ class _LoginScreenState extends State<LoginScreen> {
         SizedBox(
           width: double.infinity,
           child: ElevatedButton(
-            onPressed: auth.isLoading ? null : _sendOTP,
+            onPressed: _vm.isLoading ? null : _sendOTP,
             style: ElevatedButton.styleFrom(
               padding: EdgeInsets.symmetric(vertical: 14 * scale),
             ),
-            child: auth.isLoading
+            child: _vm.isLoading
                 ? SizedBox(
                     width: 22 * scale,
                     height: 22 * scale,
@@ -293,10 +302,14 @@ class _LoginScreenState extends State<LoginScreen> {
         ),
         SizedBox(height: 6 * scale),
       ],
+    ),
     );
   }
 
-  Widget _buildOtpView(AuthService auth, double scale) {
+  Widget _buildOtpView(double scale) {
+    return ListenableBuilder(
+      listenable: _vm,
+      builder: (context, _) {
     final pinSize = (44 * scale).clamp(36.0, 52.0);
     final defaultPinTheme = PinTheme(
       width: pinSize,
@@ -357,11 +370,11 @@ class _LoginScreenState extends State<LoginScreen> {
         SizedBox(
           width: double.infinity,
           child: ElevatedButton(
-            onPressed: auth.isLoading ? null : _verifyOTP,
+            onPressed: _vm.isLoading ? null : _verifyOTP,
             style: ElevatedButton.styleFrom(
               padding: EdgeInsets.symmetric(vertical: 14 * scale),
             ),
-            child: auth.isLoading
+            child: _vm.isLoading
                 ? SizedBox(
                     width: 22 * scale,
                     height: 22 * scale,
@@ -381,7 +394,7 @@ class _LoginScreenState extends State<LoginScreen> {
         SizedBox(height: 14 * scale),
         Center(
           child: TextButton.icon(
-            onPressed: auth.isLoading
+            onPressed: _vm.isLoading
                 ? null
                 : () => setState(() {
                       _codeSent = false;
@@ -398,6 +411,8 @@ class _LoginScreenState extends State<LoginScreen> {
         ),
         SizedBox(height: 4 * scale),
       ],
+    );
+    },
     );
   }
 }

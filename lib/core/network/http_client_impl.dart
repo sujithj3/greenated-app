@@ -61,6 +61,11 @@ class HttpClientImpl implements ApiClient {
         ...processed.headers,
       };
 
+      processed = processed.copyWith(
+        path: uri.toString(),
+        headers: headers,
+      );
+
       // ── 4. Execute the HTTP call ──────────────────────────────────────
       final http.Response httpResponse = await _executeRequest(
         processed.method,
@@ -80,7 +85,7 @@ class HttpClientImpl implements ApiClient {
 
       // ── 7. Run response interceptors ──────────────────────────────────
       for (final ApiInterceptor interceptor in interceptors) {
-        apiResponse = interceptor.onResponse<T>(apiResponse);
+        apiResponse = interceptor.onResponse<T>(apiResponse, processed);
       }
 
       // ── 8. Throw typed exceptions for error status codes ──────────────

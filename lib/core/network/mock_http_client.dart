@@ -45,7 +45,7 @@ class MockHttpClient implements ApiClient {
 
     // Run response interceptors
     for (final ApiInterceptor interceptor in interceptors) {
-      response = interceptor.onResponse<T>(response);
+      response = interceptor.onResponse<T>(response, processed);
     }
 
     return response;
@@ -59,10 +59,6 @@ class MockHttpClient implements ApiClient {
     // Match on the composite key "METHOD /path".
     // For paths with dynamic segments, strip the ID and match a pattern.
     final String key = request.routeKey;
-
-    // ── Auth ──
-    if (key == 'POST /auth/request-otp') return _mockRequestOtp(request);
-    if (key == 'POST /auth/verify-otp') return _mockVerifyOtp(request);
 
     // ── Categories ──
     if (key == 'GET /categories') return _mockGetCategories();
@@ -101,53 +97,6 @@ class MockHttpClient implements ApiClient {
   // ═══════════════════════════════════════════════════════════════════════════
   //  Mock route handlers
   // ═══════════════════════════════════════════════════════════════════════════
-
-  // ── Auth ────────────────────────────────────────────────────────────────
-
-  Map<String, dynamic> _mockRequestOtp(ApiRequest request) {
-    final Map<String, dynamic> body = _bodyAsMap(request.body);
-    final String phone =
-        _digitsOnly((body['phoneNumber'] as String?) ?? '');
-    if (phone.length < 10) {
-      return _error(
-        ApiStatusCode.badRequest,
-        'Please enter a valid phone number.',
-      );
-    }
-    return _success(message: 'OTP sent successfully.');
-  }
-
-  Map<String, dynamic> _mockVerifyOtp(ApiRequest request) {
-    final Map<String, dynamic> body = _bodyAsMap(request.body);
-    final String paramPhone = (body['phoneNumber'] as String?) ?? '+919876543210';
-    final String phone = _digitsOnly(paramPhone).isEmpty ? '+919876543210' : paramPhone;
-    final String otp =
-        _digitsOnly((body['otpCode'] as String?) ?? '');
-    if (otp.length != 6) {
-      return _error(
-        ApiStatusCode.unprocessableEntity,
-        'OTP must be 6 digits.',
-      );
-    }
-    if (otp != '123456') {
-      return _error(
-        ApiStatusCode.unauthorized,
-        'Invalid OTP. Use 123456 for demo.',
-      );
-    }
-    return _success(
-      message: 'OTP verified.',
-      data: <String, dynamic>{
-        'token': 'mock-jwt-token-abc123',
-        'refreshToken': 'mock-refresh-token-xyz789',
-        'user': <String, dynamic>{
-          'userId': 'demo-user-123',
-          'fullName': 'Demo User',
-          'phoneNumber': phone,
-        },
-      },
-    );
-  }
 
   // ── Categories ──────────────────────────────────────────────────────────
 
@@ -475,8 +424,6 @@ class MockHttpClient implements ApiClient {
     if (body is Map) return Map<String, dynamic>.from(body);
     return const <String, dynamic>{};
   }
-
-  String _digitsOnly(String value) => value.replaceAll(RegExp(r'\D'), '');
 
   /// Extracts a numeric ID from a path segment.
   /// e.g. `/categories/42/subcategories` with segment `categories` → 42.
