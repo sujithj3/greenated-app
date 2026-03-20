@@ -124,19 +124,25 @@ class DynamicFieldBuilder extends StatelessWidget {
   // ── Dropdown ───────────────────────────────────────────────────────────────
 
   Widget _buildDropdownField() {
-    final items = field.fieldData;
-    final selected = value is String && items.contains(value) ? value as String : null;
+    final options = field.options;
+    final selectedStr = value?.toString();
+    final selected = options.any((o) => o.id.toString() == selectedStr)
+        ? selectedStr
+        : null;
 
     return DropdownButtonFormField<String>(
       key: ValueKey('dropdown_${field.key}'),
-      initialValue: selected,
+      value: selected,
       decoration: InputDecoration(
         labelText: field.required ? '${field.label} *' : field.label,
         prefixIcon: Icon(Icons.arrow_drop_down_circle_outlined, color: _accent),
       ),
       hint: Text('Select ${field.label}'),
-      items: items
-          .map((o) => DropdownMenuItem(value: o, child: Text(o)))
+      items: options
+          .map((o) => DropdownMenuItem(
+                value: o.id.toString(),
+                child: Text(o.name),
+              ))
           .toList(),
       onChanged: (v) => onChanged(v),
       validator: (v) {
@@ -209,9 +215,11 @@ class DynamicFieldBuilder extends StatelessWidget {
   // ── Radio (ChoiceChips) ────────────────────────────────────────────────────
 
   Widget _buildRadioField(BuildContext context) {
-    final items = field.fieldData;
-    final selected =
-        value is String && items.contains(value) ? value as String : null;
+    final options = field.options;
+    final selectedStr = value?.toString();
+    final selected = options.any((o) => o.id.toString() == selectedStr)
+        ? selectedStr
+        : null;
 
     return FormField<String>(
       key: ValueKey('radio_${field.key}'),
@@ -251,13 +259,13 @@ class DynamicFieldBuilder extends StatelessWidget {
                   Wrap(
                     spacing: 8,
                     runSpacing: 8,
-                    children: items
+                    children: options
                         .map((option) => ChoiceChip(
-                              label: Text(option),
-                              selected: state.value == option,
+                              label: Text(option.name),
+                              selected: state.value == option.id.toString(),
                               selectedColor: _accent.withValues(alpha: 0.2),
                               onSelected: (sel) {
-                                final next = sel ? option : null;
+                                final next = sel ? option.id.toString() : null;
                                 state.didChange(next);
                                 onChanged(next);
                               },

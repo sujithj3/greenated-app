@@ -18,13 +18,13 @@ import 'services/registration_form_service.dart';
 import 'utils/app_colors.dart';
 import 'views/auth/splash_view.dart';
 import 'views/auth/login_view.dart';
-import 'screens/dashboard/dashboard_screen.dart';
-import 'screens/category/category_screen.dart';
-import 'screens/category/subcategory_screen.dart';
-import 'screens/farmer/farmer_form_screen.dart';
-import 'screens/tools/land_measurement_screen.dart';
-import 'screens/farmer/farmer_list_screen.dart';
-import 'screens/farmer/farmer_detail_screen.dart';
+import 'views/dashboard/dashboard_view.dart';
+import 'views/category/category_view.dart';
+import 'views/category/subcategory_view.dart';
+import 'views/farmer/farmer_form_view.dart';
+import 'views/farmer/farmer_list_view.dart';
+import 'views/farmer/farmer_detail_view.dart';
+import 'views/tools/land_measurement_view.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -122,19 +122,19 @@ class FarmerRegistrationApp extends StatelessWidget {
             case '/login':
               page = const LoginView();
             case '/dashboard':
-              page = const DashboardScreen();
+              page = const DashboardView();
             case '/categories':
-              page = const CategoryScreen();
+              page = const CategoryView();
             case '/subcategories':
-              page = const SubcategoryScreen();
+              page = const SubcategoryView();
             case '/farmer-form':
-              page = const FarmerFormScreen();
+              page = const FarmerFormView();
             case '/land-measurement':
-              page = const LandMeasurementScreen();
+              page = const LandMeasurementView();
             case '/farmer-list':
-              page = const FarmerListScreen();
+              page = const FarmerListView();
             case '/farmer-detail':
-              page = FarmerDetailScreen(farmerId: settings.arguments as String);
+              page = FarmerDetailView(farmerId: settings.arguments as String);
             default:
               page = const SplashView();
           }

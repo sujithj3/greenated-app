@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 
-class FarmerDetailScreen extends StatelessWidget {
+class FarmerDetailView extends StatelessWidget {
   final String farmerId;
-  const FarmerDetailScreen({super.key, required this.farmerId});
+  const FarmerDetailView({super.key, required this.farmerId});
 
   @override
   Widget build(BuildContext context) {

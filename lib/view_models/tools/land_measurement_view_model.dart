@@ -1,6 +1,6 @@
 import 'dart:math' as math;
-import 'dart:ui';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/painting.dart' show Color;
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 class LandMeasurementViewModel extends ChangeNotifier {
@@ -90,10 +90,10 @@ class LandMeasurementViewModel extends ChangeNotifier {
     if (_points.length >= 3) path.add(_points.first);
 
     return {
-      const Polyline(
-        polylineId: PolylineId('boundary'),
-        points: [],
-        color: Color(0xFF8BC34A),
+      Polyline(
+        polylineId: const PolylineId('boundary'),
+        points: path,
+        color: const Color(0xFF8BC34A),
         width: 3,
       ),
     };
