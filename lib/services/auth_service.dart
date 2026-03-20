@@ -12,7 +12,16 @@ class AuthService extends ChangeNotifier {
   static const String _tokenKey = 'app_auth_token';
   static const String _refreshTokenKey = 'app_refresh_token';
 
-  int? get userId => _prefs?.getInt(_userIdKey);
+  int? get userId {
+    if (_prefs == null) return null;
+    final value = _prefs!.get(_userIdKey);
+    if (value is int) {
+      return value;
+    } else if (value is String) {
+      return int.tryParse(value);
+    }
+    return null;
+  }
 
   String? get fullName => _prefs?.getString(_nameKey);
 

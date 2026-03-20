@@ -48,11 +48,7 @@ class FarmerFormViewModel extends ChangeNotifier {
   List<String> get subcategoryNames =>
       _formConfigService.getSubcategoryNames(selectedCategory);
 
-  List<ApiField> get fieldsForCategory {
-    final cat = _formConfigService.getCategoryByName(selectedCategory);
-    if (cat == null || cat.subcategories.isEmpty) return [];
-    return cat.subcategories.first.primaryForm?.fields ?? [];
-  }
+  List<ApiField> get fieldsForCategory => const [];
 
   // Init from route arguments
   void init(Map? args) {

@@ -1,71 +1,54 @@
 import 'package:flutter/material.dart';
 
-import '../core/network/network.dart';
 import '../models/api/api_models.dart';
+import '../models/category/category_models.dart';
+import '../repositories/category_repository.dart';
+import 'registration_form_service.dart';
 
-/// Service that fetches and caches category/form configuration.
-///
-/// Uses [ApiClient] under the hood — in demo mode this resolves to
-/// [MockHttpClient]; in production it hits the real backend.
-/// Business logic in this class is identical either way.
 class FormConfigService extends ChangeNotifier {
-  FormConfigService({ApiClient? apiClient})
-      : _apiClient = apiClient ?? ApiClientFactory.create();
+  FormConfigService({
+    required CategoryRepository categoryRepository,
+    required RegistrationFormService registrationFormService,
+  })  : _categoryRepository = categoryRepository,
+        _registrationFormService = registrationFormService;
 
-  final ApiClient _apiClient;
+  final CategoryRepository _categoryRepository;
+  final RegistrationFormService _registrationFormService;
 
-  List<ApiCategory> _categories = [];
+  List<CategoryModel> _categories = const [];
   bool _isLoading = false;
   String? _error;
 
-  List<ApiCategory> get categories => _categories;
+  List<CategoryModel> get categories => _categories;
   bool get isLoading => _isLoading;
   String? get error => _error;
   bool get isLoaded => _categories.isNotEmpty;
 
-  /// Fetches all categories (with embedded subcategories and forms).
-  Future<void> fetchCategories() async {
-    if (_categories.isNotEmpty) return;
+  Future<void> fetchCategories({bool forceRefresh = false}) async {
+    if (_isLoading) return;
+    if (!forceRefresh && _categories.isNotEmpty) return;
+
     _isLoading = true;
     _error = null;
     notifyListeners();
+
     try {
-      final ApiResponse<List<dynamic>> response =
-          await _apiClient.send<List<dynamic>>(
-        const ApiRequest(
-          method: ApiMethod.get,
-          path: ApiEndpoints.categories,
-        ),
-        decoder: (raw) => raw is List ? raw : null,
+      _categories = await _categoryRepository.fetchCategories(
+        forceRefresh: forceRefresh,
       );
-
-      if (!response.isSuccess || response.data == null) {
-        throw ApiException(
-          response.message.isNotEmpty
-              ? response.message
-              : 'Failed to load categories.',
-          statusCode: response.statusCode,
-        );
-      }
-
-      _categories = response.data!
-          .map((c) => ApiCategory.fromJson(c as Map<String, dynamic>))
-          .toList();
-    } on ApiException catch (e) {
-      _error = e.message;
-      debugPrint('FormConfigService: $e');
-    } catch (e) {
-      _error = e.toString();
-      debugPrint('FormConfigService: $e');
+    } catch (error) {
+      _error = error.toString();
+      debugPrint('FormConfigService.fetchCategories error: $error');
     } finally {
       _isLoading = false;
       notifyListeners();
     }
   }
 
-  ApiCategory? getCategoryByName(String name) {
+  CategoryModel? getCategoryByName(String name) {
     try {
-      return _categories.firstWhere((c) => c.name == name);
+      return _categories
+          .firstWhere((category) => category.categoryName == name);
     } catch (_) {
       return null;
     }
@@ -74,84 +57,27 @@ class FormConfigService extends ChangeNotifier {
   List<String> getSubcategoryNames(String categoryName) {
     return getCategoryByName(categoryName)
             ?.subcategories
-            .map((s) => s.name)
+            .map((subcategory) => subcategory.subcategoryName)
             .toList() ??
-        [];
+        const [];
   }
 
-  List<ApiField> getFields(String categoryName, String subcategoryName) {
-    return getCategoryByName(categoryName)
-            ?.findSubcategory(subcategoryName)
-            ?.primaryForm
-            ?.fields ??
-        [];
+  List<SubcategoryModel> getSubcategories(String categoryName) {
+    return getCategoryByName(categoryName)?.subcategories ?? const [];
   }
 
-  /// Returns the primary form for the given category + subcategory.
-  ApiForm? getForm(String categoryName, String subcategoryName) {
-    return getCategoryByName(categoryName)
-        ?.findSubcategory(subcategoryName)
-        ?.primaryForm;
+  Future<List<SubcategoryModel>> getSubCategoriesByCategoryId(
+    int categoryId,
+  ) async {
+    await fetchCategories();
+    final category = _categories.cast<CategoryModel?>().firstWhere(
+          (entry) => entry?.categoryId == categoryId,
+          orElse: () => null,
+        );
+    return category?.subcategories ?? const [];
   }
 
-  /// Fetches subcategories for a given category ID.
-  Future<List<ApiSubcategory>> getSubCategoriesByCategoryId(
-      int categoryId) async {
-    final ApiResponse<Map<String, dynamic>> response =
-        await _apiClient.send<Map<String, dynamic>>(
-      ApiRequest(
-        method: ApiMethod.get,
-        path: ApiEndpoints.subcategories(categoryId),
-      ),
-      decoder: (raw) {
-        if (raw is Map<String, dynamic>) return raw;
-        if (raw is Map) return Map<String, dynamic>.from(raw);
-        return null;
-      },
-    );
-
-    if (!response.isSuccess || response.data == null) {
-      throw ApiException(
-        response.message.isNotEmpty
-            ? response.message
-            : 'Failed to load subcategories.',
-        statusCode: response.statusCode,
-      );
-    }
-
-    final subcatsJson =
-        response.data!['subcategories'] as List<dynamic>? ?? [];
-    return subcatsJson
-        .map((s) => ApiSubcategory.fromJson(s as Map<String, dynamic>))
-        .toList();
-  }
-
-  /// Fetches dynamic registration form fields for a given subcategory ID.
-  Future<ApiForm?> getDynamicRegistrationFields(int subCategoryId) async {
-    final ApiResponse<Map<String, dynamic>> response =
-        await _apiClient.send<Map<String, dynamic>>(
-      ApiRequest(
-        method: ApiMethod.get,
-        path: ApiEndpoints.registrationFields(subCategoryId),
-      ),
-      decoder: (raw) {
-        if (raw is Map<String, dynamic>) return raw;
-        if (raw is Map) return Map<String, dynamic>.from(raw);
-        return null;
-      },
-    );
-
-    if (!response.isSuccess || response.data == null) {
-      throw ApiException(
-        response.message.isNotEmpty
-            ? response.message
-            : 'Failed to load registration fields.',
-        statusCode: response.statusCode,
-      );
-    }
-
-    final formsJson = response.data!['forms'] as List<dynamic>?;
-    if (formsJson == null || formsJson.isEmpty) return null;
-    return ApiForm.fromJson(formsJson.first as Map<String, dynamic>);
+  Future<ApiForm?> getDynamicRegistrationFields(int subCategoryId) {
+    return _registrationFormService.fetchRegistrationForm(subCategoryId);
   }
 }

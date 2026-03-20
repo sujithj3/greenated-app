@@ -5,9 +5,11 @@ import 'package:provider/provider.dart';
 import '../../models/flow_type.dart';
 import '../../services/auth_service.dart';
 import '../../services/firestore_service.dart';
+import '../../services/form_config_service.dart';
 import '../../config/app_constants.dart';
 import '../../utils/app_colors.dart';
 import '../../widgets/popup_form.dart';
+import '../../widgets/shimmer_loading.dart';
 
 class DashboardScreen extends StatelessWidget {
   const DashboardScreen({super.key});
@@ -16,10 +18,21 @@ class DashboardScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final auth = context.watch<AuthService>();
     final fs = context.read<FirestoreService>();
+    final categoriesService = context.watch<FormConfigService>();
     final phone = auth.displayPhone.isNotEmpty ? auth.displayPhone : 'User';
 
+    if (!categoriesService.isLoading &&
+        categoriesService.categories.isEmpty &&
+        categoriesService.error == null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (context.mounted) {
+          context.read<FormConfigService>().fetchCategories();
+        }
+      });
+    }
+
     return Scaffold(
-      drawer: _buildDrawer(context, auth, phone),
+      drawer: _buildDrawer(context, auth, phone, categoriesService),
       body: CustomScrollView(
         slivers: [
           // ── SliverAppBar ──────────────────────────────────────────────
@@ -87,7 +100,12 @@ class DashboardScreen extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   // ── Stats Row ──────────────────────────────────────────
-                  _StatsRow(fs: fs),
+                  _StatsRow(
+                    fs: fs,
+                    categoryCount: categoriesService.categories.length,
+                    isCategoryCountLoading: categoriesService.isLoading &&
+                        categoriesService.categories.isEmpty,
+                  ),
                   const SizedBox(height: 24),
 
                   // ── Quick Actions (hidden for now) ────────────────────
@@ -136,7 +154,7 @@ class DashboardScreen extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 12),
-                  _CategoriesGrid(),
+                  _CategoriesGrid(service: categoriesService),
                   const SizedBox(height: 24),
                 ],
               ),
@@ -164,7 +182,12 @@ class DashboardScreen extends StatelessWidget {
     return 'Evening';
   }
 
-  Widget _buildDrawer(BuildContext context, AuthService auth, String phone) {
+  Widget _buildDrawer(
+    BuildContext context,
+    AuthService auth,
+    String phone,
+    FormConfigService categoriesService,
+  ) {
     return Drawer(
       child: ListView(
         padding: EdgeInsets.zero,
@@ -204,6 +227,58 @@ class DashboardScreen extends StatelessWidget {
           _drawerItem(context, Icons.people, 'Farmers List', '/farmer-list'),
           _drawerItem(context, Icons.category, 'Categories', '/categories',
               arguments: {'flowType': FlowType.listing}),
+          if (categoriesService.isLoading &&
+              categoriesService.categories.isEmpty)
+            const ListTile(
+              leading: SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+              title: Text('Loading categories...'),
+            )
+          else if (categoriesService.categories.isNotEmpty)
+            ExpansionTile(
+              leading: const Icon(Icons.format_list_bulleted,
+                  color: AppColors.primary),
+              title: const Text('Category Shortcuts'),
+              children: categoriesService.categories
+                  .map(
+                    (category) => ListTile(
+                      dense: true,
+                      leading: Icon(
+                        AppCategories.styleFor(category.categoryName)?.icon ??
+                            Icons.category_outlined,
+                        color: AppCategories.styleFor(category.categoryName)
+                                ?.color ??
+                            AppColors.primary,
+                      ),
+                      title: Text(category.categoryName),
+                      subtitle:
+                          Text('${category.subcategoryCount} subcategories'),
+                      onTap: () {
+                        Navigator.pop(context);
+                        Navigator.pushNamed(
+                          context,
+                          '/subcategories',
+                          arguments: <String, dynamic>{
+                            'category': category.categoryName,
+                            'flowType': FlowType.listing,
+                          },
+                        );
+                      },
+                    ),
+                  )
+                  .toList(),
+            )
+          else if (categoriesService.error != null)
+            ListTile(
+              leading: const Icon(Icons.refresh, color: AppColors.primary),
+              title: const Text('Retry categories'),
+              subtitle: Text(categoriesService.error!),
+              onTap: () =>
+                  categoriesService.fetchCategories(forceRefresh: true),
+            ),
           _drawerItem(
               context, Icons.map, 'Land Measurement', '/land-measurement'),
           const Divider(),
@@ -221,8 +296,7 @@ class DashboardScreen extends StatelessWidget {
               if (confirmed == true && context.mounted) {
                 await context.read<AuthService>().signOut();
                 if (context.mounted) {
-                  Navigator.pushNamedAndRemoveUntil(
-                      context, '/', (_) => false);
+                  Navigator.pushNamedAndRemoveUntil(context, '/', (_) => false);
                 }
               }
             },
@@ -251,7 +325,14 @@ class DashboardScreen extends StatelessWidget {
 // ─── Stats Row ─────────────────────────────────────────────────────────────
 class _StatsRow extends StatelessWidget {
   final FirestoreService fs;
-  const _StatsRow({required this.fs});
+  final int categoryCount;
+  final bool isCategoryCountLoading;
+
+  const _StatsRow({
+    required this.fs,
+    required this.categoryCount,
+    required this.isCategoryCountLoading,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -282,14 +363,11 @@ class _StatsRow extends StatelessWidget {
         ),
         const SizedBox(width: 12),
         Expanded(
-          child: StreamBuilder<Map<String, int>>(
-            stream: fs.getCategoryCounts(),
-            builder: (_, snap) => _StatCard(
-              label: 'Categories',
-              value: '${snap.data?.length ?? 0}',
-              icon: Icons.category,
-              color: AppColors.medium,
-            ),
+          child: _StatCard(
+            label: 'Categories',
+            value: isCategoryCountLoading ? '...' : '$categoryCount',
+            icon: Icons.category,
+            color: AppColors.medium,
           ),
         ),
       ],
@@ -334,9 +412,38 @@ class _StatCard extends StatelessWidget {
 
 // ─── Categories Grid ───────────────────────────────────────────────────────
 class _CategoriesGrid extends StatelessWidget {
+  final FormConfigService service;
+
+  const _CategoriesGrid({required this.service});
+
   @override
   Widget build(BuildContext context) {
-    final categories = AppCategories.all.entries.toList();
+    if (service.isLoading && service.categories.isEmpty) {
+      return const SizedBox(
+        height: 260,
+        child: ShimmerCategoryGrid(),
+      );
+    }
+
+    if (service.error != null && service.categories.isEmpty) {
+      return _DashboardCategoryState(
+        icon: Icons.cloud_off_outlined,
+        title: 'Unable to load categories',
+        message: service.error!,
+        actionLabel: 'Retry',
+        onAction: () => service.fetchCategories(forceRefresh: true),
+      );
+    }
+
+    if (service.categories.isEmpty) {
+      return _DashboardCategoryState(
+        icon: Icons.category_outlined,
+        title: 'No categories available',
+        message: 'Categories from the backend will appear here.',
+        actionLabel: 'Refresh',
+        onAction: () => service.fetchCategories(forceRefresh: true),
+      );
+    }
 
     return GridView.builder(
       shrinkWrap: true,
@@ -347,20 +454,22 @@ class _CategoriesGrid extends StatelessWidget {
         crossAxisSpacing: 12,
         childAspectRatio: 1.15,
       ),
-      itemCount: categories.length,
+      itemCount: service.categories.length,
       itemBuilder: (_, i) {
-        final name = categories[i].key;
-        final data = categories[i].value;
+        final category = service.categories[i];
+        final data = AppCategories.styleFor(category.categoryName);
 
         return _CategoryTile(
-          name: name,
+          name: category.categoryName,
           data: data,
+          subcategoryCount: category.subcategoryCount,
+          landCount: category.totalLandCount ?? 0,
           onTap: () {
             Navigator.pushNamed(
               context,
               '/subcategories',
               arguments: {
-                'category': name,
+                'category': category.categoryName,
                 'flowType': FlowType.registration,
               },
             );
@@ -373,17 +482,24 @@ class _CategoriesGrid extends StatelessWidget {
 
 class _CategoryTile extends StatelessWidget {
   final String name;
-  final CategoryData data;
+  final CategoryData? data;
+  final int subcategoryCount;
+  final int landCount;
   final VoidCallback onTap;
 
   const _CategoryTile({
     required this.name,
     required this.data,
+    required this.subcategoryCount,
+    required this.landCount,
     required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
+    final color = data?.color ?? AppColors.primary;
+    final icon = data?.icon ?? Icons.category;
+
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(20),
@@ -392,15 +508,15 @@ class _CategoryTile extends StatelessWidget {
           borderRadius: BorderRadius.circular(20),
           gradient: LinearGradient(
             colors: [
-              data.color.withValues(alpha: 0.85),
-              data.color,
+              color.withValues(alpha: 0.85),
+              color,
             ],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
           boxShadow: [
             BoxShadow(
-              color: data.color.withValues(alpha: 0.3),
+              color: color.withValues(alpha: 0.3),
               blurRadius: 12,
               offset: const Offset(0, 6),
             ),
@@ -417,7 +533,7 @@ class _CategoryTile extends StatelessWidget {
                   color: Colors.white.withValues(alpha: 0.2),
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: Icon(data.icon, color: Colors.white, size: 28),
+                child: Icon(icon, color: Colors.white, size: 28),
               ),
               const Spacer(),
               Text(
@@ -431,10 +547,22 @@ class _CategoryTile extends StatelessWidget {
               const SizedBox(height: 4),
               Row(
                 children: [
+                  const Icon(Icons.layers_outlined,
+                      color: Colors.white70, size: 14),
+                  const SizedBox(width: 4),
+                  Text(
+                    '$landCount lands',
+                    style: const TextStyle(color: Colors.white70, fontSize: 12),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 4),
+              Row(
+                children: [
                   const Icon(Icons.list, color: Colors.white70, size: 14),
                   const SizedBox(width: 4),
                   Text(
-                    '${data.subcategories.length} subcategories',
+                    '$subcategoryCount subcategories',
                     style: const TextStyle(color: Colors.white70, fontSize: 12),
                   ),
                 ],
@@ -447,18 +575,77 @@ class _CategoryTile extends StatelessWidget {
   }
 }
 
+class _DashboardCategoryState extends StatelessWidget {
+  const _DashboardCategoryState({
+    required this.icon,
+    required this.title,
+    required this.message,
+    required this.actionLabel,
+    required this.onAction,
+  });
+
+  final IconData icon;
+  final String title;
+  final String message;
+  final String actionLabel;
+  final VoidCallback onAction;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Column(
+        children: [
+          Icon(icon, size: 32, color: AppColors.textMedium),
+          const SizedBox(height: 10),
+          Text(
+            title,
+            style: const TextStyle(
+              fontWeight: FontWeight.w700,
+              color: AppColors.dark,
+            ),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 6),
+          Text(
+            message,
+            style: const TextStyle(color: AppColors.textMedium),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 12),
+          OutlinedButton(
+            onPressed: onAction,
+            child: Text(actionLabel),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 // ─── Quick Actions (hidden – kept for future use) ──────────────────────────
 // ignore: unused_element
 class _QuickActions extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final actions = [
-      _QAction(Icons.person_add, 'New\nRegister', AppColors.primary,
+      _QAction(
+          Icons.person_add,
+          'New\nRegister',
+          AppColors.primary,
           () => Navigator.pushNamed(context, '/categories',
               arguments: {'flowType': FlowType.registration})),
       _QAction(Icons.people, 'View\nFarmers', AppColors.medium,
           () => Navigator.pushNamed(context, '/farmer-list')),
-      _QAction(Icons.category, 'Categories', AppColors.dark,
+      _QAction(
+          Icons.category,
+          'Categories',
+          AppColors.dark,
           () => Navigator.pushNamed(context, '/categories',
               arguments: {'flowType': FlowType.listing})),
       _QAction(Icons.map, 'Land\nMap', AppColors.accent,

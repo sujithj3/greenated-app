@@ -10,19 +10,19 @@ class ApiEndpoints {
   // ── Auth ─────────────────────────────────────────────────────────────────
   static const String requestOtp = 'login/request-otp';
   static const String verifyOtp = 'login/verify-otp';
-  static const String refreshToken = '/auth/refresh-token';
+  static const String refreshToken = 'auth/refresh-token';
 
   // ── Categories ───────────────────────────────────────────────────────────
-  static const String categories = '/categories';
-  static String subcategories(int categoryId) =>
-      '/categories/$categoryId/subcategories';
+  static const String categories = 'categorylist';
+  // static String subcategories(int categoryId) =>
+  //     'categories/$categoryId/subcategories';
 
   // ── Registration ─────────────────────────────────────────────────────────
   static String registrationFields(int subcategoryId) =>
-      '/subcategories/$subcategoryId/registration-fields';
+      'subcategories/$subcategoryId/form';
 
   // ── Farmers ──────────────────────────────────────────────────────────────
-  static const String listFarmers = '/list-farmers';
-  static const String registerFarmer = '/register-farmer';
-  static String farmerById(String id) => '/farmer/$id';
+  static const String listFarmers = 'list-farmers';
+  static const String registerFarmer = 'register-farmer';
+  static String farmerById(String id) => 'farmer/$id';
 }

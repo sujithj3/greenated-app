@@ -1,13 +1,21 @@
 import 'package:flutter/cupertino.dart';
-import 'package:flutter/foundation.dart' show defaultTargetPlatform, TargetPlatform;
+import 'package:flutter/foundation.dart'
+    show defaultTargetPlatform, TargetPlatform;
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:provider/provider.dart';
 
 import 'config/env_config.dart';
+import 'core/network/api_client.dart';
+import 'core/network/http_client_impl.dart';
+import 'core/network/interceptor/auth_interceptor.dart';
+import 'core/network/interceptor/logging_interceptor.dart';
+import 'repositories/category_repository.dart';
 import 'services/auth_service.dart';
+import 'services/category_api_service.dart';
 import 'services/firestore_service.dart';
 import 'services/form_config_service.dart';
+import 'services/registration_form_service.dart';
 import 'utils/app_colors.dart';
 import 'views/auth/splash_view.dart';
 import 'views/auth/login_view.dart';
@@ -29,9 +37,10 @@ void main() async {
 
   runApp(FarmerRegistrationApp(authService: authService));
 }
+
 class FarmerRegistrationApp extends StatelessWidget {
   final AuthService authService;
-  
+
   const FarmerRegistrationApp({super.key, required this.authService});
 
   @override
@@ -40,7 +49,35 @@ class FarmerRegistrationApp extends StatelessWidget {
       providers: [
         ChangeNotifierProvider.value(value: authService),
         ChangeNotifierProvider(create: (_) => FirestoreService()),
-        ChangeNotifierProvider(create: (_) => FormConfigService()),
+        Provider<ApiClient>(
+          create: (_) => HttpClientImpl(
+            interceptors: [
+              LoggingInterceptor(),
+              AuthInterceptor(tokenProvider: () => authService.accessToken),
+            ],
+          ),
+        ),
+        Provider<CategoryApiService>(
+          create: (context) => CategoryApiService(
+            apiClient: context.read<ApiClient>(),
+          ),
+        ),
+        Provider<CategoryRepository>(
+          create: (context) => CategoryRepositoryImpl(
+            apiService: context.read<CategoryApiService>(),
+          ),
+        ),
+        Provider<RegistrationFormService>(
+          create: (context) => RegistrationFormService(
+            apiClient: context.read<ApiClient>(),
+          ),
+        ),
+        ChangeNotifierProvider(
+          create: (context) => FormConfigService(
+            categoryRepository: context.read<CategoryRepository>(),
+            registrationFormService: context.read<RegistrationFormService>(),
+          ),
+        ),
       ],
       child: MaterialApp(
         title: 'Greenated',
@@ -99,8 +136,7 @@ class FarmerRegistrationApp extends StatelessWidget {
             case '/farmer-list':
               page = const FarmerListScreen();
             case '/farmer-detail':
-              page = FarmerDetailScreen(
-                  farmerId: settings.arguments as String);
+              page = FarmerDetailScreen(farmerId: settings.arguments as String);
             default:
               page = const SplashView();
           }
@@ -182,4 +218,3 @@ class FarmerRegistrationApp extends StatelessWidget {
     );
   }
 }
-

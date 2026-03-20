@@ -82,16 +82,6 @@ class FirestoreService extends ChangeNotifier {
         .map((l) => l.where((f) => f.status == 'Active').length);
   }
 
-  Stream<Map<String, int>> getCategoryCounts() {
-    return _store.stream.map((list) {
-      final Map<String, int> counts = {};
-      for (final f in list) {
-        counts[f.category] = (counts[f.category] ?? 0) + 1;
-      }
-      return counts;
-    });
-  }
-
   Stream<List<FarmerModel>> searchFarmers(String query) {
     if (query.isEmpty) return getFarmers();
     final lower = query.toLowerCase();

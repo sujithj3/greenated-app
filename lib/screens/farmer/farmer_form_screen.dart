@@ -48,6 +48,7 @@ class _FarmerFormScreenState extends State<FarmerFormScreen> {
   // Form config from API
   ApiForm? _form;
   bool _isLoadingForm = true;
+  String? _formLoadError;
 
   final List<String> _landUnits = ['Acres', 'Hectares', 'Bigha', 'Sq. Meters'];
 
@@ -68,6 +69,13 @@ class _FarmerFormScreenState extends State<FarmerFormScreen> {
 
         if (args['farmer'] != null) {
           _editFarmer = args['farmer'] as FarmerModel;
+          _selectedCategory = _selectedCategory.isNotEmpty
+              ? _selectedCategory
+              : _editFarmer!.category;
+          _selectedSubcategory = _selectedSubcategory.isNotEmpty
+              ? _selectedSubcategory
+              : _editFarmer!.subcategory;
+          _selectedSubcategoryId ??= _editFarmer!.subcategoryId;
         }
       }
 
@@ -75,7 +83,9 @@ class _FarmerFormScreenState extends State<FarmerFormScreen> {
       final svc = context.read<FormConfigService>();
       WidgetsBinding.instance.addPostFrameCallback((_) async {
         await svc.fetchCategories();
-        if (mounted) _loadForm();
+        if (mounted) {
+          await _loadForm();
+        }
       });
     }
   }
@@ -95,19 +105,29 @@ class _FarmerFormScreenState extends State<FarmerFormScreen> {
 
   // ── Form loading ────────────────────────────────────────────────────────
 
-  void _loadForm() {
+  Future<void> _loadForm() async {
     final svc = context.read<FormConfigService>();
-    final form = svc.getForm(_selectedCategory, _selectedSubcategory);
+    setState(() {
+      _isLoadingForm = true;
+      _formLoadError = null;
+    });
 
-    if (form == null) {
-      // Fallback: try to get any form for the category
-      final cat = svc.getCategoryByName(_selectedCategory);
-      final sub = cat?.subcategories.isNotEmpty == true
-          ? cat!.subcategories.first
-          : null;
-      _form = sub?.primaryForm;
-    } else {
-      _form = form;
+    try {
+      _selectedSubcategoryId ??= svc
+          .getCategoryByName(_selectedCategory)
+          ?.findSubcategory(
+            _selectedSubcategory,
+          )
+          ?.subcategoryId;
+
+      if (_selectedSubcategoryId != null) {
+        _form = await svc.getDynamicRegistrationFields(_selectedSubcategoryId!);
+      } else {
+        _form = null;
+      }
+    } catch (error) {
+      _form = null;
+      _formLoadError = error.toString();
     }
 
     _initDynamicControllers();
@@ -116,7 +136,9 @@ class _FarmerFormScreenState extends State<FarmerFormScreen> {
       _populate(_editFarmer!);
     }
 
-    setState(() => _isLoadingForm = false);
+    if (mounted) {
+      setState(() => _isLoadingForm = false);
+    }
   }
 
   void _initDynamicControllers() {
@@ -140,7 +162,8 @@ class _FarmerFormScreenState extends State<FarmerFormScreen> {
     if (style == FieldStyle.text ||
         style == FieldStyle.number ||
         style == FieldStyle.date) {
-      _dynTextCtrl[f.key] = TextEditingController(text: initialValue?.toString() ?? '');
+      _dynTextCtrl[f.key] =
+          TextEditingController(text: initialValue?.toString() ?? '');
     }
   }
 
@@ -163,7 +186,8 @@ class _FarmerFormScreenState extends State<FarmerFormScreen> {
       // Handle form fields
       if (f.formFields.isNotEmpty) {
         _dynamicFields = f.formFields
-            .map((e) => DynamicFieldModel.fromJson(Map<String, dynamic>.from(e as Map)))
+            .map((e) =>
+                DynamicFieldModel.fromJson(Map<String, dynamic>.from(e as Map)))
             .toList();
       } else {
         // Map known model fields back to dynamic field keys (if they exist)
@@ -208,15 +232,15 @@ class _FarmerFormScreenState extends State<FarmerFormScreen> {
           _selectedLandUnit = 'Acres';
         }
       });
-      context.showSnack('Area: ${area.toStringAsFixed(4)} acres', success: true);
+      context.showSnack('Area: ${area.toStringAsFixed(4)} acres',
+          success: true);
     }
   }
 
   // ── Popup form sheet ──────────────────────────────────────────────────
 
   void _openPopupFormSheet(DynamicFieldModel df, Color catColor) {
-    final currentValues =
-        df.value as List<DynamicFieldModel>? ?? [];
+    final currentValues = df.value as List<DynamicFieldModel>? ?? [];
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -255,7 +279,7 @@ class _FarmerFormScreenState extends State<FarmerFormScreen> {
       final k = df.field.key;
       final v = df.value;
       if (v == null) continue;
-      
+
       if (df.field.isPopupForm && v is List<DynamicFieldModel>) {
         final asMap = <String, dynamic>{};
         for (final subDf in v) {
@@ -275,7 +299,8 @@ class _FarmerFormScreenState extends State<FarmerFormScreen> {
       }
     }
 
-    final List<dynamic> serializedFields = _dynamicFields.map((e) => e.toJson()).toList();
+    final List<dynamic> serializedFields =
+        _dynamicFields.map((e) => e.toJson()).toList();
 
     // Extract well-known keys for FarmerModel core fields as fallback,
     // but leave them inside the dynamic fields map
@@ -347,7 +372,9 @@ class _FarmerFormScreenState extends State<FarmerFormScreen> {
           Navigator.pop(context);
         } else {
           Navigator.pushNamedAndRemoveUntil(
-            context, '/dashboard', (route) => false,
+            context,
+            '/dashboard',
+            (route) => false,
           );
         }
       }
@@ -360,12 +387,11 @@ class _FarmerFormScreenState extends State<FarmerFormScreen> {
     }
   }
 
-
   // ── Build ───────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
-    final catData = AppCategories.all[_selectedCategory];
+    final catData = AppCategories.styleFor(_selectedCategory);
     final catColor = catData?.color ?? AppColors.primary;
     final geoRequired = _form?.geoLocationRequired ?? false;
 
@@ -397,57 +423,64 @@ class _FarmerFormScreenState extends State<FarmerFormScreen> {
       ),
       body: _isLoadingForm
           ? const ShimmerFormSkeleton()
-          : Form(
-              key: _formKey,
-              child: ListView(
-                padding: const EdgeInsets.all(16),
-                children: [
-                  // ── Category / Subcategory badge ────────────────────────
-                  if (_selectedCategory.isNotEmpty) ...[
-                    _buildCategoryBadge(catColor, catData),
-                    const SizedBox(height: 20),
-                  ],
+          : _formLoadError != null && _dynamicFields.isEmpty
+              ? _FormLoadErrorState(
+                  message: _formLoadError!,
+                  onRetry: _loadForm,
+                )
+              : Form(
+                  key: _formKey,
+                  child: ListView(
+                    padding: const EdgeInsets.all(16),
+                    children: [
+                      // ── Category / Subcategory badge ────────────────────────
+                      if (_selectedCategory.isNotEmpty) ...[
+                        _buildCategoryBadge(catColor, catData),
+                        const SizedBox(height: 20),
+                      ],
 
-                  // ── Dynamic fields from API ────────────────────────────
-                  ..._buildDynamicFields(catColor),
+                      // ── Dynamic fields from API ────────────────────────────
+                      ..._buildDynamicFields(catColor),
 
-                  // ── Location (hardcoded) ───────────────────────────────
-                  const SizedBox(height: 20),
-                  _Section(title: 'Location', icon: Icons.location_on_outlined),
-                  const SizedBox(height: 12),
-                  ..._buildLocationSection(),
+                      // ── Location (hardcoded) ───────────────────────────────
+                      const SizedBox(height: 20),
+                      _Section(
+                          title: 'Location', icon: Icons.location_on_outlined),
+                      const SizedBox(height: 12),
+                      ..._buildLocationSection(),
 
-                  // ── Land Details (conditional) ─────────────────────────
-                  if (geoRequired) ...[
-                    const SizedBox(height: 24),
-                    _Section(
-                        title: 'Land Details', icon: Icons.landscape_outlined),
-                    const SizedBox(height: 12),
-                    ..._buildLandSection(),
-                  ],
+                      // ── Land Details (conditional) ─────────────────────────
+                      if (geoRequired) ...[
+                        const SizedBox(height: 24),
+                        _Section(
+                            title: 'Land Details',
+                            icon: Icons.landscape_outlined),
+                        const SizedBox(height: 12),
+                        ..._buildLandSection(),
+                      ],
 
-                  // ── Status (hardcoded) ─────────────────────────────────
-                  const SizedBox(height: 24),
-                  _Section(title: 'Status', icon: Icons.toggle_on_outlined),
-                  const SizedBox(height: 12),
-                  _buildStatusSection(),
+                      // ── Status (hardcoded) ─────────────────────────────────
+                      const SizedBox(height: 24),
+                      _Section(title: 'Status', icon: Icons.toggle_on_outlined),
+                      const SizedBox(height: 12),
+                      _buildStatusSection(),
 
-                  // ── Submit ─────────────────────────────────────────────
-                  const SizedBox(height: 32),
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton.icon(
-                      onPressed: _isSaving ? null : _save,
-                      icon: const Icon(Icons.how_to_reg),
-                      label: Text(_editFarmer != null
-                          ? 'Update Registration'
-                          : 'Complete Registration'),
-                    ),
+                      // ── Submit ─────────────────────────────────────────────
+                      const SizedBox(height: 32),
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton.icon(
+                          onPressed: _isSaving ? null : _save,
+                          icon: const Icon(Icons.how_to_reg),
+                          label: Text(_editFarmer != null
+                              ? 'Update Registration'
+                              : 'Complete Registration'),
+                        ),
+                      ),
+                      const SizedBox(height: 32),
+                    ],
                   ),
-                  const SizedBox(height: 32),
-                ],
-              ),
-            ),
+                ),
     );
   }
 
@@ -521,10 +554,10 @@ class _FarmerFormScreenState extends State<FarmerFormScreen> {
     int? popupFormFilled;
     int? popupFormTotal;
     if (f.isPopupForm) {
-      final subFieldsList =
-          df.value as List<DynamicFieldModel>? ?? [];
+      final subFieldsList = df.value as List<DynamicFieldModel>? ?? [];
       popupFormTotal = subFieldsList.length;
-      popupFormFilled = subFieldsList.where((e) => e.value != null && e.value != '').length;
+      popupFormFilled =
+          subFieldsList.where((e) => e.value != null && e.value != '').length;
     }
 
     return DynamicFieldBuilder(
@@ -535,9 +568,8 @@ class _FarmerFormScreenState extends State<FarmerFormScreen> {
       onChanged: (val) {
         setState(() => df.value = val);
       },
-      onPopupFormPressed: f.isPopupForm
-          ? () => _openPopupFormSheet(df, catColor)
-          : null,
+      onPopupFormPressed:
+          f.isPopupForm ? () => _openPopupFormSheet(df, catColor) : null,
       popupFormFilledCount: popupFormFilled,
       popupFormTotalCount: popupFormTotal,
     );
@@ -663,6 +695,56 @@ class _FarmerFormScreenState extends State<FarmerFormScreen> {
   }
 }
 
+class _FormLoadErrorState extends StatelessWidget {
+  final String message;
+  final Future<void> Function() onRetry;
+
+  const _FormLoadErrorState({
+    required this.message,
+    required this.onRetry,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(
+              Icons.cloud_off_outlined,
+              size: 40,
+              color: AppColors.textMedium,
+            ),
+            const SizedBox(height: 12),
+            const Text(
+              'Unable to load registration fields',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
+                color: AppColors.dark,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              message,
+              style: const TextStyle(color: AppColors.textMedium),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 16),
+            ElevatedButton(
+              onPressed: onRetry,
+              child: const Text('Retry'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 // ─── Section Header ───────────────────────────────────────────────────────────
 class _Section extends StatelessWidget {
   final String title;
@@ -684,7 +766,9 @@ class _Section extends StatelessWidget {
               color: AppColors.dark)),
       const SizedBox(width: 8),
       Expanded(
-          child: Divider(color: AppColors.primary.withValues(alpha: 0.35), thickness: 1.5)),
+          child: Divider(
+              color: AppColors.primary.withValues(alpha: 0.35),
+              thickness: 1.5)),
     ]);
   }
 }
@@ -722,8 +806,7 @@ class _PopupFormSheetState extends State<_PopupFormSheet> {
       if (f.fieldStyle == FieldStyle.text ||
           f.fieldStyle == FieldStyle.number ||
           f.fieldStyle == FieldStyle.date) {
-        _textCtrl[f.key] =
-            TextEditingController(text: init?.toString() ?? '');
+        _textCtrl[f.key] = TextEditingController(text: init?.toString() ?? '');
       }
     }
   }
@@ -834,17 +917,15 @@ class _PopupFormSheetState extends State<_PopupFormSheet> {
     int? popupFormFilled;
     int? popupFormTotal;
     if (f.isPopupForm) {
-      final subFieldsList =
-          df.value as List<DynamicFieldModel>? ?? [];
+      final subFieldsList = df.value as List<DynamicFieldModel>? ?? [];
       popupFormTotal = subFieldsList.length;
-      popupFormFilled = subFieldsList.where((e) => e.value != null && e.value != '').length;
+      popupFormFilled =
+          subFieldsList.where((e) => e.value != null && e.value != '').length;
     }
 
     return DynamicFieldBuilder(
       field: f,
-      value: _textCtrl.containsKey(f.key)
-          ? _textCtrl[f.key]!.text
-          : df.value,
+      value: _textCtrl.containsKey(f.key) ? _textCtrl[f.key]!.text : df.value,
       textController: _textCtrl[f.key],
       accentColor: color,
       onChanged: (val) {
@@ -852,17 +933,15 @@ class _PopupFormSheetState extends State<_PopupFormSheet> {
           setState(() => df.value = val);
         }
       },
-      onPopupFormPressed: f.isPopupForm
-          ? () => _openNestedPopupForm(df, color)
-          : null,
+      onPopupFormPressed:
+          f.isPopupForm ? () => _openNestedPopupForm(df, color) : null,
       popupFormFilledCount: popupFormFilled,
       popupFormTotalCount: popupFormTotal,
     );
   }
 
   void _openNestedPopupForm(DynamicFieldModel df, Color color) {
-    final currentValues =
-        df.value as List<DynamicFieldModel>? ?? [];
+    final currentValues = df.value as List<DynamicFieldModel>? ?? [];
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,

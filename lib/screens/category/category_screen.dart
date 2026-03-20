@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../../models/flow_type.dart';
-import '../../services/firestore_service.dart';
-import '../../services/form_config_service.dart';
+
 import '../../config/app_constants.dart';
+import '../../models/category/category_models.dart';
+import '../../models/flow_type.dart';
+import '../../services/form_config_service.dart';
+import '../../utils/app_colors.dart';
 import '../../widgets/shimmer_loading.dart';
 
 class CategoryScreen extends StatefulWidget {
@@ -17,7 +19,6 @@ class _CategoryScreenState extends State<CategoryScreen> {
   @override
   void initState() {
     super.initState();
-    // Ensure categories (with subcategories) are loaded from mock/real API
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<FormConfigService>().fetchCategories();
     });
@@ -26,87 +27,109 @@ class _CategoryScreenState extends State<CategoryScreen> {
   @override
   Widget build(BuildContext context) {
     final args = ModalRoute.of(context)?.settings.arguments as Map? ?? {};
-    // selectionMode = true means this screen is used to PICK a category
-    // (e.g. from FarmerFormScreen). Otherwise it navigates to subcategories.
-    final bool selectionMode = args['selectionMode'] as bool? ?? false;
-    final FlowType flowType =
-        args['flowType'] as FlowType? ?? FlowType.listing;
+    final selectionMode = args['selectionMode'] as bool? ?? false;
+    final flowType = args['flowType'] as FlowType? ?? FlowType.listing;
+    final isRegistration = flowType == FlowType.registration;
+    final service = context.watch<FormConfigService>();
 
-    final fs = context.read<FirestoreService>();
-    final svc = context.watch<FormConfigService>();
-
-    final bool isRegistration = flowType == FlowType.registration;
-    final String title = (isRegistration || selectionMode)
+    final title = (isRegistration || selectionMode)
         ? 'Select Category'
         : 'Farm Categories';
 
     return Scaffold(
       appBar: AppBar(title: Text(title)),
-      body: svc.isLoading
-          ? const ShimmerCategoryGrid()
-          : StreamBuilder<Map<String, int>>(
-              stream: fs.getCategoryCounts(),
-              builder: (_, snap) {
-                final counts = snap.data ?? {};
-                final categories = AppCategories.all.entries.toList();
+      body: _buildBody(
+        context: context,
+        service: service,
+        selectionMode: selectionMode,
+        flowType: flowType,
+      ),
+    );
+  }
 
-                return GridView.builder(
-                  padding: const EdgeInsets.all(16),
-                  gridDelegate:
-                      const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 2,
-                    mainAxisSpacing: 16,
-                    crossAxisSpacing: 16,
-                    childAspectRatio: 1.05,
-                  ),
-                  itemCount: categories.length,
-                  itemBuilder: (_, i) {
-                    final name = categories[i].key;
-                    final data = categories[i].value;
-                    final count = counts[name] ?? 0;
+  Widget _buildBody({
+    required BuildContext context,
+    required FormConfigService service,
+    required bool selectionMode,
+    required FlowType flowType,
+  }) {
+    if (service.isLoading && service.categories.isEmpty) {
+      return const ShimmerCategoryGrid();
+    }
 
-                    return _CategoryCard(
-                      name: name,
-                      data: data,
-                      farmerCount: count,
-                      onTap: () {
-                        if (selectionMode) {
-                          Navigator.pop(context, name);
-                        } else {
-                          Navigator.pushNamed(
-                            context,
-                            '/subcategories',
-                            arguments: {
-                              'category': name,
-                              'flowType': flowType,
-                            },
-                          );
-                        }
-                      },
-                    );
-                  },
-                );
+    if (service.error != null && service.categories.isEmpty) {
+      return _CategoryFeedbackState(
+        icon: Icons.cloud_off_outlined,
+        title: 'Unable to load categories',
+        message: service.error!,
+        actionLabel: 'Retry',
+        onAction: () => service.fetchCategories(forceRefresh: true),
+      );
+    }
+
+    if (service.categories.isEmpty) {
+      return _CategoryFeedbackState(
+        icon: Icons.category_outlined,
+        title: 'No categories available',
+        message: 'Categories will appear here once the backend returns data.',
+        actionLabel: 'Refresh',
+        onAction: () => service.fetchCategories(forceRefresh: true),
+      );
+    }
+
+    return GridView.builder(
+      padding: const EdgeInsets.all(16),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2,
+        mainAxisSpacing: 16,
+        crossAxisSpacing: 16,
+        childAspectRatio: 1.05,
+      ),
+      itemCount: service.categories.length,
+      itemBuilder: (_, index) {
+        final category = service.categories[index];
+        final data = AppCategories.styleFor(category.categoryName);
+
+        return _CategoryCard(
+          category: category,
+          data: data,
+          onTap: () {
+            if (selectionMode) {
+              Navigator.pop(context, category.categoryName);
+              return;
+            }
+
+            Navigator.pushNamed(
+              context,
+              '/subcategories',
+              arguments: <String, dynamic>{
+                'category': category.categoryName,
+                'flowType': flowType,
               },
-            ),
+            );
+          },
+        );
+      },
     );
   }
 }
 
 class _CategoryCard extends StatelessWidget {
-  final String name;
-  final CategoryData data;
-  final int farmerCount;
-  final VoidCallback onTap;
-
   const _CategoryCard({
-    required this.name,
+    required this.category,
     required this.data,
-    required this.farmerCount,
     required this.onTap,
   });
 
+  final CategoryModel category;
+  final CategoryData? data;
+  final VoidCallback onTap;
+
   @override
   Widget build(BuildContext context) {
+    final color = data?.color ?? AppColors.primary;
+    final icon = data?.icon ?? Icons.category;
+
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(20),
@@ -114,16 +137,16 @@ class _CategoryCard extends StatelessWidget {
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(20),
           gradient: LinearGradient(
-            colors: [
-              data.color.withValues(alpha:0.85),
-              data.color,
+            colors: <Color>[
+              color.withValues(alpha: 0.85),
+              color,
             ],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
-          boxShadow: [
+          boxShadow: <BoxShadow>[
             BoxShadow(
-              color: data.color.withValues(alpha:0.3),
+              color: color.withValues(alpha: 0.3),
               blurRadius: 12,
               offset: const Offset(0, 6),
             ),
@@ -133,18 +156,18 @@ class _CategoryCard extends StatelessWidget {
           padding: const EdgeInsets.all(16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
+            children: <Widget>[
               Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha:0.2),
+                  color: Colors.white.withValues(alpha: 0.2),
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: Icon(data.icon, color: Colors.white, size: 28),
+                child: Icon(icon, color: Colors.white, size: 28),
               ),
               const Spacer(),
               Text(
-                name,
+                category.categoryName,
                 style: const TextStyle(
                   color: Colors.white,
                   fontSize: 15,
@@ -153,28 +176,81 @@ class _CategoryCard extends StatelessWidget {
               ),
               const SizedBox(height: 4),
               Row(
-                children: [
-                  const Icon(Icons.people, color: Colors.white70, size: 14),
+                children: <Widget>[
+                  const Icon(Icons.layers_outlined,
+                      color: Colors.white70, size: 14),
                   const SizedBox(width: 4),
                   Text(
-                    '$farmerCount farmers',
+                    '${category.totalLandCount ?? 0} lands',
                     style: const TextStyle(color: Colors.white70, fontSize: 12),
                   ),
                 ],
               ),
               const SizedBox(height: 4),
               Row(
-                children: [
+                children: <Widget>[
                   const Icon(Icons.list, color: Colors.white70, size: 14),
                   const SizedBox(width: 4),
                   Text(
-                    '${data.subcategories.length} subcategories',
+                    '${category.subcategoryCount} subcategories',
                     style: const TextStyle(color: Colors.white70, fontSize: 12),
                   ),
                 ],
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _CategoryFeedbackState extends StatelessWidget {
+  const _CategoryFeedbackState({
+    required this.icon,
+    required this.title,
+    required this.message,
+    required this.actionLabel,
+    required this.onAction,
+  });
+
+  final IconData icon;
+  final String title;
+  final String message;
+  final String actionLabel;
+  final VoidCallback onAction;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            Icon(icon, size: 40, color: AppColors.textMedium),
+            const SizedBox(height: 12),
+            Text(
+              title,
+              style: const TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
+                color: AppColors.dark,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              message,
+              style: const TextStyle(color: AppColors.textMedium),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 16),
+            ElevatedButton(
+              onPressed: onAction,
+              child: Text(actionLabel),
+            ),
+          ],
         ),
       ),
     );
