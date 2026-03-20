@@ -117,8 +117,8 @@ class ApiField {
 
   factory ApiField.fromJson(Map<String, dynamic> json) {
     final data = _normalizeJsonKeys(json);
-    final resolvedFieldType = FieldType.fromApiValue(data['fieldType']);
-    final resolvedFieldStyle = FieldStyle.fromApiValue(data['fieldStyle']);
+    final resolvedFieldType = FieldType.fromApiValue(data['type']);
+    final resolvedFieldStyle = FieldStyle.fromApiValue(data['style']);
     final rawOptions = data['options'] as List<dynamic>? ?? const [];
 
     List<ApiOption> options = const [];
@@ -182,8 +182,8 @@ class ApiField {
       'fieldId': fieldId,
       'label': label,
       'key': key,
-      'fieldType': typeValue,
-      'fieldStyle': styleValue,
+      'type': typeValue,
+      'style': styleValue,
       'required': required,
       'options': isPopupForm
           ? subFields.map((field) => field.toJson()).toList()

@@ -444,9 +444,6 @@ class _FarmerFormScreenState extends State<FarmerFormScreen> {
 
                       // ── Location (hardcoded) ───────────────────────────────
                       const SizedBox(height: 20),
-                      _Section(
-                          title: 'Location', icon: Icons.location_on_outlined),
-                      const SizedBox(height: 12),
                       ..._buildLocationSection(),
 
                       // ── Land Details (conditional) ─────────────────────────
@@ -459,11 +456,7 @@ class _FarmerFormScreenState extends State<FarmerFormScreen> {
                         ..._buildLandSection(),
                       ],
 
-                      // ── Status (hardcoded) ─────────────────────────────────
-                      const SizedBox(height: 24),
-                      _Section(title: 'Status', icon: Icons.toggle_on_outlined),
-                      const SizedBox(height: 12),
-                      _buildStatusSection(),
+
 
                       // ── Submit ─────────────────────────────────────────────
                       const SizedBox(height: 32),
@@ -670,29 +663,7 @@ class _FarmerFormScreenState extends State<FarmerFormScreen> {
     ];
   }
 
-  // ── Status section (hardcoded) ──────────────────────────────────────────
 
-  Widget _buildStatusSection() {
-    return Row(
-      children: ['Active', 'Inactive'].map((s) {
-        final sel = _selectedStatus == s;
-        return Padding(
-          padding: const EdgeInsets.only(right: 12),
-          child: FilterChip(
-            label: Text(s),
-            selected: sel,
-            onSelected: (_) => setState(() => _selectedStatus = s),
-            selectedColor: AppColors.light,
-            checkmarkColor: AppColors.dark,
-            labelStyle: TextStyle(
-              color: sel ? AppColors.dark : AppColors.textMedium,
-              fontWeight: sel ? FontWeight.w600 : FontWeight.normal,
-            ),
-          ),
-        );
-      }).toList(),
-    );
-  }
 }
 
 class _FormLoadErrorState extends StatelessWidget {
