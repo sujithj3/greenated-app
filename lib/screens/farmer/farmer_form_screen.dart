@@ -22,11 +22,7 @@ class FarmerFormScreen extends StatefulWidget {
 class _FarmerFormScreenState extends State<FarmerFormScreen> {
   final _formKey = GlobalKey<FormState>();
 
-  // ── Hardcoded controllers (location + land) ─────────────────────────────
-  final _addressCtrl = TextEditingController();
-  final _villageCtrl = TextEditingController();
-  final _districtCtrl = TextEditingController();
-  final _stateCtrl = TextEditingController();
+  // ── Land area controller ─────────────────────────────────────────────────
   final _landAreaCtrl = TextEditingController();
 
   // ── Dynamic field state ─────────────────────────────────────────────────
@@ -92,10 +88,6 @@ class _FarmerFormScreenState extends State<FarmerFormScreen> {
 
   @override
   void dispose() {
-    _addressCtrl.dispose();
-    _villageCtrl.dispose();
-    _districtCtrl.dispose();
-    _stateCtrl.dispose();
     _landAreaCtrl.dispose();
     for (final c in _dynTextCtrl.values) {
       c.dispose();
@@ -168,11 +160,6 @@ class _FarmerFormScreenState extends State<FarmerFormScreen> {
   }
 
   void _populate(FarmerModel f) {
-    // Location (hardcoded)
-    _addressCtrl.text = f.address;
-    _villageCtrl.text = f.village;
-    _districtCtrl.text = f.district;
-    _stateCtrl.text = f.state;
     _landAreaCtrl.text = f.landArea > 0 ? f.landArea.toString() : '';
 
     setState(() {
@@ -360,16 +347,7 @@ class _FarmerFormScreenState extends State<FarmerFormScreen> {
         Scaffold(
           appBar: AppBar(
             title: Text(
-                _editFarmer != null ? 'Edit Registration' : 'New Registration'),
-            actions: [
-              TextButton.icon(
-                onPressed: (_isLoadingForm || _isSaving) ? null : _save,
-                icon: const Icon(Icons.save, color: Colors.white),
-                label: const Text('Save',
-                    style: TextStyle(
-                        color: Colors.white, fontWeight: FontWeight.w700)),
-              ),
-            ],
+                _editFarmer != null ? 'Edit Registration' : 'New Registration')
           ),
           body: _isLoadingForm
               ? const ShimmerFormSkeleton()
@@ -391,10 +369,6 @@ class _FarmerFormScreenState extends State<FarmerFormScreen> {
 
                           // ── Dynamic fields from API ────────────────────────
                           ..._buildDynamicFields(catColor),
-
-                          // ── Location (hardcoded) ───────────────────────────
-                          const SizedBox(height: 20),
-                          ..._buildLocationSection(),
 
                           // ── Land Details (conditional) ─────────────────────
                           if (geoRequired) ...[
@@ -544,53 +518,7 @@ class _FarmerFormScreenState extends State<FarmerFormScreen> {
     );
   }
 
-  // ── Location section (hardcoded) ────────────────────────────────────────
-
-  List<Widget> _buildLocationSection() {
-    return [
-      TextFormField(
-        controller: _addressCtrl,
-        decoration: const InputDecoration(
-          labelText: 'Full Address *',
-          prefixIcon: Icon(Icons.location_on_outlined),
-        ),
-        maxLines: 2,
-        validator: (v) => v == null || v.trim().isEmpty ? 'Required' : null,
-      ),
-      const SizedBox(height: 12),
-      Row(children: [
-        Expanded(
-          child: TextFormField(
-            controller: _villageCtrl,
-            decoration: const InputDecoration(
-              labelText: 'Village / Town',
-              prefixIcon: Icon(Icons.house_outlined),
-            ),
-          ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: TextFormField(
-            controller: _districtCtrl,
-            decoration: const InputDecoration(
-              labelText: 'District',
-              prefixIcon: Icon(Icons.map_outlined),
-            ),
-          ),
-        ),
-      ]),
-      const SizedBox(height: 12),
-      TextFormField(
-        controller: _stateCtrl,
-        decoration: const InputDecoration(
-          labelText: 'State',
-          prefixIcon: Icon(Icons.flag_outlined),
-        ),
-      ),
-    ];
-  }
-
-  // ── Land section (hardcoded, conditional) ───────────────────────────────
+  // ── Land section (conditional) ─────────────────────────────────────────
 
   List<Widget> _buildLandSection() {
     return [
