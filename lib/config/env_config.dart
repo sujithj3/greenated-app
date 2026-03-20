@@ -10,7 +10,7 @@ class EnvConfig {
       dotenv.env['GOOGLE_MAPS_API_KEY'] ?? '';
 
   static String get apiBaseUrl =>
-      dotenv.env['API_BASE_URL'] ?? 'https://api.greenated.com';
+      dotenv.env['API_BASE_URL'] ?? 'http://preprod-marketplace.hrgreenated.com';
 
   static bool get isDemoMode =>
       (dotenv.env['DEMO_MODE'] ?? 'true').toLowerCase() == 'true';

@@ -1,5 +1,3 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-
 class FarmerModel {
   final String? id;
   final String? name; // Can be null if form doesn't request it
@@ -19,7 +17,7 @@ class FarmerModel {
   final DateTime registrationDate;
   final String? photoUrl;
   final String status;
-  final String? userId; // Replaced registeredBy
+  final int? userId; // Replaced registeredBy
 
   FarmerModel({
     this.id,
@@ -85,11 +83,14 @@ class FarmerModel {
       landCoordinates: coords,
       dynamicFields: dynFields,
       formFields: fFields,
-      registrationDate:
-          (map['registrationDate'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      registrationDate: map['registrationDate'] != null
+          ? DateTime.tryParse(map['registrationDate'].toString()) ?? DateTime.now()
+          : DateTime.now(),
       photoUrl: map['photoUrl'],
       status: map['status'] ?? 'Active',
-      userId: map['userId'],
+      userId: map['userId'] is int
+          ? map['userId'] as int
+          : int.tryParse(map['userId']?.toString() ?? ''),
     );
   }
 
@@ -107,7 +108,7 @@ class FarmerModel {
       'landCoordinates': landCoordinates,
       'dynamicFields': dynamicFields,
       'formFields': formFields,
-      'registrationDate': Timestamp.fromDate(registrationDate),
+      'registrationDate': registrationDate.toIso8601String(),
       'status': status,
       'userId': userId,
     };
@@ -132,7 +133,7 @@ class FarmerModel {
     DateTime? registrationDate,
     String? photoUrl,
     String? status,
-    String? userId,
+    int? userId,
   }) {
     return FarmerModel(
       id: id ?? this.id,

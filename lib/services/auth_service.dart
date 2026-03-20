@@ -1,268 +1,137 @@
-import 'dart:convert';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:uuid/uuid.dart';
-import '../config/env_config.dart';
 
 class AuthService extends ChangeNotifier {
-  late final FirebaseAuth _auth =
-      EnvConfig.isDemoMode ? _DummyAuth() : FirebaseAuth.instance;
   SharedPreferences? _prefs;
 
   static const String _userIdKey = 'app_user_id';
-  static const String _fullNameKey = 'app_user_name';
-  static const String _phoneKey = 'app_user_phone';
+  static const String _nameKey = 'app_user_name';
+  static const String _mobileNumberKey = 'app_user_phone';
+  static const String _createdAtKey = 'app_user_created_at';
+  static const String _lastLoginAtKey = 'app_user_last_login_at';
+  static const String _tokenKey = 'app_auth_token';
+  static const String _refreshTokenKey = 'app_refresh_token';
 
-  String? _verificationId;
-  int? _resendToken;
-  bool _isLoading = false;
-  String? _error;
-
-  // Demo mode state
-  bool _demoLoggedIn = false;
-  String _demoPhone = '';
-
-  User? get currentUser => EnvConfig.isDemoMode ? null : _auth.currentUser;
-
-  /// Retrieves the stored user ID. Falls back to Firebase UID if present,
-  /// otherwise uses the ID stored in SharedPreferences.
-  /// Retrieves the stored user ID. Falls back to Firebase UID if present,
-  /// otherwise uses the ID stored in SharedPreferences.
-  String? get userId {
-    if (!EnvConfig.isDemoMode && _auth.currentUser != null) {
-      return _auth.currentUser!.uid;
+  int? get userId {
+    if (_prefs == null) return null;
+    final value = _prefs!.get(_userIdKey);
+    if (value is int) {
+      return value;
+    } else if (value is String) {
+      return int.tryParse(value);
     }
-    return _prefs?.getString(_userIdKey);
+    return null;
   }
 
-  String? get fullName => _prefs?.getString(_fullNameKey);
+  String? get fullName => _prefs?.getString(_nameKey);
 
-  String get displayPhone {
-    if (EnvConfig.isDemoMode) {
-      return _prefs?.getString(_phoneKey) ?? _demoPhone;
-    }
-    return _auth.currentUser?.phoneNumber ?? _prefs?.getString(_phoneKey) ?? '';
-  }
+  String get displayPhone => _prefs?.getString(_mobileNumberKey) ?? '';
 
-  bool get isLoggedIn =>
-      EnvConfig.isDemoMode ? _demoLoggedIn : _auth.currentUser != null;
+  String? get createdAt => _prefs?.getString(_createdAtKey);
 
-  bool get isLoading => _isLoading;
-  String? get error => _error;
+  String? get lastLoginAt => _prefs?.getString(_lastLoginAtKey);
 
-  Stream<User?> get authStateChanges =>
-      EnvConfig.isDemoMode ? const Stream.empty() : _auth.authStateChanges();
+  String? get accessToken => _prefs?.getString(_tokenKey);
 
-  void _setLoading(bool value) {
-    _isLoading = value;
-    notifyListeners();
-  }
-
-  void _setError(String? msg) {
-    _error = msg;
-    notifyListeners();
-  }
-
-  void clearError() {
-    _error = null;
-    notifyListeners();
-  }
+  bool get isLoggedIn => userId != null;
 
   /// Initialize SharedPreferences. Should be called early in the app lifecycle.
   Future<void> init() async {
     _prefs = await SharedPreferences.getInstance();
   }
 
-  Future<void> _saveUserId({String? id, String? name, String? phone}) async {
+  // ─── API Token SignIn ─────────────────────────────────────────────────────
+
+  /// Ingests user data from the real backend verify-otp endpoint and stores it.
+  ///
+  /// Accepts the `data` map from the API response which contains:
+  /// - userId (int)
+  /// - name (String)
+  /// - mobileNumber (String)
+  /// - createdAt (String, ISO 8601)
+  /// - lastLoginAt (String, ISO 8601)
+  /// - token (String, optional)
+  /// - refreshToken (String, optional)
+  Future<void> signInWithApiTokens(Map<String, dynamic> data) async {
     if (_prefs == null) await init();
-    
-    // Save or generate User ID
-    if (id != null) {
-      await _prefs!.setString(_userIdKey, id);
-    } else if (userId == null) {
-      final String newId = const Uuid().v4();
-      await _prefs!.setString(_userIdKey, newId);
-    }
-    
-    // Save additional user details
-    if (name != null) {
-      await _prefs!.setString(_fullNameKey, name);
-    }
-    if (phone != null) {
-      await _prefs!.setString(_phoneKey, phone);
-    }
-    
-    debugPrint('🔑 [AuthService] User Details Saved: ID=$userId, Name=$fullName, Phone=$displayPhone');
-  }
 
-  // ─── Demo Mode ────────────────────────────────────────────────────────────
+    // Extract and store auth tokens if present
+    final String? token = data['token'] as String?;
+    final String? refreshToken = data['refreshToken'] as String?;
+    if (token != null) await _prefs!.setString(_tokenKey, token);
+    if (refreshToken != null) {
+      await _prefs!.setString(_refreshTokenKey, refreshToken);
+    }
 
-  Future<void> _demoVerify({required VoidCallback onCodeSent}) async {
-    _setLoading(true);
-    await Future.delayed(const Duration(milliseconds: 800));
-    _setLoading(false);
-    onCodeSent();
-  }
+    // Extract user data — the data map may contain user fields directly,
+    // or nested under a 'user' key for backward compatibility.
+    final Map<String, dynamic> userData = data.containsKey('user')
+        ? (data['user'] as Map<String, dynamic>? ?? data)
+        : data;
 
-  Future<bool> _demoSignIn() async {
-    _setLoading(true);
-    await Future.delayed(const Duration(milliseconds: 600));
-    _demoLoggedIn = true;
-    
-    // Simulate parsing the user object from the mock API response
-    await _saveUserId(
-      id: 'demo-user-123',
-      name: 'Demo User',
-      phone: _demoPhone.isEmpty ? '+919876543210' : _demoPhone,
+    final int? userId = userData['userId'] is int
+        ? userData['userId'] as int
+        : int.tryParse(userData['userId']?.toString() ?? '');
+    final String? name = userData['name'] as String?;
+    final String? mobileNumber = userData['mobileNumber'] as String?;
+    final String? createdAt = userData['createdAt'] as String?;
+    final String? lastLoginAt = userData['lastLoginAt'] as String?;
+
+    debugPrint('[AuthService] Parsing API response: '
+        'userId=$userId, name=$name, mobileNumber=$mobileNumber');
+
+    await _saveUserData(
+      userId: userId,
+      name: name,
+      mobileNumber: mobileNumber,
+      createdAt: createdAt,
+      lastLoginAt: lastLoginAt,
     );
-    
-    _logOtpVerificationResponse(success: true);
-    _setLoading(false);
+
     notifyListeners();
-    return true;
   }
 
-  // ─── Phone OTP ────────────────────────────────────────────────────────────
-
-  /// Step 1 – send OTP
-  Future<void> verifyPhoneNumber({
-    required String phoneNumber,
-    required VoidCallback onCodeSent,
-    required Function(String) onError,
-    Function(PhoneAuthCredential)? onAutoVerified,
+  /// Persists user data to SharedPreferences.
+  Future<void> _saveUserData({
+    int? userId,
+    String? name,
+    String? mobileNumber,
+    String? createdAt,
+    String? lastLoginAt,
   }) async {
-    if (EnvConfig.isDemoMode) {
-      _demoPhone = phoneNumber;
-      await _demoVerify(onCodeSent: onCodeSent);
-      return;
+    if (_prefs == null) await init();
+
+    if (userId != null) {
+      await _prefs!.setInt(_userIdKey, userId);
+    }
+    if (name != null) {
+      await _prefs!.setString(_nameKey, name);
+    }
+    if (mobileNumber != null) {
+      await _prefs!.setString(_mobileNumberKey, mobileNumber);
+    }
+    if (createdAt != null) {
+      await _prefs!.setString(_createdAtKey, createdAt);
+    }
+    if (lastLoginAt != null) {
+      await _prefs!.setString(_lastLoginAtKey, lastLoginAt);
     }
 
-    _setLoading(true);
-    _setError(null);
-
-    await _auth.verifyPhoneNumber(
-      phoneNumber: phoneNumber,
-      timeout: const Duration(seconds: 60),
-      forceResendingToken: _resendToken,
-      verificationCompleted: (PhoneAuthCredential credential) async {
-        try {
-          final userCredential = await _auth.signInWithCredential(credential);
-          
-          // Fallback parsing for phone/name from Firebase if needed
-          await _saveUserId(
-            id: userCredential.user?.uid,
-            name: userCredential.user?.displayName,
-            phone: userCredential.user?.phoneNumber ?? phoneNumber,
-          );
-          
-          _logOtpVerificationResponse(success: true);
-          notifyListeners();
-          if (onAutoVerified != null) onAutoVerified(credential);
-        } catch (e) {
-          _setError(e.toString());
-        }
-      },
-      verificationFailed: (FirebaseAuthException e) {
-        _setLoading(false);
-        String msg = e.message ?? 'Verification failed.';
-        if (e.code == 'invalid-phone-number') {
-          msg = 'The phone number format is invalid.';
-        } else if (e.code == 'too-many-requests') {
-          msg = 'Too many attempts. Please try again later.';
-        }
-        _setError(msg);
-        onError(msg);
-      },
-      codeSent: (String verificationId, int? resendToken) {
-        _verificationId = verificationId;
-        _resendToken = resendToken;
-        _setLoading(false);
-        onCodeSent();
-      },
-      codeAutoRetrievalTimeout: (String verificationId) {
-        _verificationId = verificationId;
-      },
-    );
-  }
-
-  /// Step 2 – verify OTP
-  Future<bool> signInWithOTP(String otp) async {
-    if (EnvConfig.isDemoMode) return _demoSignIn();
-
-    if (_verificationId == null) {
-      _setError('Verification session expired. Please retry.');
-      return false;
-    }
-    _setLoading(true);
-    _setError(null);
-    try {
-      final credential = PhoneAuthProvider.credential(
-        verificationId: _verificationId!,
-        smsCode: otp,
-      );
-      final userCredential = await _auth.signInWithCredential(credential);
-      
-      await _saveUserId(
-        id: userCredential.user?.uid,
-        name: userCredential.user?.displayName,
-        phone: userCredential.user?.phoneNumber,
-      );
-      
-      _logOtpVerificationResponse(success: true);
-      _setLoading(false);
-      notifyListeners();
-      return true;
-    } on FirebaseAuthException catch (e) {
-      String msg = 'Invalid OTP. Please try again.';
-      if (e.code == 'session-expired') {
-        msg = 'OTP session expired. Please resend.';
-      }
-      _logOtpVerificationResponse(success: false);
-      _setError(msg);
-      _setLoading(false);
-      return false;
-    }
+    debugPrint('[AuthService] User data saved: '
+        'ID=$userId, Name=$name, Phone=$mobileNumber');
   }
 
   Future<void> signOut() async {
     if (_prefs != null) {
       await _prefs!.remove(_userIdKey);
-      await _prefs!.remove(_fullNameKey);
-      await _prefs!.remove(_phoneKey);
+      await _prefs!.remove(_nameKey);
+      await _prefs!.remove(_mobileNumberKey);
+      await _prefs!.remove(_createdAtKey);
+      await _prefs!.remove(_lastLoginAtKey);
+      await _prefs!.remove(_tokenKey);
+      await _prefs!.remove(_refreshTokenKey);
     }
 
-    if (EnvConfig.isDemoMode) {
-      _demoLoggedIn = false;
-      _demoPhone = '';
-      notifyListeners();
-      return;
-    }
-    await _auth.signOut();
-    _verificationId = null;
-    _resendToken = null;
     notifyListeners();
   }
-
-  void _logOtpVerificationResponse({required bool success}) {
-    final payload = <String, dynamic>{
-      'userId': userId,
-      'fullName': fullName,
-      'phone': displayPhone,
-      'timestamp': DateTime.now().toIso8601String(),
-      'success': success,
-    };
-
-    final pretty = const JsonEncoder.withIndent('  ').convert(payload);
-    debugPrint('=== OTP VERIFICATION RESPONSE ===');
-    debugPrint(pretty);
-    debugPrint('===============================');
-  }
-}
-
-// Stub so FirebaseAuth.instance is never called in demo mode at class init.
-class _DummyAuth implements FirebaseAuth {
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }

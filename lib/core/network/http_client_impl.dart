@@ -61,6 +61,11 @@ class HttpClientImpl implements ApiClient {
         ...processed.headers,
       };
 
+      processed = processed.copyWith(
+        path: uri.toString(),
+        headers: headers,
+      );
+
       // ── 4. Execute the HTTP call ──────────────────────────────────────
       final http.Response httpResponse = await _executeRequest(
         processed.method,
@@ -80,7 +85,7 @@ class HttpClientImpl implements ApiClient {
 
       // ── 7. Run response interceptors ──────────────────────────────────
       for (final ApiInterceptor interceptor in interceptors) {
-        apiResponse = interceptor.onResponse<T>(apiResponse);
+        apiResponse = interceptor.onResponse<T>(apiResponse, processed);
       }
 
       // ── 8. Throw typed exceptions for error status codes ──────────────
@@ -147,12 +152,18 @@ class HttpClientImpl implements ApiClient {
     try {
       final dynamic decoded = jsonDecode(response.body);
       if (decoded is Map<String, dynamic>) {
+        // Unwrap { "response": { ... } } wrapper if present.
+        final Map<String, dynamic> envelope =
+            decoded.containsKey('response') && decoded['response'] is Map
+                ? Map<String, dynamic>.from(decoded['response'] as Map)
+                : decoded;
+
         // Ensure statusCode is always present in the envelope.
         return <String, dynamic>{
-          'statusCode': decoded['statusCode'] ?? response.statusCode,
-          'hasError': decoded['hasError'] ?? (response.statusCode >= 400),
-          'message': decoded['message'] ?? '',
-          'data': decoded['data'],
+          'statusCode': envelope['statusCode'] ?? response.statusCode,
+          'hasError': envelope['hasError'] ?? (response.statusCode >= 400),
+          'message': envelope['message'] ?? '',
+          'data': envelope['data'],
         };
       }
     } on FormatException {

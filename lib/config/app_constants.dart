@@ -19,43 +19,21 @@ class AppCategories {
     'Agroforestry': CategoryData(
       icon: Icons.park,
       color: Color(0xFF2E7D32),
-      subcategories: [
-        'Silvopasture',
-        'Alley Cropping',
-        'Forest Farming',
-        'Riparian Buffers',
-        'Windbreaks & Shelterbelts',
-        'Multi-strata Systems',
-        'Homegardens',
-        'Taungya System',
-      ],
+      subcategories: [],
     ),
     'Soil Carbon': CategoryData(
       icon: Icons.terrain,
       color: Color(0xFF5D4037),
-      subcategories: [
-        'Cover Cropping',
-        'No-till / Reduced Tillage',
-        'Rotational Grazing',
-        'Compost Application',
-        'Biosolids Application',
-        'Wetland Restoration',
-        'Grassland Management',
-      ],
+      subcategories: [],
     ),
     'Biochar': CategoryData(
       icon: Icons.whatshot,
       color: Color(0xFF37474F),
-      subcategories: [
-        'Wood Biochar',
-        'Crop Residue Biochar',
-        'Bamboo Biochar',
-        'Municipal Waste Biochar',
-        'Co-composting with Biochar',
-        'Livestock Manure Biochar',
-      ],
+      subcategories: [],
     ),
   };
+
+  static CategoryData? styleFor(String category) => all[category];
 
   static List<String> getSubcategories(String category) {
     return all[category]?.subcategories ?? [];

@@ -15,7 +15,7 @@ class ApiException implements Exception {
   final ApiStatusCode statusCode;
 
   @override
-  String toString() => 'ApiException($message, statusCode=${statusCode.code})';
+  String toString() => message;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -29,8 +29,6 @@ class NetworkException extends ApiException {
     super.message = 'No internet connection. Please check your network.',
   ]);
 
-  @override
-  String toString() => 'NetworkException($message)';
 }
 
 /// Thrown when a request exceeds the configured timeout duration.
@@ -39,8 +37,6 @@ class RequestTimeoutException extends ApiException {
     super.message = 'Request timed out. Please try again.',
   ]) : super(statusCode: ApiStatusCode.gatewayTimeout);
 
-  @override
-  String toString() => 'RequestTimeoutException($message)';
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -53,8 +49,6 @@ class BadRequestException extends ApiException {
     super.message = 'Invalid request. Please check your input.',
   ]) : super(statusCode: ApiStatusCode.badRequest);
 
-  @override
-  String toString() => 'BadRequestException($message)';
 }
 
 /// 401 – The user's session has expired or credentials are invalid.
@@ -63,8 +57,6 @@ class UnauthorizedException extends ApiException {
     super.message = 'Session expired. Please log in again.',
   ]) : super(statusCode: ApiStatusCode.unauthorized);
 
-  @override
-  String toString() => 'UnauthorizedException($message)';
 }
 
 /// 403 – The authenticated user lacks permission for this operation.
@@ -73,8 +65,6 @@ class ForbiddenException extends ApiException {
     super.message = 'You do not have permission to perform this action.',
   ]) : super(statusCode: ApiStatusCode.forbidden);
 
-  @override
-  String toString() => 'ForbiddenException($message)';
 }
 
 /// 404 – The requested resource could not be found.
@@ -83,8 +73,6 @@ class NotFoundException extends ApiException {
     super.message = 'The requested resource was not found.',
   ]) : super(statusCode: ApiStatusCode.notFound);
 
-  @override
-  String toString() => 'NotFoundException($message)';
 }
 
 /// 422 – The server understood the request but could not process
@@ -99,7 +87,7 @@ class ValidationException extends ApiException {
   final Map<String, List<String>> errors;
 
   @override
-  String toString() => 'ValidationException($message, errors=$errors)';
+  String toString() => errors.isEmpty ? message : '$message\\n$errors';
 }
 
 /// 429 – Too many requests in a given amount of time.
@@ -108,8 +96,6 @@ class RateLimitException extends ApiException {
     super.message = 'Too many requests. Please wait and try again.',
   ]) : super(statusCode: ApiStatusCode.tooManyRequests);
 
-  @override
-  String toString() => 'RateLimitException($message)';
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -122,6 +108,4 @@ class ServerException extends ApiException {
     super.message = 'Something went wrong. Please try again later.',
   ]) : super(statusCode: ApiStatusCode.internalServerError);
 
-  @override
-  String toString() => 'ServerException($message)';
 }
