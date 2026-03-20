@@ -308,7 +308,7 @@ class _FarmerFormScreenState extends State<FarmerFormScreen> {
         'subcategoryId': _selectedSubcategoryId ?? 0,
         'registrationDate': farmer.registrationDate.toIso8601String(),
         'status': _selectedStatus,
-        'userId': auth.userId ?? '',
+        'userId': auth.userId,
         // 'geoLocation': <String, dynamic>{
         //   'areaInput': _landAreaCtrl.text.trim(),
         //   'areaParsed': double.tryParse(_landAreaCtrl.text) ?? 0,

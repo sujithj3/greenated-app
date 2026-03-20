@@ -1,8 +1,5 @@
 import '../models/farmer/farmer_model.dart';
 
-/// Set to false once Firebase is configured (flutterfire configure).
-const bool kDemoMode = true;
-
 final List<FarmerModel> demoFarmers = [
   FarmerModel(
     id: 'demo-01',

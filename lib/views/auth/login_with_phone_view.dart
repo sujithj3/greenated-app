@@ -85,62 +85,57 @@ class _LoginWithPhoneViewState extends State<LoginWithPhoneView> {
           ),
           SizedBox(height: (28 * scale).clamp(20.0, 34.0)),
 
-          // Phone row
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Country code picker
-              Container(
-                padding: EdgeInsets.symmetric(
-                  horizontal: 8 * scale,
-                  vertical: 14,
-                ),
-                decoration: BoxDecoration(
-                  color: AppColors.veryLight,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: AppColors.light),
-                ),
-                child: DropdownButtonHideUnderline(
-                  child: DropdownButton<String>(
-                    value: _vm.selectedCountryCode,
-                    isDense: true,
+          IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // Country code picker
+                Container(
+                  alignment: Alignment.center,
+                  padding: EdgeInsets.symmetric(
+                    horizontal: 12 * scale,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AppColors.veryLight,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: AppColors.light),
+                  ),
+                  child: Text(
+                    _vm.selectedCountryCode,
                     style: TextStyle(
                       fontSize: (14 * scale).clamp(12.0, 16.0),
                       color: AppColors.dark,
+                      fontWeight: FontWeight.w600,
                     ),
-                    items: _vm.countryCodes
-                        .map((c) => DropdownMenuItem(value: c, child: Text(c)))
-                        .toList(),
-                    onChanged: (v) => _vm.setCountryCode(v!),
                   ),
                 ),
-              ),
-              SizedBox(width: 8 * scale),
-              Expanded(
-                child: TextFormField(
-                  controller: _phoneCtrl,
-                  keyboardType: TextInputType.phone,
-                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                  maxLength: 10,
-                  style: TextStyle(
-                    fontSize: (15 * scale).clamp(13.0, 17.0),
-                  ),
-                  decoration: InputDecoration(
-                    labelText: 'Mobile Number',
-                    hintText: 'Enter mobile number',
-                    hintStyle: TextStyle(
-                      fontSize: (13 * scale).clamp(11.0, 15.0),
-                      color: AppColors.textMedium.withValues(alpha: 0.5),
+                SizedBox(width: 8 * scale),
+                Expanded(
+                  child: TextFormField(
+                    controller: _phoneCtrl,
+                    keyboardType: TextInputType.phone,
+                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                    maxLength: 10,
+                    style: TextStyle(
+                      fontSize: (15 * scale).clamp(13.0, 17.0),
                     ),
-                    prefixIcon: Icon(
-                      Icons.phone,
-                      size: (20 * scale).clamp(18.0, 24.0),
+                    decoration: InputDecoration(
+                      labelText: 'Mobile Number',
+                      hintText: 'Enter mobile number',
+                      hintStyle: TextStyle(
+                        fontSize: (13 * scale).clamp(11.0, 15.0),
+                        color: AppColors.textMedium.withValues(alpha: 0.5),
+                      ),
+                      prefixIcon: Icon(
+                        Icons.phone,
+                        size: (20 * scale).clamp(18.0, 24.0),
+                      ),
+                      counterText: '',
                     ),
-                    counterText: '',
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
 
           SizedBox(height: (28 * scale).clamp(20.0, 34.0)),

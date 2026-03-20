@@ -60,6 +60,10 @@ class MockHttpClient implements ApiClient {
     // For paths with dynamic segments, strip the ID and match a pattern.
     final String key = request.routeKey;
 
+    // ── Auth / OTP ──
+    if (key == 'POST login/request-otp') return _mockRequestOtp(request);
+    if (key == 'POST login/verify-otp') return _mockVerifyOtp(request);
+
     // ── Categories ──
     if (key == 'GET /categories') return _mockGetCategories();
 
@@ -157,6 +161,30 @@ class MockHttpClient implements ApiClient {
       }
     }
     return _error(ApiStatusCode.notFound, 'Subcategory not found.');
+  }
+
+  // ── Auth / OTP ────────────────────────────────────────────────────────
+
+  Map<String, dynamic> _mockRequestOtp(ApiRequest request) {
+    return _success(
+      message: 'OTP sent successfully.',
+      data: <String, dynamic>{
+        'verificationId': 'mock-verification-id-12345',
+      },
+    );
+  }
+
+  Map<String, dynamic> _mockVerifyOtp(ApiRequest request) {
+    return _success(
+      message: 'OTP verified successfully',
+      data: <String, dynamic>{
+        'userId': 2,
+        'name': 'admin',
+        'mobileNumber': '9061108698',
+        'createdAt': '2026-02-10T10:00:34.565767',
+        'lastLoginAt': DateTime.now().toIso8601String(),
+      },
+    );
   }
 
   // ── Farmers ─────────────────────────────────────────────────────────────

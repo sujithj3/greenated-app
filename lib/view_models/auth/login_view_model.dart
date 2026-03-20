@@ -72,7 +72,6 @@ class LoginViewModel extends ChangeNotifier {
     } catch (e) {
       _error = e.toString();
     } finally {
-      // Bypassing Firebase auth for this test as per user request
       _isLoading = false;
       notifyListeners();
     }
