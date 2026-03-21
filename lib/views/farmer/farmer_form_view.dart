@@ -128,6 +128,21 @@ class _FarmerFormViewState extends State<FarmerFormView> {
     }
   }
 
+  // ── Dynamic Map Polygon ───────────────────────────────────────────────────
+
+  Future<void> _openMapForDynamicField(DynamicFieldModel df) async {
+    final result = await Navigator.pushNamed(context, '/land-measurement')
+        as Map<String, dynamic>?;
+    if (result != null && mounted) {
+      final rawCoords = result['coordinates'] as List<dynamic>? ?? [];
+      final coords = rawCoords.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+      _vm.updateDynamicFieldValue(df.field.key, coords);
+      if (mounted) {
+        context.showSnack('Polygon saved (${coords.length} points)', success: true);
+      }
+    }
+  }
+
   // ── Camera capture + upload (dynamic field driven) ─────────────────────
 
   Future<void> _captureAndUpload(String fieldKey) async {
@@ -408,6 +423,9 @@ class _FarmerFormViewState extends State<FarmerFormView> {
       isUploading: isCameraField ? _vm.isFieldUploading(f.key) : false,
       onCapturePhoto: isCameraField ? () => _captureAndUpload(f.key) : null,
       onClearPhoto: isCameraField ? () => _vm.clearCameraImage(f.key) : null,
+      onMapPolygonPressed: f.fieldStyle == FieldStyle.mapPolygon
+          ? () => _openMapForDynamicField(df)
+          : null,
     );
   }
 
@@ -692,7 +710,20 @@ class _PopupFormSheetState extends State<_PopupFormSheet> {
           f.isPopupForm ? () => _openNestedPopupForm(df, color) : null,
       popupFormFilledCount: popupFormFilled,
       popupFormTotalCount: popupFormTotal,
+      onMapPolygonPressed: f.fieldStyle == FieldStyle.mapPolygon
+          ? () => _openMapForNestedDynamicField(df)
+          : null,
     );
+  }
+
+  Future<void> _openMapForNestedDynamicField(DynamicFieldModel df) async {
+    final result = await Navigator.pushNamed(context, '/land-measurement')
+        as Map<String, dynamic>?;
+    if (result != null && mounted) {
+      final rawCoords = result['coordinates'] as List<dynamic>? ?? [];
+      final coords = rawCoords.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+      setState(() => df.value = coords);
+    }
   }
 
   void _openNestedPopupForm(DynamicFieldModel df, Color color) {

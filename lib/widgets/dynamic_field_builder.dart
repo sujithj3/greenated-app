@@ -21,6 +21,7 @@ class DynamicFieldBuilder extends StatelessWidget {
     this.isUploading = false,
     this.onCapturePhoto,
     this.onClearPhoto,
+    this.onMapPolygonPressed,
   });
 
   final ApiField field;
@@ -41,6 +42,9 @@ class DynamicFieldBuilder extends StatelessWidget {
 
   /// Callback to clear/remove a captured image for a camera field.
   final VoidCallback? onClearPhoto;
+
+  /// Callback to open the map for a map polygon field.
+  final VoidCallback? onMapPolygonPressed;
 
   Color get _accent => accentColor ?? AppColors.primary;
 
@@ -66,6 +70,8 @@ class DynamicFieldBuilder extends StatelessWidget {
         return _buildAttachmentField(context);
       case FieldStyle.popupForm:
         return _buildPopupFormField();
+      case FieldStyle.mapPolygon:
+        return _buildMapPolygonField(context);
       case FieldStyle.unknown:
         return const SizedBox.shrink();
     }
@@ -661,6 +667,62 @@ class DynamicFieldBuilder extends StatelessWidget {
           width: filled > 0 ? 1.5 : 1,
         ),
       ),
+    );
+  }
+
+  // ── Map Polygon Field ──────────────────────────────────────────────────────
+
+  Widget _buildMapPolygonField(BuildContext context) {
+    final hasData = value != null && (value as List).isNotEmpty;
+    final int ptsCount = hasData ? (value as List).length : 0;
+
+    return FormField<dynamic>(
+      key: ValueKey('mappolygon_${field.key}'),
+      initialValue: value,
+      validator: (v) {
+        if (field.required && (v == null || (v as List).isEmpty)) {
+          return '${field.label} is required';
+        }
+        return null;
+      },
+      builder: (state) {
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            OutlinedButton.icon(
+              onPressed: onMapPolygonPressed,
+              icon: const Icon(Icons.map),
+              label: Text(hasData
+                  ? '${field.label} ($ptsCount pts)'
+                  : field.label),
+              style: OutlinedButton.styleFrom(
+                minimumSize: const Size(double.infinity, 48),
+                side: BorderSide(
+                  color: state.hasError
+                      ? AppColors.error
+                      : hasData
+                          ? _accent
+                          : AppColors.light,
+                  width: hasData ? 1.5 : 1,
+                ),
+              ),
+            ),
+            if (state.hasError) ...[
+              const SizedBox(height: 6),
+              Padding(
+                padding: const EdgeInsets.only(left: 12),
+                child: Text(
+                  state.errorText!,
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.error,
+                    fontSize: 12,
+                  ),
+                ),
+              ),
+            ],
+          ],
+        );
+      },
     );
   }
 }

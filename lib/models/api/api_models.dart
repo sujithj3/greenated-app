@@ -43,6 +43,7 @@ enum FieldStyle {
   file,
   cameraFile,
   popupForm,
+  mapPolygon,
   unknown;
 
   static FieldStyle fromApiValue(Object? rawValue) {
@@ -59,6 +60,7 @@ enum FieldStyle {
       'CAMERA_FILE' => FieldStyle.cameraFile,
       'POPUP_FORM' => FieldStyle.popupForm,
       'BUTTON' => FieldStyle.popupForm,
+      'MAP_POLYGON' => FieldStyle.mapPolygon,
       _ => FieldStyle.unknown,
     };
   }
@@ -175,6 +177,7 @@ class ApiField {
       FieldStyle.file => 'FILE',
       FieldStyle.cameraFile => 'CAMERA_FILE',
       FieldStyle.popupForm => 'POPUP_FORM',
+      FieldStyle.mapPolygon => 'MAP_POLYGON',
       FieldStyle.unknown => 'UNKNOWN',
     };
 
