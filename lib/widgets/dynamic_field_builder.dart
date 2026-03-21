@@ -375,41 +375,73 @@ class DynamicFieldBuilder extends StatelessWidget {
           children: [
             if (imageUrl != null) ...[
               // ── Image preview from URL ──
-              ClipRRect(
-                borderRadius: BorderRadius.circular(12),
-                child: CachedNetworkImage(
-                  imageUrl: imageUrl,
-                  height: 200,
-                  width: double.infinity,
-                  fit: BoxFit.cover,
-                  placeholder: (_, __) => Container(
+              GestureDetector(
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => Scaffold(
+                        backgroundColor: Colors.black,
+                        appBar: AppBar(
+                          backgroundColor: Colors.black,
+                          foregroundColor: Colors.white,
+                        ),
+                        body: Center(
+                          child: InteractiveViewer(
+                            child: CachedNetworkImage(
+                              imageUrl: imageUrl,
+                              fit: BoxFit.contain,
+                              width: double.infinity,
+                              height: double.infinity,
+                              placeholder: (_, __) => const Center(
+                                child: CircularProgressIndicator(color: Colors.white),
+                              ),
+                              errorWidget: (_, __, ___) => const Center(
+                                child: Icon(Icons.broken_image_outlined, color: Colors.grey, size: 50),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+                },
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: CachedNetworkImage(
+                    imageUrl: imageUrl,
                     height: 200,
-                    decoration: BoxDecoration(
-                      color: AppColors.veryLight,
-                      borderRadius: BorderRadius.circular(12),
+                    width: double.infinity,
+                    fit: BoxFit.cover,
+                    placeholder: (_, __) => Container(
+                      height: 200,
+                      decoration: BoxDecoration(
+                        color: AppColors.veryLight,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Center(
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
                     ),
-                    child: const Center(
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    ),
-                  ),
-                  errorWidget: (_, __, ___) => Container(
-                    height: 200,
-                    decoration: BoxDecoration(
-                      color: AppColors.veryLight,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: AppColors.error.withValues(alpha: 0.4)),
-                    ),
-                    child: const Center(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(Icons.broken_image_outlined,
-                              size: 36, color: AppColors.textMedium),
-                          SizedBox(height: 8),
-                          Text('Failed to load image',
-                              style: TextStyle(
-                                  color: AppColors.textMedium, fontSize: 12)),
-                        ],
+                    errorWidget: (_, __, ___) => Container(
+                      height: 200,
+                      decoration: BoxDecoration(
+                        color: AppColors.veryLight,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: AppColors.error.withValues(alpha: 0.4)),
+                      ),
+                      child: const Center(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.broken_image_outlined,
+                                size: 36, color: AppColors.textMedium),
+                            SizedBox(height: 8),
+                            Text('Failed to load image',
+                                style: TextStyle(
+                                    color: AppColors.textMedium, fontSize: 12)),
+                          ],
+                        ),
                       ),
                     ),
                   ),
