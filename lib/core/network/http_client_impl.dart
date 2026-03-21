@@ -212,6 +212,88 @@ class HttpClientImpl implements ApiClient {
     }
   }
 
+  @override
+  Future<ApiResponse<T>> uploadFile<T>(
+    String path, {
+    required String filePath,
+    String fileKey = 'file',
+    Map<String, String> fields = const {},
+    T? Function(Object? rawData)? decoder,
+  }) async {
+    // Build a synthetic ApiRequest for interceptors (auth token injection).
+    // Body is populated for logging purposes only — not sent as JSON.
+    ApiRequest synthetic = ApiRequest(
+      method: ApiMethod.post,
+      path: path,
+      body: <String, dynamic>{
+        'fileKey': fileKey,
+        'filePath': filePath,
+        if (fields.isNotEmpty) 'fields': fields,
+      },
+    );
+    for (final ApiInterceptor interceptor in interceptors) {
+      synthetic = interceptor.onRequest(synthetic);
+    }
+
+    try {
+      final Uri uri = Uri.parse(
+        '${ApiConfig.versionedBaseUrl}$path',
+      );
+
+      // Update synthetic with the full URL so logging interceptors show it.
+      synthetic = synthetic.copyWith(path: uri.toString());
+
+      final request = http.MultipartRequest('POST', uri);
+
+      // Merge default + interceptor headers (skip content-type, set by multipart).
+      final Map<String, String> headers = <String, String>{
+        ...ApiConfig.defaultHeaders,
+        ...synthetic.headers,
+      };
+      headers.remove('Content-Type');
+      request.headers.addAll(headers);
+
+      // Attach file.
+      request.files.add(
+        await http.MultipartFile.fromPath(fileKey, filePath),
+      );
+
+      // Attach extra fields.
+      request.fields.addAll(fields);
+
+      final streamedResponse =
+          await request.send().timeout(ApiConfig.receiveTimeout);
+      final response = await http.Response.fromStream(streamedResponse);
+
+      final Map<String, dynamic> json = _decodeResponseBody(response);
+
+      ApiResponse<T> apiResponse = ApiResponse<T>.fromJson(
+        json,
+        dataParser: decoder,
+      );
+
+      for (final ApiInterceptor interceptor in interceptors) {
+        apiResponse = interceptor.onResponse<T>(apiResponse, synthetic);
+      }
+
+      _throwIfError(apiResponse);
+
+      return apiResponse;
+    } on ApiException {
+      rethrow;
+    } on SocketException {
+      _notifyErrorInterceptors(const NetworkException(), synthetic);
+      throw const NetworkException();
+    } on TimeoutException {
+      _notifyErrorInterceptors(const RequestTimeoutException(), synthetic);
+      throw const RequestTimeoutException();
+    } catch (e) {
+      final exception = ApiException('Upload failed: $e');
+      _notifyErrorInterceptors(exception, synthetic);
+      throw exception;
+    }
+  }
+
   void _notifyErrorInterceptors(Object error, ApiRequest request) {
     for (final ApiInterceptor interceptor in interceptors) {
       interceptor.onError(error, request);

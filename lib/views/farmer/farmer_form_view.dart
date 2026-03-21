@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -6,6 +5,7 @@ import '../../config/app_constants.dart';
 import '../../models/api/api_models.dart';
 import '../../services/auth_service.dart';
 import '../../services/form_config_service.dart';
+import '../../services/image_upload_service.dart';
 import '../../services/registration_form_service.dart';
 import '../../utils/app_colors.dart';
 import '../../utils/snack_bar_helper.dart';
@@ -37,6 +37,7 @@ class _FarmerFormViewState extends State<FarmerFormView> {
       context.read<FormConfigService>(),
       context.read<RegistrationFormService>(),
       context.read<AuthService>(),
+      context.read<ImageUploadService>(),
     );
   }
 
@@ -127,47 +128,21 @@ class _FarmerFormViewState extends State<FarmerFormView> {
     }
   }
 
-  // ── Camera ────────────────────────────────────────────────────────────────
+  // ── Camera capture + upload (dynamic field driven) ─────────────────────
 
-  Future<void> _openCamera() async {
-    final result = await Navigator.pushNamed(context, '/camera-capture') as String?;
-    if (result != null && mounted) {
-      _vm.capturedImagePath = result;
-      setState(() {});
+  Future<void> _captureAndUpload(String fieldKey) async {
+    final localPath =
+        await Navigator.pushNamed(context, '/camera-capture') as String?;
+    if (localPath == null || !mounted) return;
+
+    final url = await _vm.uploadCameraImage(fieldKey, localPath);
+    if (!mounted) return;
+
+    if (url != null) {
+      context.showSnack('Photo uploaded successfully', success: true);
+    } else {
+      context.showSnack('Photo upload failed. Please try again.');
     }
-  }
-
-  void _clearPhoto() {
-    _vm.capturedImagePath = null;
-    setState(() {});
-  }
-
-  void _openFullScreenImage() {
-    if (_vm.capturedImagePath == null) return;
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => Scaffold(
-          backgroundColor: Colors.black,
-          appBar: AppBar(
-            backgroundColor: Colors.black,
-            foregroundColor: Colors.white,
-            elevation: 0,
-            actions: [
-              IconButton(
-                icon: const Icon(Icons.close),
-                onPressed: () => Navigator.pop(context),
-              ),
-            ],
-          ),
-          body: Center(
-            child: InteractiveViewer(
-              child: Image.file(File(_vm.capturedImagePath!)),
-            ),
-          ),
-        ),
-      ),
-    );
   }
 
   // ── Popup form sheet ──────────────────────────────────────────────────────
@@ -271,6 +246,10 @@ class _FarmerFormViewState extends State<FarmerFormView> {
         final catData = AppCategories.styleFor(_vm.selectedCategory);
         final catColor = catData?.color ?? AppColors.primary;
 
+        final isBlocked = _vm.isSaving ||
+            _vm.dynamicFields.any(
+                (df) => _vm.isFieldUploading(df.field.key));
+
         return Stack(
           children: [
             Scaffold(
@@ -304,18 +283,11 @@ class _FarmerFormViewState extends State<FarmerFormView> {
                                 const SizedBox(height: 12),
                                 ..._buildLandSection(),
                               ],
-                              const SizedBox(height: 24),
-                              const _Section(
-                                title: 'Photo Verification',
-                                icon: Icons.camera_alt_outlined,
-                              ),
-                              const SizedBox(height: 12),
-                              _buildPhotoSection(),
                               const SizedBox(height: 32),
                               SizedBox(
                                 width: double.infinity,
                                 child: ElevatedButton.icon(
-                                  onPressed: _vm.isSaving ? null : _save,
+                                  onPressed: isBlocked ? null : _save,
                                   icon: const Icon(Icons.how_to_reg),
                                   label: Text(_vm.editFarmer != null
                                       ? 'Update Registration'
@@ -327,7 +299,7 @@ class _FarmerFormViewState extends State<FarmerFormView> {
                           ),
                         ),
             ),
-            if (_vm.isSaving)
+            if (isBlocked)
               AbsorbPointer(
                 absorbing: true,
                 child: Container(
@@ -419,6 +391,9 @@ class _FarmerFormViewState extends State<FarmerFormView> {
           subFieldsList.where((e) => e.value != null && e.value != '').length;
     }
 
+    final isCameraField =
+        f.fieldStyle == FieldStyle.camera || f.fieldStyle == FieldStyle.cameraFile;
+
     return DynamicFieldBuilder(
       field: f,
       value: df.value,
@@ -429,6 +404,10 @@ class _FarmerFormViewState extends State<FarmerFormView> {
           f.isPopupForm ? () => _openPopupFormSheet(df, catColor) : null,
       popupFormFilledCount: popupFormFilled,
       popupFormTotalCount: popupFormTotal,
+      // Camera field wiring
+      isUploading: isCameraField ? _vm.isFieldUploading(f.key) : false,
+      onCapturePhoto: isCameraField ? () => _captureAndUpload(f.key) : null,
+      onClearPhoto: isCameraField ? () => _vm.clearCameraImage(f.key) : null,
     );
   }
 
@@ -481,59 +460,6 @@ class _FarmerFormViewState extends State<FarmerFormView> {
         ],
       ),
     ];
-  }
-
-  Widget _buildPhotoSection() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        if (_vm.capturedImagePath != null) ...[
-          GestureDetector(
-            onTap: _openFullScreenImage,
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(8),
-              child: Image.file(
-                File(_vm.capturedImagePath!),
-                height: 200,
-                width: double.infinity,
-                fit: BoxFit.cover,
-              ),
-            ),
-          ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: _openCamera,
-                  icon: const Icon(Icons.refresh),
-                  label: const Text('Retake'),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: _clearPhoto,
-                  icon: const Icon(Icons.delete_outline, color: AppColors.error),
-                  label: const Text('Delete', style: TextStyle(color: AppColors.error)),
-                  style: OutlinedButton.styleFrom(
-                    side: const BorderSide(color: AppColors.error),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ] else
-          OutlinedButton.icon(
-            onPressed: _openCamera,
-            icon: const Icon(Icons.camera_alt),
-            label: const Text('Capture Photo'),
-            style: OutlinedButton.styleFrom(
-              minimumSize: const Size(double.infinity, 48),
-            ),
-          ),
-      ],
-    );
   }
 }
 

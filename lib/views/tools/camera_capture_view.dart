@@ -51,7 +51,7 @@ class _CameraCaptureViewState extends State<CameraCaptureView> {
           ),
           body: _buildBody(),
           floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
-          floatingActionButton: _vm.isInitialized
+          floatingActionButton: _vm.isInitialized && !_vm.isFetchingLocation
               ? FloatingActionButton(
                   onPressed: _vm.captureImage,
                   backgroundColor: AppColors.primary,
@@ -84,6 +84,23 @@ class _CameraCaptureViewState extends State<CameraCaptureView> {
       children: [
         // Camera Preview
         CameraPreview(_vm.cameraController!),
+        if (_vm.isFetchingLocation)
+          Container(
+            color: Colors.black.withValues(alpha: 0.5),
+            child: const Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  CircularProgressIndicator(color: AppColors.primary),
+                  SizedBox(height: 16),
+                  Text(
+                    'Fetching precise location...',
+                    style: TextStyle(color: Colors.white, fontSize: 16),
+                  ),
+                ],
+              ),
+            ),
+          ),
       ],
     );
   }

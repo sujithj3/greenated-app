@@ -40,6 +40,26 @@ class MockHttpClient implements ApiClient {
     return response;
   }
 
+  @override
+  Future<ApiResponse<T>> uploadFile<T>(
+    String path, {
+    required String filePath,
+    String fileKey = 'file',
+    Map<String, String> fields = const {},
+    T? Function(Object? rawData)? decoder,
+  }) async {
+    await Future<void>.delayed(latency);
+
+    final json = _success(
+      message: 'File uploaded successfully.',
+      data: <String, dynamic>{
+        'url': 'https://mock.example.com/uploads/mock-image.jpg',
+      },
+    );
+
+    return ApiResponse<T>.fromJson(json, dataParser: decoder);
+  }
+
   Map<String, dynamic> _route(ApiRequest request) {
     final key = request.routeKey;
 

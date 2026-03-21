@@ -14,6 +14,7 @@ import 'repositories/category_repository.dart';
 import 'services/auth_service.dart';
 import 'services/category_api_service.dart';
 import 'services/form_config_service.dart';
+import 'services/image_upload_service.dart';
 import 'services/registration_form_service.dart';
 import 'utils/app_colors.dart';
 import 'views/auth/splash_view.dart';
@@ -68,6 +69,11 @@ class FarmerRegistrationApp extends StatelessWidget {
         ),
         Provider<RegistrationFormService>(
           create: (context) => RegistrationFormService(
+            apiClient: context.read<ApiClient>(),
+          ),
+        ),
+        Provider<ImageUploadService>(
+          create: (context) => ImageUploadService(
             apiClient: context.read<ApiClient>(),
           ),
         ),

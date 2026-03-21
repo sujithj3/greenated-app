@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../models/api/api_models.dart';
@@ -17,6 +18,9 @@ class DynamicFieldBuilder extends StatelessWidget {
     this.onPopupFormPressed,
     this.popupFormFilledCount,
     this.popupFormTotalCount,
+    this.isUploading = false,
+    this.onCapturePhoto,
+    this.onClearPhoto,
   });
 
   final ApiField field;
@@ -28,6 +32,15 @@ class DynamicFieldBuilder extends StatelessWidget {
   final VoidCallback? onPopupFormPressed;
   final int? popupFormFilledCount;
   final int? popupFormTotalCount;
+
+  /// Whether the camera field is currently uploading an image.
+  final bool isUploading;
+
+  /// Callback to open the camera and capture a photo for a camera field.
+  final VoidCallback? onCapturePhoto;
+
+  /// Callback to clear/remove a captured image for a camera field.
+  final VoidCallback? onClearPhoto;
 
   Color get _accent => accentColor ?? AppColors.primary;
 
@@ -47,8 +60,9 @@ class DynamicFieldBuilder extends StatelessWidget {
       case FieldStyle.date:
         return _buildDateField(context);
       case FieldStyle.camera:
-      case FieldStyle.file:
       case FieldStyle.cameraFile:
+        return _buildCameraField(context);
+      case FieldStyle.file:
         return _buildAttachmentField(context);
       case FieldStyle.popupForm:
         return _buildPopupFormField();
@@ -335,6 +349,144 @@ class DynamicFieldBuilder extends StatelessWidget {
           return '${field.label} is required';
         }
         return null;
+      },
+    );
+  }
+
+  // ── Camera Field (dynamic, with network image preview) ─────────────────────
+
+  Widget _buildCameraField(BuildContext context) {
+    final imageUrl = value is String && (value as String).isNotEmpty
+        ? value as String
+        : null;
+
+    return FormField<dynamic>(
+      key: ValueKey('camera_${field.key}'),
+      initialValue: value,
+      validator: (v) {
+        if (field.required && (v == null || (v is String && v.isEmpty))) {
+          return '${field.label} is required';
+        }
+        return null;
+      },
+      builder: (state) {
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (imageUrl != null) ...[
+              // ── Image preview from URL ──
+              ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: CachedNetworkImage(
+                  imageUrl: imageUrl,
+                  height: 200,
+                  width: double.infinity,
+                  fit: BoxFit.cover,
+                  placeholder: (_, __) => Container(
+                    height: 200,
+                    decoration: BoxDecoration(
+                      color: AppColors.veryLight,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Center(
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
+                  ),
+                  errorWidget: (_, __, ___) => Container(
+                    height: 200,
+                    decoration: BoxDecoration(
+                      color: AppColors.veryLight,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: AppColors.error.withValues(alpha: 0.4)),
+                    ),
+                    child: const Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.broken_image_outlined,
+                              size: 36, color: AppColors.textMedium),
+                          SizedBox(height: 8),
+                          Text('Failed to load image',
+                              style: TextStyle(
+                                  color: AppColors.textMedium, fontSize: 12)),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              // ── Retake / Delete buttons ──
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: isUploading ? null : onCapturePhoto,
+                      icon: const Icon(Icons.refresh, size: 18),
+                      label: const Text('Retake'),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: isUploading
+                          ? null
+                          : () {
+                              state.didChange(null);
+                              onClearPhoto?.call();
+                            },
+                      icon: const Icon(Icons.delete_outline,
+                          size: 18, color: AppColors.error),
+                      label: const Text('Remove',
+                          style: TextStyle(color: AppColors.error)),
+                      style: OutlinedButton.styleFrom(
+                        side: const BorderSide(color: AppColors.error),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ] else ...[
+              // ── Capture button ──
+              OutlinedButton.icon(
+                onPressed: isUploading ? null : onCapturePhoto,
+                icon: isUploading
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : Icon(Icons.photo_camera_outlined, color: _accent),
+                label: Text(
+                  isUploading
+                      ? 'Uploading...'
+                      : field.required
+                          ? '${field.label} *'
+                          : field.label,
+                ),
+                style: OutlinedButton.styleFrom(
+                  minimumSize: const Size(double.infinity, 48),
+                  side: BorderSide(
+                    color: state.hasError ? AppColors.error : AppColors.light,
+                  ),
+                ),
+              ),
+            ],
+            if (state.hasError) ...[
+              const SizedBox(height: 6),
+              Padding(
+                padding: const EdgeInsets.only(left: 12),
+                child: Text(
+                  state.errorText!,
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.error,
+                    fontSize: 12,
+                  ),
+                ),
+              ),
+            ],
+          ],
+        );
       },
     );
   }

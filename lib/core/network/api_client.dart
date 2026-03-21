@@ -23,4 +23,17 @@ abstract class ApiClient {
     ApiRequest request, {
     T? Function(Object? rawData)? decoder,
   });
+
+  /// Uploads a file as multipart/form-data and returns a typed [ApiResponse].
+  ///
+  /// [filePath] is the absolute path to the file on disk.
+  /// [fileKey] is the form field name for the file (e.g. "file").
+  /// [path] is the API endpoint path (relative).
+  Future<ApiResponse<T>> uploadFile<T>(
+    String path, {
+    required String filePath,
+    String fileKey = 'file',
+    Map<String, String> fields = const {},
+    T? Function(Object? rawData)? decoder,
+  });
 }

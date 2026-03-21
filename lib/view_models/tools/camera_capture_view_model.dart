@@ -16,12 +16,16 @@ class CameraCaptureViewModel extends ChangeNotifier {
   String locationText = 'Fetching location...';
   String latLngText = '';
   String timestampText = '';
-  
+
   bool isFlashOn = false;
-  
+
   String? capturedImagePath;
   bool isProcessing = false;
+  bool isFetchingLocation = false;
   String? processingError;
+
+  DateTime? _locationFetchedAt;
+  static const _locationStaleDuration = Duration(minutes: 2);
 
   @override
   void dispose() {
@@ -94,6 +98,7 @@ class CameraCaptureViewModel extends ChangeNotifier {
       locationText = 'Location unavailable';
     }
 
+    _locationFetchedAt = DateTime.now();
     timestampText = DateFormat("dd MMM yyyy, hh:mm a 'IST'").format(DateTime.now());
     notifyListeners();
   }
@@ -118,20 +123,31 @@ class CameraCaptureViewModel extends ChangeNotifier {
 
     try {
       final file = await cameraController!.takePicture();
-      
+
       // Automatically turn off flash/torch after capture
       if (isFlashOn) {
         await cameraController!.setFlashMode(FlashMode.off);
         isFlashOn = false;
       }
 
-      // Refresh location and time specifically for the capture point
-      // before showing the preview screen
-      await _fetchLocation();
+      // Reuse cached location if it's fresh (within 2 minutes).
+      // Re-fetch if location was never obtained or has gone stale.
+      final isStale = _locationFetchedAt == null ||
+          DateTime.now().difference(_locationFetchedAt!) > _locationStaleDuration;
+      if (isStale) {
+        isFetchingLocation = true;
+        notifyListeners();
+        await _fetchLocation();
+        isFetchingLocation = false;
+      } else {
+        // Update timestamp to the actual moment of capture
+        timestampText = DateFormat("dd MMM yyyy, hh:mm a 'IST'").format(DateTime.now());
+      }
 
       capturedImagePath = file.path;
       notifyListeners();
     } catch (e) {
+      isFetchingLocation = false;
       debugPrint('Capture error: $e');
       processingError = 'Failed to capture image.';
       notifyListeners();

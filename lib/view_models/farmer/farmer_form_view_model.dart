@@ -4,17 +4,20 @@ import '../../models/api/api_models.dart';
 import '../../models/farmer/farmer_model.dart';
 import '../../services/auth_service.dart';
 import '../../services/form_config_service.dart';
+import '../../services/image_upload_service.dart';
 import '../../services/registration_form_service.dart';
 
 class FarmerFormViewModel extends ChangeNotifier {
   final FormConfigService _formConfigService;
   final RegistrationFormService _registrationService;
   final AuthService _authService;
+  final ImageUploadService _imageUploadService;
 
   FarmerFormViewModel(
     this._formConfigService,
     this._registrationService,
     this._authService,
+    this._imageUploadService,
   );
 
   // ── State ────────────────────────────────────────────────────────────────
@@ -29,7 +32,9 @@ class FarmerFormViewModel extends ChangeNotifier {
   bool isLoadingForm = true;
   bool isSaving = false;
   String? formLoadError;
-  String? capturedImagePath;
+
+  /// Tracks per-field upload state for camera fields (key → isUploading).
+  final Map<String, bool> _uploadingFields = {};
 
   ApiForm? form;
   List<DynamicFieldModel> dynamicFields = [];
@@ -167,6 +172,37 @@ class FarmerFormViewModel extends ChangeNotifier {
       dynamicFields[idx].value = value;
       notifyListeners();
     }
+  }
+
+  /// Whether a specific camera field is currently uploading.
+  bool isFieldUploading(String key) => _uploadingFields[key] ?? false;
+
+  /// Uploads a captured image for a camera-type dynamic field.
+  ///
+  /// [fieldKey] identifies which dynamic field to store the URL in.
+  /// [localFilePath] is the path returned from the camera capture screen.
+  ///
+  /// Returns the uploaded image URL on success, or null on failure.
+  Future<String?> uploadCameraImage(String fieldKey, String localFilePath) async {
+    _uploadingFields[fieldKey] = true;
+    notifyListeners();
+
+    try {
+      final url = await _imageUploadService.uploadImage(localFilePath);
+      updateDynamicFieldValue(fieldKey, url);
+      return url;
+    } catch (e) {
+      debugPrint('Image upload failed for field "$fieldKey": $e');
+      return null;
+    } finally {
+      _uploadingFields[fieldKey] = false;
+      notifyListeners();
+    }
+  }
+
+  /// Clears the uploaded image URL for a camera-type dynamic field.
+  void clearCameraImage(String fieldKey) {
+    updateDynamicFieldValue(fieldKey, null);
   }
 
   /// Saves the registration. [textControllers] is a map of key → current text
