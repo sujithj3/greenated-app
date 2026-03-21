@@ -24,6 +24,20 @@ class LandMeasurementViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
+  void setInitialPoints(Iterable<dynamic> coords) {
+    _points.clear();
+    for (var c in coords) {
+      if (c is Map) {
+        final lat = (c['lat'] as num?)?.toDouble();
+        final lng = (c['lng'] as num?)?.toDouble();
+        if (lat != null && lng != null) {
+          _points.add(LatLng(lat, lng));
+        }
+      }
+    }
+    _recalculate();
+  }
+
   void undoLastPoint() {
     if (_points.isEmpty) return;
     _points.removeLast();

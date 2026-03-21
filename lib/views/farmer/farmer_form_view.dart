@@ -113,17 +113,32 @@ class _FarmerFormViewState extends State<FarmerFormView> {
   // ── Land map ──────────────────────────────────────────────────────────────
 
   Future<void> _openMap() async {
-    final result = await Navigator.pushNamed(context, '/land-measurement')
-        as Map<String, dynamic>?;
+    final result = await Navigator.pushNamed(
+      context, 
+      '/land-measurement',
+      arguments: {
+        'initialPolygon': _vm.landCoordinates,
+        'onClear': () {
+          _vm.setLandResult({'area': 0.0, 'coordinates': []});
+          _landAreaCtrl.clear();
+          if (mounted) context.showSnack('Land measurement removed', success: true);
+        }
+      },
+    ) as Map<String, dynamic>?;
     if (result != null && mounted) {
       final area = result['area'] as double? ?? 0;
       _vm.setLandResult(result);
       if (area > 0) {
         _landAreaCtrl.text = area.toStringAsFixed(4);
+      } else {
+        _landAreaCtrl.clear();
       }
       if (mounted) {
-        context.showSnack('Area: ${area.toStringAsFixed(4)} acres',
-            success: true);
+        if (area > 0) {
+          context.showSnack('Area: ${area.toStringAsFixed(4)} acres', success: true);
+        } else {
+          context.showSnack('Land measurement removed', success: true);
+        }
       }
     }
   }
@@ -131,14 +146,27 @@ class _FarmerFormViewState extends State<FarmerFormView> {
   // ── Dynamic Map Polygon ───────────────────────────────────────────────────
 
   Future<void> _openMapForDynamicField(DynamicFieldModel df) async {
-    final result = await Navigator.pushNamed(context, '/land-measurement')
-        as Map<String, dynamic>?;
+    final result = await Navigator.pushNamed(
+      context, 
+      '/land-measurement',
+      arguments: {
+        'initialPolygon': df.value,
+        'onClear': () {
+          _vm.updateDynamicFieldValue(df.field.key, null);
+          if (mounted) context.showSnack('Polygon removed', success: true);
+        }
+      },
+    ) as Map<String, dynamic>?;
     if (result != null && mounted) {
       final rawCoords = result['coordinates'] as List<dynamic>? ?? [];
       final coords = rawCoords.map((e) => Map<String, dynamic>.from(e as Map)).toList();
-      _vm.updateDynamicFieldValue(df.field.key, coords);
+      _vm.updateDynamicFieldValue(df.field.key, coords.isEmpty ? null : coords);
       if (mounted) {
-        context.showSnack('Polygon saved (${coords.length} points)', success: true);
+        if (coords.isEmpty) {
+          context.showSnack('Polygon removed', success: true);
+        } else {
+          context.showSnack('Polygon saved (${coords.length} points)', success: true);
+        }
       }
     }
   }
@@ -717,12 +745,20 @@ class _PopupFormSheetState extends State<_PopupFormSheet> {
   }
 
   Future<void> _openMapForNestedDynamicField(DynamicFieldModel df) async {
-    final result = await Navigator.pushNamed(context, '/land-measurement')
-        as Map<String, dynamic>?;
+    final result = await Navigator.pushNamed(
+      context, 
+      '/land-measurement',
+      arguments: {
+        'initialPolygon': df.value,
+        'onClear': () {
+          if (mounted) setState(() => df.value = null);
+        }
+      },
+    ) as Map<String, dynamic>?;
     if (result != null && mounted) {
       final rawCoords = result['coordinates'] as List<dynamic>? ?? [];
       final coords = rawCoords.map((e) => Map<String, dynamic>.from(e as Map)).toList();
-      setState(() => df.value = coords);
+      setState(() => df.value = coords.isEmpty ? null : coords);
     }
   }
 

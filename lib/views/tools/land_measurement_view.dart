@@ -41,6 +41,21 @@ class _LandMeasurementViewState extends State<LandMeasurementView> {
     _vm = LandMeasurementViewModel();
   }
 
+  bool _isInit = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (!_isInit) {
+      _isInit = true;
+      final args = ModalRoute.of(context)?.settings.arguments as Map?;
+      if (args != null && args['initialPolygon'] != null) {
+        final initialPolygons = args['initialPolygon'] as Iterable<dynamic>;
+        _vm.setInitialPoints(initialPolygons);
+      }
+    }
+  }
+
   @override
   void dispose() {
     _mapController?.dispose();
@@ -155,7 +170,7 @@ class _LandMeasurementViewState extends State<LandMeasurementView> {
           appBar: AppBar(
             title: const Text('Land Measurement'),
             actions: [
-              if (points.length >= 3)
+              if (_vm.canComplete)
                 TextButton.icon(
                   onPressed: _done,
                   icon: const Icon(Icons.check, color: Colors.white),
@@ -169,7 +184,9 @@ class _LandMeasurementViewState extends State<LandMeasurementView> {
             children: [
               GoogleMap(
                 onMapCreated: (ctrl) => _mapController = ctrl,
-                initialCameraPosition: _defaultCamera,
+                initialCameraPosition: points.isNotEmpty 
+                    ? CameraPosition(target: points.first, zoom: 18)
+                    : _defaultCamera,
                 mapType: _mapType,
                 myLocationEnabled: true,
                 myLocationButtonEnabled: false,
@@ -277,7 +294,13 @@ class _LandMeasurementViewState extends State<LandMeasurementView> {
                     const SizedBox(height: 8),
                     FloatingActionButton.small(
                       heroTag: 'clear',
-                      onPressed: points.isEmpty ? null : _vm.clearAll,
+                      onPressed: points.isEmpty ? null : () {
+                        _vm.clearAll();
+                        final args = ModalRoute.of(context)?.settings.arguments as Map?;
+                        if (args != null && args['onClear'] != null) {
+                          args['onClear']();
+                        }
+                      },
                       backgroundColor: points.isEmpty
                           ? Colors.grey.shade300
                           : Colors.white,
@@ -290,7 +313,7 @@ class _LandMeasurementViewState extends State<LandMeasurementView> {
               ),
 
               // ── Done FAB (bottom-left) ────────────────────────────────
-              if (points.length >= 3)
+              if (_vm.canComplete)
                 Positioned(
                   bottom: 16,
                   left: 16,
