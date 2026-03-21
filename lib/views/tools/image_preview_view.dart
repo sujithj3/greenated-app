@@ -127,9 +127,9 @@ class ImagePreviewView extends StatelessWidget {
               ),
             ),
             ElevatedButton.icon(
-              onPressed: viewModel.isProcessing ? null : () => _save(context),
+              onPressed: (viewModel.isProcessing || viewModel.isFetchingLocation) ? null : () => _save(context),
               icon: const Icon(Icons.check),
-              label: const Text('Save'),
+              label: Text(viewModel.isFetchingLocation ? 'Fetching Location...' : 'Save'),
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.primary,
                 padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),

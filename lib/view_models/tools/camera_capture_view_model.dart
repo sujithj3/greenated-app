@@ -72,6 +72,11 @@ class CameraCaptureViewModel extends ChangeNotifier {
   }
 
   Future<void> _fetchLocation() async {
+    if (isFetchingLocation) return; // Prevent concurrent fetches
+    
+    isFetchingLocation = true;
+    notifyListeners();
+
     try {
       final position = await _locationService.getCurrentPosition();
       final addressResult = await _locationService.reverseGeocode(
@@ -99,7 +104,12 @@ class CameraCaptureViewModel extends ChangeNotifier {
     }
 
     _locationFetchedAt = DateTime.now();
-    timestampText = DateFormat("dd MMM yyyy, hh:mm a 'IST'").format(DateTime.now());
+    isFetchingLocation = false;
+    
+    // Set timestamp if picture hasn't been captured yet
+    if (capturedImagePath == null) {
+      timestampText = DateFormat("dd MMM yyyy, hh:mm a 'IST'").format(DateTime.now());
+    }
     notifyListeners();
   }
 
@@ -130,18 +140,16 @@ class CameraCaptureViewModel extends ChangeNotifier {
         isFlashOn = false;
       }
 
+      // Update timestamp to the actual moment of capture
+      timestampText = DateFormat("dd MMM yyyy, hh:mm a 'IST'").format(DateTime.now());
+
       // Reuse cached location if it's fresh (within 2 minutes).
-      // Re-fetch if location was never obtained or has gone stale.
+      // Trigger background re-fetch if location was never obtained or has gone stale.
       final isStale = _locationFetchedAt == null ||
           DateTime.now().difference(_locationFetchedAt!) > _locationStaleDuration;
-      if (isStale) {
-        isFetchingLocation = true;
-        notifyListeners();
-        await _fetchLocation();
-        isFetchingLocation = false;
-      } else {
-        // Update timestamp to the actual moment of capture
-        timestampText = DateFormat("dd MMM yyyy, hh:mm a 'IST'").format(DateTime.now());
+          
+      if (isStale && !isFetchingLocation) {
+        _fetchLocation(); // Start fetch asynchronously without awaiting
       }
 
       capturedImagePath = file.path;
