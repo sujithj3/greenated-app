@@ -60,6 +60,7 @@ class _SubcategoryViewState extends State<SubcategoryView> {
             catData: catData,
             isRegistration: isRegistration,
             isPickMode: isPickMode,
+            flowType: flowType,
           );
         },
       ),
@@ -73,6 +74,7 @@ class _SubcategoryViewState extends State<SubcategoryView> {
     required CategoryData? catData,
     required bool isRegistration,
     required bool isPickMode,
+    required FlowType flowType,
   }) {
     if (_vm.isLoading && category == null) {
       return const ShimmerSubcategoryList();
@@ -183,11 +185,10 @@ class _SubcategoryViewState extends State<SubcategoryView> {
 
                     Navigator.pushNamed(
                       context,
-                      '/farmer-list',
-                      arguments: <String, dynamic>{
-                        'category': categoryName,
-                        'subcategory': subcategory.subcategoryName,
-                        'viewOnly': true,
+                      '/registered-farmers',
+                      arguments: {
+                        'flowType': flowType,
+                        'subcategoryId': subcategory.subcategoryId,
                       },
                     );
                   },

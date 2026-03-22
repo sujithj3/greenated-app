@@ -27,6 +27,11 @@ import 'views/farmer/farmer_list_view.dart';
 import 'views/farmer/farmer_detail_view.dart';
 import 'views/tools/land_measurement_view.dart';
 import 'views/tools/camera_capture_view.dart';
+import 'repositories/registered_list_repository.dart';
+import 'view_models/registered_list_view_model.dart';
+import 'views/farmer/registered_list_view.dart';
+import 'models/flow_type.dart';
+
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -81,6 +86,17 @@ class FarmerRegistrationApp extends StatelessWidget {
           create: (context) => FormConfigService(
             categoryRepository: context.read<CategoryRepository>(),
             registrationFormService: context.read<RegistrationFormService>(),
+          ),
+        ),
+        Provider<RegisteredListRepository>(
+          create: (context) => RegisteredListRepositoryImpl(
+            apiClient: context.read<ApiClient>(),
+          ),
+        ),
+        ChangeNotifierProvider(
+          create: (context) => RegisteredListViewModel(
+            repository: context.read<RegisteredListRepository>(),
+            authService: context.read<AuthService>(),
           ),
         ),
       ],
@@ -142,6 +158,12 @@ class FarmerRegistrationApp extends StatelessWidget {
               page = const CameraCaptureView();
             case '/farmer-list':
               page = const FarmerListView();
+            case '/registered-farmers':
+              final args = settings.arguments as Map<String, dynamic>? ?? {};
+              page = RegisteredListView(
+                flowType: args['flowType'] as FlowType? ?? FlowType.listing,
+                subcategoryId: args['subcategoryId'] as int? ?? 0,
+              );
             case '/farmer-detail':
               page = FarmerDetailView(farmerId: settings.arguments as String);
             default:
