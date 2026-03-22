@@ -9,6 +9,7 @@ import '../../services/image_upload_service.dart';
 import '../../services/registration_form_service.dart';
 import '../../utils/app_colors.dart';
 import '../../utils/snack_bar_helper.dart';
+import '../../core/network/api_client.dart';
 import '../../view_models/farmer/farmer_form_view_model.dart';
 import '../../widgets/dynamic_field_builder.dart';
 import '../../widgets/shimmer_loading.dart';
@@ -38,6 +39,7 @@ class _FarmerFormViewState extends State<FarmerFormView> {
       context.read<RegistrationFormService>(),
       context.read<AuthService>(),
       context.read<ImageUploadService>(),
+      context.read<ApiClient>(),
     );
   }
 
@@ -291,7 +293,8 @@ class _FarmerFormViewState extends State<FarmerFormView> {
 
         final isBlocked = _vm.isSaving ||
             _vm.dynamicFields.any(
-                (df) => _vm.isFieldUploading(df.field.key));
+                (df) => _vm.isFieldUploading(df.field.key)) ||
+            _vm.dynamicFields.any((df) => df.isLoadingOptions);
 
         return Stack(
           children: [
@@ -454,6 +457,16 @@ class _FarmerFormViewState extends State<FarmerFormView> {
       onMapPolygonPressed: f.fieldStyle == FieldStyle.mapPolygon
           ? () => _openMapForDynamicField(df)
           : null,
+      resolvedOptions:
+          f.fieldStyle == FieldStyle.dropdown ? df.resolvedOptions : null,
+      isLoadingOptions:
+          f.fieldStyle == FieldStyle.dropdown ? df.isLoadingOptions : false,
+      optionsError:
+          f.fieldStyle == FieldStyle.dropdown ? df.optionsError : null,
+      onRetryOptions:
+          f.fieldStyle == FieldStyle.dropdown && df.optionsError != null
+              ? () => _vm.retryFetchOptions(f.key)
+              : null,
     );
   }
 

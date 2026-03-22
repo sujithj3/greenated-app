@@ -92,6 +92,39 @@ class ApiOption {
       };
 }
 
+class FieldDataSource {
+  const FieldDataSource({
+    required this.type,
+    required this.endpoint,
+    required this.method,
+    this.params = const {},
+  });
+
+  final String type;
+  final String endpoint;
+  final String method;
+  final Map<String, String> params;
+
+  factory FieldDataSource.fromJson(Map<String, dynamic> json) {
+    final data = _normalizeJsonKeys(json);
+    return FieldDataSource(
+      type: data['type']?.toString() ?? 'API',
+      endpoint: data['endpoint']?.toString() ?? '',
+      method: (data['method']?.toString() ?? 'GET').toUpperCase(),
+      params: (data['params'] as Map?)
+              ?.map((k, v) => MapEntry(k.toString(), v.toString())) ??
+          const {},
+    );
+  }
+
+  Map<String, dynamic> toJson() => <String, dynamic>{
+        'type': type,
+        'endpoint': endpoint,
+        'method': method,
+        'params': params,
+      };
+}
+
 class ApiField {
   const ApiField({
     required this.fieldId,
@@ -102,6 +135,9 @@ class ApiField {
     required this.required,
     this.options = const [],
     this.subFields = const [],
+    this.dependsOn,
+    this.dataSource,
+    this.showWhen,
   });
 
   final int fieldId;
@@ -112,6 +148,9 @@ class ApiField {
   final bool required;
   final List<ApiOption> options;
   final List<ApiField> subFields;
+  final String? dependsOn;
+  final FieldDataSource? dataSource;
+  final String? showWhen;
 
   bool get isPopupForm => fieldStyle == FieldStyle.popupForm;
 
@@ -148,6 +187,12 @@ class ApiField {
       required: data['required'] as bool? ?? false,
       options: options,
       subFields: subFields,
+      dependsOn: data['dependsOn']?.toString(),
+      dataSource: data['dataSource'] is Map
+          ? FieldDataSource.fromJson(
+              Map<String, dynamic>.from(data['dataSource'] as Map))
+          : null,
+      showWhen: data['showWhen']?.toString(),
     );
   }
 
@@ -191,6 +236,9 @@ class ApiField {
       'options': isPopupForm
           ? subFields.map((field) => field.toJson()).toList()
           : options.map((option) => option.toJson()).toList(),
+      if (dependsOn != null) 'dependsOn': dependsOn,
+      if (dataSource != null) 'dataSource': dataSource!.toJson(),
+      if (showWhen != null) 'showWhen': showWhen,
     };
   }
 }
@@ -199,10 +247,20 @@ class DynamicFieldModel {
   DynamicFieldModel({
     required this.field,
     this.value,
-  });
+    List<ApiOption>? resolvedOptions,
+    this.isLoadingOptions = false,
+    this.optionsError,
+  }) : resolvedOptions = resolvedOptions ?? field.options;
 
   final ApiField field;
   dynamic value;
+  List<ApiOption> resolvedOptions;
+  bool isLoadingOptions;
+  String? optionsError;
+
+  int _fetchGeneration = 0;
+  int get fetchGeneration => _fetchGeneration;
+  void incrementFetchGeneration() => _fetchGeneration++;
 
   factory DynamicFieldModel.fromApiField(ApiField field) {
     dynamic initialValue;
@@ -216,6 +274,7 @@ class DynamicFieldModel {
     return DynamicFieldModel(
       field: field,
       value: initialValue,
+      resolvedOptions: field.options,
     );
   }
 
@@ -243,6 +302,7 @@ class DynamicFieldModel {
     return DynamicFieldModel(
       field: apiField,
       value: resolvedValue,
+      resolvedOptions: apiField.options,
     );
   }
 
@@ -270,6 +330,7 @@ class DynamicFieldModel {
     return DynamicFieldModel(
       field: field ?? this.field,
       value: value ?? this.value,
+      resolvedOptions: resolvedOptions,
     );
   }
 }

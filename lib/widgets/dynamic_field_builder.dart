@@ -22,6 +22,10 @@ class DynamicFieldBuilder extends StatelessWidget {
     this.onCapturePhoto,
     this.onClearPhoto,
     this.onMapPolygonPressed,
+    this.resolvedOptions,
+    this.isLoadingOptions = false,
+    this.optionsError,
+    this.onRetryOptions,
   });
 
   final ApiField field;
@@ -45,6 +49,18 @@ class DynamicFieldBuilder extends StatelessWidget {
 
   /// Callback to open the map for a map polygon field.
   final VoidCallback? onMapPolygonPressed;
+
+  /// Runtime-resolved options for dependent dropdowns (null = use field.options).
+  final List<ApiOption>? resolvedOptions;
+
+  /// Whether dependent options are currently being fetched.
+  final bool isLoadingOptions;
+
+  /// Error message from a failed dependent options fetch.
+  final String? optionsError;
+
+  /// Callback to retry a failed dependent options fetch.
+  final VoidCallback? onRetryOptions;
 
   Color get _accent => accentColor ?? AppColors.primary;
 
@@ -144,27 +160,81 @@ class DynamicFieldBuilder extends StatelessWidget {
   // ── Dropdown ───────────────────────────────────────────────────────────────
 
   Widget _buildDropdownField() {
-    final options = field.options;
+    if (isLoadingOptions) {
+      return InputDecorator(
+        decoration: InputDecoration(
+          labelText: field.required ? '${field.label} *' : field.label,
+          prefixIcon:
+              Icon(Icons.arrow_drop_down_circle_outlined, color: _accent),
+        ),
+        child: Row(
+          children: [
+            SizedBox(
+              width: 16,
+              height: 16,
+              child: CircularProgressIndicator(strokeWidth: 2, color: _accent),
+            ),
+            const SizedBox(width: 8),
+            const Text('Loading...',
+                style: TextStyle(color: AppColors.textMedium)),
+          ],
+        ),
+      );
+    }
+
+    if (optionsError != null) {
+      return InputDecorator(
+        decoration: InputDecoration(
+          labelText: field.required ? '${field.label} *' : field.label,
+          prefixIcon:
+              Icon(Icons.arrow_drop_down_circle_outlined, color: _accent),
+          errorText: optionsError,
+          suffixIcon: onRetryOptions != null
+              ? IconButton(
+                  icon: const Icon(Icons.refresh), onPressed: onRetryOptions)
+              : null,
+        ),
+        child: const Text('Tap retry',
+            style: TextStyle(color: AppColors.textMedium)),
+      );
+    }
+
+    final options = resolvedOptions ?? field.options;
+    final bool isDependentWithNoOptions =
+        field.dataSource != null && options.isEmpty;
     final selectedStr = value?.toString();
     final selected = options.any((o) => o.id.toString() == selectedStr)
         ? selectedStr
         : null;
+
+    final String hintText;
+    if (isDependentWithNoOptions) {
+      final parentKey = field.dependsOn ?? '';
+      hintText = parentKey.isNotEmpty
+          ? 'Select ${parentKey[0].toUpperCase()}${parentKey.substring(1)} first'
+          : 'Select a parent field first';
+    } else {
+      hintText = 'Select ${field.label.isNotEmpty ? field.label : 'an option'}';
+    }
 
     return DropdownButtonFormField<String>(
       key: ValueKey('dropdown_${field.key}'),
       value: selected,
       decoration: InputDecoration(
         labelText: field.required ? '${field.label} *' : field.label,
-        prefixIcon: Icon(Icons.arrow_drop_down_circle_outlined, color: _accent),
+        prefixIcon:
+            Icon(Icons.arrow_drop_down_circle_outlined, color: _accent),
       ),
-      hint: Text('Select ${field.label}'),
+      hint: Text(hintText),
+      disabledHint: Text(hintText,
+          style: const TextStyle(color: AppColors.textMedium)),
       items: options
           .map((o) => DropdownMenuItem(
                 value: o.id.toString(),
                 child: Text(o.name),
               ))
           .toList(),
-      onChanged: (v) => onChanged(v),
+      onChanged: isDependentWithNoOptions ? null : (v) => onChanged(v),
       validator: (v) {
         if (field.required && (v == null || v.isEmpty)) {
           return '${field.label} is required';

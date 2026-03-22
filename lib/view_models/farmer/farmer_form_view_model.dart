@@ -1,5 +1,8 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
+import '../../core/network/api_client.dart';
+import '../../core/network/api_method.dart';
+import '../../core/network/api_request.dart';
 import '../../models/api/api_models.dart';
 import '../../models/farmer/farmer_model.dart';
 import '../../services/auth_service.dart';
@@ -12,12 +15,14 @@ class FarmerFormViewModel extends ChangeNotifier {
   final RegistrationFormService _registrationService;
   final AuthService _authService;
   final ImageUploadService _imageUploadService;
+  final ApiClient _apiClient;
 
   FarmerFormViewModel(
     this._formConfigService,
     this._registrationService,
     this._authService,
     this._imageUploadService,
+    this._apiClient,
   );
 
   // ── State ────────────────────────────────────────────────────────────────
@@ -171,6 +176,7 @@ class FarmerFormViewModel extends ChangeNotifier {
     if (idx != -1) {
       dynamicFields[idx].value = value;
       notifyListeners();
+      _handleDependencyChange(key); // fire-and-forget
     }
   }
 
@@ -279,6 +285,105 @@ class FarmerFormViewModel extends ChangeNotifier {
       isSaving = false;
       notifyListeners();
     }
+  }
+
+  // ── Dependency handling ───────────────────────────────────────────────────
+
+  Map<String, String> _resolveParams(Map<String, String> templates) {
+    final resolved = <String, String>{};
+    for (final entry in templates.entries) {
+      final template = entry.value;
+      if (template.startsWith(r'$')) {
+        final ref = template.substring(1);
+        final dotIdx = ref.indexOf('.');
+        final fieldKey = dotIdx > 0 ? ref.substring(0, dotIdx) : ref;
+        final idx =
+            dynamicFields.indexWhere((df) => df.field.key == fieldKey);
+        resolved[entry.key] =
+            idx != -1 ? (dynamicFields[idx].value?.toString() ?? '') : '';
+      } else {
+        resolved[entry.key] = template;
+      }
+    }
+    return resolved;
+  }
+
+  void _resetDependents(String parentKey) {
+    for (final df in dynamicFields) {
+      if (df.field.dependsOn == parentKey) {
+        df.value = null;
+        df.resolvedOptions = [];
+        df.isLoadingOptions = false;
+        df.optionsError = null;
+        df.incrementFetchGeneration();
+        _resetDependents(df.field.key);
+      }
+    }
+  }
+
+  Future<void> _handleDependencyChange(String changedKey) async {
+    _resetDependents(changedKey);
+    notifyListeners();
+
+    final directDependents = dynamicFields
+        .where((df) =>
+            df.field.dependsOn == changedKey && df.field.dataSource != null)
+        .toList();
+
+    for (final df in directDependents) {
+      final resolved = _resolveParams(df.field.dataSource!.params);
+      if (resolved.values.any((v) => v.isEmpty)) continue;
+
+      df.isLoadingOptions = true;
+      notifyListeners();
+
+      final generation = df.fetchGeneration;
+      try {
+        final options =
+            await _fetchDependentOptions(df.field.dataSource!, resolved);
+        if (df.fetchGeneration != generation) continue;
+        df.resolvedOptions = options;
+        df.optionsError = null;
+      } catch (_) {
+        if (df.fetchGeneration != generation) continue;
+        df.optionsError = 'Failed to load options';
+        df.resolvedOptions = [];
+      } finally {
+        if (df.fetchGeneration == generation) {
+          df.isLoadingOptions = false;
+          notifyListeners();
+        }
+      }
+    }
+  }
+
+  Future<List<ApiOption>> _fetchDependentOptions(
+    FieldDataSource ds,
+    Map<String, String> resolvedParams,
+  ) async {
+    final method = ds.method == 'POST' ? ApiMethod.post : ApiMethod.get;
+    final response = await _apiClient.send<List<dynamic>>(
+      ApiRequest(
+        method: method,
+        path: ds.endpoint,
+        queryParameters: method == ApiMethod.get ? resolvedParams : const {},
+        body: method == ApiMethod.post ? resolvedParams : null,
+      ),
+      decoder: (raw) => raw is List<dynamic> ? raw : null,
+    );
+    if (response.data == null) return [];
+    return response.data!
+        .whereType<Map>()
+        .map((json) => ApiOption.fromJson(Map<String, dynamic>.from(json)))
+        .toList();
+  }
+
+  Future<void> retryFetchOptions(String fieldKey) async {
+    final idx = dynamicFields.indexWhere((df) => df.field.key == fieldKey);
+    if (idx == -1) return;
+    final df = dynamicFields[idx];
+    if (df.field.dataSource == null || df.field.dependsOn == null) return;
+    await _handleDependencyChange(df.field.dependsOn!);
   }
 
   Future<void> ensureCategoriesLoaded() async {
