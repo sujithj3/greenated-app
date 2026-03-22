@@ -289,21 +289,24 @@ class FarmerFormViewModel extends ChangeNotifier {
 
   // ── Dependency handling ───────────────────────────────────────────────────
 
-  Map<String, String> _resolveParams(Map<String, String> templates) {
-    final resolved = <String, String>{};
+  Map<String, dynamic> _resolveParams(Map<String, String> templates) {
+    final resolved = <String, dynamic>{};
     for (final entry in templates.entries) {
       final template = entry.value;
+      String val = '';
       if (template.startsWith(r'$')) {
         final ref = template.substring(1);
         final dotIdx = ref.indexOf('.');
         final fieldKey = dotIdx > 0 ? ref.substring(0, dotIdx) : ref;
         final idx =
             dynamicFields.indexWhere((df) => df.field.key == fieldKey);
-        resolved[entry.key] =
-            idx != -1 ? (dynamicFields[idx].value?.toString() ?? '') : '';
+        val = idx != -1 ? (dynamicFields[idx].value?.toString() ?? '') : '';
       } else {
-        resolved[entry.key] = template;
+        val = template;
       }
+      
+      final parsedInt = int.tryParse(val);
+      resolved[entry.key] = parsedInt ?? val;
     }
     return resolved;
   }
@@ -332,7 +335,7 @@ class FarmerFormViewModel extends ChangeNotifier {
 
     for (final df in directDependents) {
       final resolved = _resolveParams(df.field.dataSource!.params);
-      if (resolved.values.any((v) => v.isEmpty)) continue;
+      if (resolved.values.any((v) => v.toString().isEmpty)) continue;
 
       df.isLoadingOptions = true;
       notifyListeners();
@@ -359,14 +362,16 @@ class FarmerFormViewModel extends ChangeNotifier {
 
   Future<List<ApiOption>> _fetchDependentOptions(
     FieldDataSource ds,
-    Map<String, String> resolvedParams,
+    Map<String, dynamic> resolvedParams,
   ) async {
     final method = ds.method == 'POST' ? ApiMethod.post : ApiMethod.get;
     final response = await _apiClient.send<List<dynamic>>(
       ApiRequest(
         method: method,
         path: ds.endpoint,
-        queryParameters: method == ApiMethod.get ? resolvedParams : const {},
+        queryParameters: method == ApiMethod.get 
+            ? resolvedParams.map((k, v) => MapEntry(k, v.toString())) 
+            : const {},
         body: method == ApiMethod.post ? resolvedParams : null,
       ),
       decoder: (raw) => raw is List<dynamic> ? raw : null,

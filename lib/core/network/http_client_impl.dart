@@ -111,13 +111,12 @@ class HttpClientImpl implements ApiClient {
     }
   }
 
-  /// Dispatches the HTTP call based on the [ApiMethod].
   Future<http.Response> _executeRequest(
     ApiMethod method,
     Uri uri,
     Map<String, String> headers,
     Object? body,
-  ) {
+  ) async {
     final String? encodedBody =
         body != null ? jsonEncode(body) : null;
 

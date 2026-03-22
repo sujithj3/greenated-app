@@ -107,9 +107,12 @@ class FieldDataSource {
 
   factory FieldDataSource.fromJson(Map<String, dynamic> json) {
     final data = _normalizeJsonKeys(json);
+    String ep = data['endpoint']?.toString() ?? '';
+    if (ep.startsWith('/')) ep = ep.substring(1);
+
     return FieldDataSource(
       type: data['type']?.toString() ?? 'API',
-      endpoint: data['endpoint']?.toString() ?? '',
+      endpoint: ep,
       method: (data['method']?.toString() ?? 'GET').toUpperCase(),
       params: (data['params'] as Map?)
               ?.map((k, v) => MapEntry(k.toString(), v.toString())) ??

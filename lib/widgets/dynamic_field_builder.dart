@@ -201,7 +201,7 @@ class DynamicFieldBuilder extends StatelessWidget {
 
     final options = resolvedOptions ?? field.options;
     final bool isDependentWithNoOptions =
-        field.dataSource != null && options.isEmpty;
+        field.dataSource != null && field.dependsOn != null && field.dependsOn!.isNotEmpty && options.isEmpty;
     final selectedStr = value?.toString();
     final selected = options.any((o) => o.id.toString() == selectedStr)
         ? selectedStr
@@ -209,10 +209,8 @@ class DynamicFieldBuilder extends StatelessWidget {
 
     final String hintText;
     if (isDependentWithNoOptions) {
-      final parentKey = field.dependsOn ?? '';
-      hintText = parentKey.isNotEmpty
-          ? 'Select ${parentKey[0].toUpperCase()}${parentKey.substring(1)} first'
-          : 'Select a parent field first';
+      final parentKey = field.dependsOn!;
+      hintText = 'Select ${parentKey[0].toUpperCase()}${parentKey.substring(1)} first';
     } else {
       hintText = 'Select ${field.label.isNotEmpty ? field.label : 'an option'}';
     }
@@ -228,12 +226,20 @@ class DynamicFieldBuilder extends StatelessWidget {
       hint: Text(hintText),
       disabledHint: Text(hintText,
           style: const TextStyle(color: AppColors.textMedium)),
-      items: options
-          .map((o) => DropdownMenuItem(
-                value: o.id.toString(),
-                child: Text(o.name),
-              ))
-          .toList(),
+      items: options.isEmpty
+          ? [
+              const DropdownMenuItem<String>(
+                value: 'no_data',
+                enabled: false,
+                child: Text('No data found', style: TextStyle(color: AppColors.textMedium)),
+              )
+            ]
+          : options
+              .map((o) => DropdownMenuItem(
+                    value: o.id.toString(),
+                    child: Text(o.name),
+                  ))
+              .toList(),
       onChanged: isDependentWithNoOptions ? null : (v) => onChanged(v),
       validator: (v) {
         if (field.required && (v == null || v.isEmpty)) {
