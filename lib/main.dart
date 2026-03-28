@@ -25,13 +25,13 @@ import 'views/category/subcategory_view.dart';
 import 'views/farmer/farmer_form_view.dart';
 import 'views/farmer/farmer_list_view.dart';
 import 'views/farmer/farmer_detail_view.dart';
+import 'views/farmer/edit_farmer_details_view.dart';
 import 'views/tools/land_measurement_view.dart';
 import 'views/tools/camera_capture_view.dart';
 import 'repositories/registered_list_repository.dart';
 import 'view_models/registered_list_view_model.dart';
 import 'views/farmer/registered_list_view.dart';
 import 'models/flow_type.dart';
-
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -165,10 +165,18 @@ class FarmerRegistrationApp extends StatelessWidget {
                 subcategoryId: args['subcategoryId'] as int? ?? 0,
               );
             case '/farmer-detail':
-              final detailArgs = settings.arguments as Map<String, dynamic>? ?? {};
+              final detailArgs =
+                  settings.arguments as Map<String, dynamic>? ?? {};
               page = FarmerDetailView(
                 subcategoryId: detailArgs['subcategoryId'] as int? ?? 0,
                 submissionId: detailArgs['submissionId'] as int? ?? 0,
+              );
+            case '/edit-farmer-details':
+              final editArgs =
+                  settings.arguments as Map<String, dynamic>? ?? {};
+              page = EditFarmerDetailsView(
+                subcategoryId: editArgs['subcategoryId'] as int? ?? 0,
+                submissionId: editArgs['submissionId'] as int? ?? 0,
               );
             default:
               page = const SplashView();

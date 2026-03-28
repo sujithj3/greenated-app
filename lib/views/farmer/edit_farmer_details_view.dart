@@ -5,33 +5,38 @@ import '../../models/api/api_models.dart';
 import '../../services/auth_service.dart';
 import '../../services/registration_form_service.dart';
 import '../../utils/app_colors.dart';
-import '../../view_models/farmer/farmer_detail_view_model.dart';
+import '../../view_models/farmer/edit_farmer_details_view_model.dart';
 import '../../widgets/dynamic_field_builder.dart';
 import '../../widgets/shimmer_loading.dart';
 
-class FarmerDetailView extends StatefulWidget {
+/// Edit view for a previously submitted farmer registration.
+///
+/// Fetches prefilled form data via the `form-edit` GET endpoint and renders
+/// an editable dynamic form. Maintains fully independent state from the
+/// create and detail flows.
+class EditFarmerDetailsView extends StatefulWidget {
   final int subcategoryId;
   final int submissionId;
 
-  const FarmerDetailView({
+  const EditFarmerDetailsView({
     super.key,
     required this.subcategoryId,
     required this.submissionId,
   });
 
   @override
-  State<FarmerDetailView> createState() => _FarmerDetailViewState();
+  State<EditFarmerDetailsView> createState() => _EditFarmerDetailsViewState();
 }
 
-class _FarmerDetailViewState extends State<FarmerDetailView> {
-  late final FarmerDetailViewModel _vm;
+class _EditFarmerDetailsViewState extends State<EditFarmerDetailsView> {
+  late final EditFarmerDetailsViewModel _vm;
   final Map<String, TextEditingController> _textCtrl = {};
   bool _isInit = false;
 
   @override
   void initState() {
     super.initState();
-    _vm = FarmerDetailViewModel(
+    _vm = EditFarmerDetailsViewModel(
       service: context.read<RegistrationFormService>(),
       authService: context.read<AuthService>(),
     );
@@ -46,7 +51,7 @@ class _FarmerDetailViewState extends State<FarmerDetailView> {
     _vm.addListener(_onVmChanged);
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (mounted) {
-        await _vm.loadFormDetail(
+        await _vm.loadEditForm(
           subcategoryId: widget.subcategoryId,
           submissionId: widget.submissionId,
         );
@@ -95,28 +100,36 @@ class _FarmerDetailViewState extends State<FarmerDetailView> {
     super.dispose();
   }
 
-  Future<void> _openViewOnlyPopupSheet(DynamicFieldModel df) async {
+  // ── Popup Form Sheet (view + edit) ──────────────────────────────────────
+
+  Future<void> _openEditPopupSheet(DynamicFieldModel df) async {
+    final currentValues = df.value as List<DynamicFieldModel>? ?? [];
     await showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (_) => _ViewOnlyPopupSheet(
+      builder: (_) => _EditPopupFormSheet(
         parentField: df.field,
-        fields: df.value as List<DynamicFieldModel>? ?? [],
+        initialFields: currentValues,
+        onSaved: (result) => _vm.updateFieldValue(df.field.key, result),
       ),
     );
   }
 
-  Future<void> _openViewOnlyMap(DynamicFieldModel df) async {
+  // ── Map Polygon ─────────────────────────────────────────────────────────
+
+  Future<void> _openMapForField(DynamicFieldModel df) async {
     await Navigator.pushNamed(
       context,
       '/land-measurement',
       arguments: {
         'initialPolygon': df.value,
-        'viewOnly': true,
+        'viewOnly': false,
       },
     );
   }
+
+  // ── Build ─────────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
@@ -125,29 +138,8 @@ class _FarmerDetailViewState extends State<FarmerDetailView> {
       builder: (context, _) {
         return Scaffold(
           appBar: AppBar(
-            title: Text(_vm.formName.isNotEmpty ? _vm.formName : 'Detail'),
-            actions: [
-              TextButton.icon(
-                onPressed: () {
-                  Navigator.pushNamed(
-                    context,
-                    '/edit-farmer-details',
-                    arguments: {
-                      'subcategoryId': widget.subcategoryId,
-                      'submissionId': widget.submissionId,
-                    },
-                  );
-                },
-                icon: const Icon(Icons.edit, size: 18, color: AppColors.white),
-                label: const Text(
-                  'Edit',
-                  style: TextStyle(
-                    color: AppColors.white,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-            ],
+            title:
+                Text(_vm.formName.isNotEmpty ? 'Edit ${_vm.formName}' : 'Edit'),
           ),
           body: _buildBody(),
         );
@@ -171,7 +163,7 @@ class _FarmerDetailViewState extends State<FarmerDetailView> {
                   size: 40, color: AppColors.textMedium),
               const SizedBox(height: 12),
               const Text(
-                'Unable to load form detail',
+                'Unable to load edit form',
                 style: TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.w700,
@@ -184,7 +176,7 @@ class _FarmerDetailViewState extends State<FarmerDetailView> {
                   textAlign: TextAlign.center),
               const SizedBox(height: 16),
               ElevatedButton(
-                onPressed: () => _vm.loadFormDetail(
+                onPressed: () => _vm.loadEditForm(
                   subcategoryId: widget.subcategoryId,
                   submissionId: widget.submissionId,
                 ),
@@ -203,14 +195,21 @@ class _FarmerDetailViewState extends State<FarmerDetailView> {
       );
     }
 
-    return ListView.separated(
-      padding: const EdgeInsets.all(16),
-      itemCount: _vm.fields.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 12),
-      itemBuilder: (context, index) {
-        final df = _vm.fields[index];
-        return _buildField(df);
-      },
+    return Column(
+      children: [
+        Expanded(
+          child: ListView.separated(
+            padding: const EdgeInsets.all(16),
+            itemCount: _vm.fields.length,
+            separatorBuilder: (_, __) => const SizedBox(height: 12),
+            itemBuilder: (context, index) {
+              final df = _vm.fields[index];
+              return _buildField(df);
+            },
+          ),
+        ),
+        _buildDisabledSubmitButton(),
+      ],
     );
   }
 
@@ -231,43 +230,77 @@ class _FarmerDetailViewState extends State<FarmerDetailView> {
       value: _textCtrl.containsKey(f.key) ? _textCtrl[f.key]!.text : df.value,
       textController: _textCtrl[f.key],
       accentColor: AppColors.primary,
-      onChanged: (_) {},
-      isViewMode: true,
-      onPopupFormPressed:
-          f.isPopupForm ? () => _openViewOnlyPopupSheet(df) : null,
+      onChanged: (val) {
+        _vm.updateFieldValue(f.key, val);
+      },
+      onPopupFormPressed: f.isPopupForm ? () => _openEditPopupSheet(df) : null,
       popupFormFilledCount: popupFormFilled,
       popupFormTotalCount: popupFormTotal,
       onMapPolygonPressed: f.fieldStyle == FieldStyle.mapPolygon
-          ? () => _openViewOnlyMap(df)
+          ? () => _openMapForField(df)
           : null,
       resolvedOptions:
           f.fieldStyle == FieldStyle.dropdown ? df.resolvedOptions : null,
     );
   }
+
+  /// TODO: Enable update submission once backend API is ready
+  Widget _buildDisabledSubmitButton() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+      decoration: BoxDecoration(
+        color: Theme.of(context).scaffoldBackgroundColor,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.06),
+            blurRadius: 8,
+            offset: const Offset(0, -2),
+          ),
+        ],
+      ),
+      child: ElevatedButton.icon(
+        /// TODO: Enable update submission once backend API is ready
+        onPressed: null, // Disabled — backend not ready
+        icon: const Icon(Icons.cloud_upload_outlined),
+        label: const Text('Update Registration'),
+        style: ElevatedButton.styleFrom(
+          minimumSize: const Size(double.infinity, 48),
+          disabledBackgroundColor: AppColors.light,
+          disabledForegroundColor: AppColors.textMedium,
+        ),
+      ),
+    );
+  }
 }
 
-// ─── View-Only Popup Sheet ────────────────────────────────────────────────────
+// ─── Edit Popup Form Sheet ──────────────────────────────────────────────────
 
-class _ViewOnlyPopupSheet extends StatefulWidget {
+class _EditPopupFormSheet extends StatefulWidget {
   final ApiField parentField;
-  final List<DynamicFieldModel> fields;
+  final List<DynamicFieldModel> initialFields;
+  final void Function(List<DynamicFieldModel> updated) onSaved;
 
-  const _ViewOnlyPopupSheet({
+  const _EditPopupFormSheet({
     required this.parentField,
-    required this.fields,
+    required this.initialFields,
+    required this.onSaved,
   });
 
   @override
-  State<_ViewOnlyPopupSheet> createState() => _ViewOnlyPopupSheetState();
+  State<_EditPopupFormSheet> createState() => _EditPopupFormSheetState();
 }
 
-class _ViewOnlyPopupSheetState extends State<_ViewOnlyPopupSheet> {
+class _EditPopupFormSheetState extends State<_EditPopupFormSheet> {
   final Map<String, TextEditingController> _textCtrl = {};
+  late List<DynamicFieldModel> _fields;
 
   @override
   void initState() {
     super.initState();
-    for (final df in widget.fields) {
+    _fields = widget.initialFields.map((e) => e.copyWith()).toList();
+
+    for (final df in _fields) {
       final f = df.field;
       if (f.fieldStyle == FieldStyle.text ||
           f.fieldStyle == FieldStyle.number ||
@@ -286,27 +319,15 @@ class _ViewOnlyPopupSheetState extends State<_ViewOnlyPopupSheet> {
     super.dispose();
   }
 
-  Future<void> _openNestedPopup(DynamicFieldModel df) async {
-    await showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => _ViewOnlyPopupSheet(
-        parentField: df.field,
-        fields: df.value as List<DynamicFieldModel>? ?? [],
-      ),
-    );
-  }
-
-  Future<void> _openViewOnlyMap(DynamicFieldModel df) async {
-    await Navigator.pushNamed(
-      context,
-      '/land-measurement',
-      arguments: {
-        'initialPolygon': df.value,
-        'viewOnly': true,
-      },
-    );
+  void _save() {
+    for (final df in _fields) {
+      if (_textCtrl.containsKey(df.field.key)) {
+        final text = _textCtrl[df.field.key]!.text.trim();
+        df.value = text.isNotEmpty ? text : null;
+      }
+    }
+    widget.onSaved(_fields);
+    Navigator.pop(context);
   }
 
   @override
@@ -335,7 +356,7 @@ class _ViewOnlyPopupSheetState extends State<_ViewOnlyPopupSheet> {
               padding: const EdgeInsets.fromLTRB(20, 16, 8, 8),
               child: Row(
                 children: [
-                  const Icon(Icons.visibility_outlined,
+                  const Icon(Icons.edit_outlined,
                       color: AppColors.primary, size: 20),
                   const SizedBox(width: 8),
                   Expanded(
@@ -360,12 +381,21 @@ class _ViewOnlyPopupSheetState extends State<_ViewOnlyPopupSheet> {
                 controller: ctrl,
                 padding: const EdgeInsets.all(20),
                 child: Column(
-                  children: widget.fields
-                      .map((df) => Padding(
-                            padding: const EdgeInsets.only(bottom: 14),
-                            child: _buildSubField(df),
-                          ))
-                      .toList(),
+                  children: [
+                    ..._fields.map((df) => Padding(
+                          padding: const EdgeInsets.only(bottom: 14),
+                          child: _buildSubField(df),
+                        )),
+                    const SizedBox(height: 8),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton.icon(
+                        onPressed: _save,
+                        icon: const Icon(Icons.check),
+                        label: const Text('Done'),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),
@@ -392,16 +422,42 @@ class _ViewOnlyPopupSheetState extends State<_ViewOnlyPopupSheet> {
       value: _textCtrl.containsKey(f.key) ? _textCtrl[f.key]!.text : df.value,
       textController: _textCtrl[f.key],
       accentColor: AppColors.primary,
-      onChanged: (_) {},
-      isViewMode: true,
-      onPopupFormPressed: f.isPopupForm ? () => _openNestedPopup(df) : null,
+      onChanged: (val) {
+        if (!_textCtrl.containsKey(f.key)) {
+          setState(() => df.value = val);
+        }
+      },
+      onPopupFormPressed: f.isPopupForm ? () => _openNestedPopupForm(df) : null,
       popupFormFilledCount: popupFormFilled,
       popupFormTotalCount: popupFormTotal,
       onMapPolygonPressed: f.fieldStyle == FieldStyle.mapPolygon
-          ? () => _openViewOnlyMap(df)
+          ? () => _openMapForNested(df)
           : null,
-      resolvedOptions:
-          f.fieldStyle == FieldStyle.dropdown ? df.resolvedOptions : null,
+    );
+  }
+
+  Future<void> _openMapForNested(DynamicFieldModel df) async {
+    await Navigator.pushNamed(
+      context,
+      '/land-measurement',
+      arguments: {
+        'initialPolygon': df.value,
+        'viewOnly': false,
+      },
+    );
+  }
+
+  void _openNestedPopupForm(DynamicFieldModel df) {
+    final currentValues = df.value as List<DynamicFieldModel>? ?? [];
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _EditPopupFormSheet(
+        parentField: df.field,
+        initialFields: currentValues,
+        onSaved: (result) => setState(() => df.value = result),
+      ),
     );
   }
 }
