@@ -27,12 +27,14 @@ class _RegisteredListViewState extends State<RegisteredListView> {
     super.initState();
     if (widget.flowType == FlowType.listing) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        context.read<RegisteredListViewModel>().loadFirstPage(widget.subcategoryId);
+        context
+            .read<RegisteredListViewModel>()
+            .loadFirstPage(widget.subcategoryId);
       });
     }
 
     _scrollController.addListener(() {
-      if (_scrollController.position.pixels >= 
+      if (_scrollController.position.pixels >=
           _scrollController.position.maxScrollExtent - 200) {
         context.read<RegisteredListViewModel>().loadNextPage();
       }
@@ -70,14 +72,16 @@ class _RegisteredListViewState extends State<RegisteredListView> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Icon(Icons.people_alt_outlined, size: 64, color: AppColors.textMedium),
+                  const Icon(Icons.people_alt_outlined,
+                      size: 64, color: AppColors.textMedium),
                   const SizedBox(height: 16),
                   const Text('No records found.',
-                      style: TextStyle(
-                          fontSize: 18, color: AppColors.textMedium)),
+                      style:
+                          TextStyle(fontSize: 18, color: AppColors.textMedium)),
                   const SizedBox(height: 16),
                   ElevatedButton(
-                    onPressed: () => viewModel.loadFirstPage(widget.subcategoryId),
+                    onPressed: () =>
+                        viewModel.loadFirstPage(widget.subcategoryId),
                     child: const Text('Retry'),
                   ),
                 ],
@@ -92,7 +96,8 @@ class _RegisteredListViewState extends State<RegisteredListView> {
             child: ListView.separated(
               controller: _scrollController,
               padding: const EdgeInsets.all(16),
-              itemCount: viewModel.farmers.length + (viewModel.isLoadingMore ? 1 : 0),
+              itemCount:
+                  viewModel.farmers.length + (viewModel.isLoadingMore ? 1 : 0),
               separatorBuilder: (context, index) => const SizedBox(height: 12),
               itemBuilder: (context, index) {
                 if (index == viewModel.farmers.length) {
@@ -120,14 +125,21 @@ class _RegisteredListViewState extends State<RegisteredListView> {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: InkWell(
         borderRadius: BorderRadius.circular(12),
-        onTap: () => Navigator.pushNamed(
-          context,
-          '/farmer-detail',
-          arguments: {
-            'subcategoryId': widget.subcategoryId,
-            'submissionId': farmer.submissionId,
-          },
-        ),
+        onTap: () async {
+          final result = await Navigator.pushNamed(
+            context,
+            '/farmer-detail',
+            arguments: {
+              'subcategoryId': widget.subcategoryId,
+              'submissionId': farmer.submissionId,
+            },
+          );
+          if (result == true && context.mounted) {
+            context
+                .read<RegisteredListViewModel>()
+                .loadFirstPage(widget.subcategoryId);
+          }
+        },
         child: Padding(
           padding: const EdgeInsets.all(16.0),
           child: Row(
@@ -167,7 +179,8 @@ class _RegisteredListViewState extends State<RegisteredListView> {
                 textAlign: TextAlign.right,
               ),
               const SizedBox(width: 4),
-              const Icon(Icons.chevron_right, color: AppColors.textMedium, size: 20),
+              const Icon(Icons.chevron_right,
+                  color: AppColors.textMedium, size: 20),
             ],
           ),
         ),

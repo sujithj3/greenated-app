@@ -128,8 +128,8 @@ class _FarmerDetailViewState extends State<FarmerDetailView> {
             title: Text(_vm.formName.isNotEmpty ? _vm.formName : 'Detail'),
             actions: [
               TextButton.icon(
-                onPressed: () {
-                  Navigator.pushNamed(
+                onPressed: () async {
+                  final result = await Navigator.pushNamed(
                     context,
                     '/edit-farmer-details',
                     arguments: {
@@ -137,6 +137,10 @@ class _FarmerDetailViewState extends State<FarmerDetailView> {
                       'submissionId': widget.submissionId,
                     },
                   );
+
+                  if (result == true && context.mounted) {
+                    Navigator.pop(context, true);
+                  }
                 },
                 icon: const Icon(Icons.edit, size: 18, color: AppColors.white),
                 label: const Text(

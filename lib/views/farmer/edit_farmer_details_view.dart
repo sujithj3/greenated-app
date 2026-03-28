@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../core/network/api_client.dart';
 import '../../models/api/api_models.dart';
 import '../../services/auth_service.dart';
+import '../../services/image_upload_service.dart';
 import '../../services/registration_form_service.dart';
 import '../../utils/app_colors.dart';
+import '../../utils/snack_bar_helper.dart';
 import '../../view_models/farmer/edit_farmer_details_view_model.dart';
 import '../../widgets/dynamic_field_builder.dart';
 import '../../widgets/shimmer_loading.dart';
@@ -39,6 +42,8 @@ class _EditFarmerDetailsViewState extends State<EditFarmerDetailsView> {
     _vm = EditFarmerDetailsViewModel(
       service: context.read<RegistrationFormService>(),
       authService: context.read<AuthService>(),
+      apiClient: context.read<ApiClient>(),
+      imageUploadService: context.read<ImageUploadService>(),
     );
   }
 
@@ -100,6 +105,23 @@ class _EditFarmerDetailsViewState extends State<EditFarmerDetailsView> {
     super.dispose();
   }
 
+  // ── Camera capture + upload ─────────────────────────────────────────────
+
+  Future<void> _captureAndUpload(String fieldKey) async {
+    final localPath =
+        await Navigator.pushNamed(context, '/camera-capture') as String?;
+    if (localPath == null || !mounted) return;
+
+    final url = await _vm.uploadCameraImage(fieldKey, localPath);
+    if (!mounted) return;
+
+    if (url != null) {
+      context.showSnack('Photo uploaded successfully', success: true);
+    } else {
+      context.showSnack('Photo upload failed. Please try again.');
+    }
+  }
+
   // ── Popup Form Sheet (view + edit) ──────────────────────────────────────
 
   Future<void> _openEditPopupSheet(DynamicFieldModel df) async {
@@ -119,7 +141,7 @@ class _EditFarmerDetailsViewState extends State<EditFarmerDetailsView> {
   // ── Map Polygon ─────────────────────────────────────────────────────────
 
   Future<void> _openMapForField(DynamicFieldModel df) async {
-    await Navigator.pushNamed(
+    final result = await Navigator.pushNamed(
       context,
       '/land-measurement',
       arguments: {
@@ -127,6 +149,36 @@ class _EditFarmerDetailsViewState extends State<EditFarmerDetailsView> {
         'viewOnly': false,
       },
     );
+
+    if (result != null && result is Map) {
+      final coordinates = result['coordinates'] as List<dynamic>? ?? [];
+      debugPrint('=== MAP RESULT (Main Field: ${df.field.key}) ===');
+      debugPrint('Raw result: $result');
+      debugPrint('Cleaned coordinates (to be saved in value): $coordinates');
+      _vm.updateFieldValue(df.field.key, coordinates);
+    }
+  }
+
+  // ── Save ──────────────────────────────────────────────────────────────────
+
+  Future<void> _save() async {
+    final textValues = Map.fromEntries(
+      _textCtrl.entries.map((e) => MapEntry(e.key, e.value.text)),
+    );
+
+    try {
+      final success = await _vm.save(
+        textValues: textValues,
+        subcategoryId: widget.subcategoryId,
+        submissionId: widget.submissionId,
+      );
+      if (success && mounted) {
+        context.showSnack('Registration updated!', success: true);
+        Navigator.pop(context, true);
+      }
+    } catch (e) {
+      if (mounted) context.showSnack('Error: ${e.toString()}');
+    }
   }
 
   // ── Build ─────────────────────────────────────────────────────────────────
@@ -136,18 +188,41 @@ class _EditFarmerDetailsViewState extends State<EditFarmerDetailsView> {
     return ListenableBuilder(
       listenable: _vm,
       builder: (context, _) {
-        return Scaffold(
-          appBar: AppBar(
-            title:
-                Text(_vm.formName.isNotEmpty ? 'Edit ${_vm.formName}' : 'Edit'),
-          ),
-          body: _buildBody(),
+        final isBlocked = _vm.isSaving ||
+            _vm.fields.any((df) => _vm.isFieldUploading(df.field.key)) ||
+            _vm.fields.any((df) => df.isLoadingOptions);
+
+        return Stack(
+          children: [
+            Scaffold(
+              appBar: AppBar(
+                title: Text(
+                    _vm.formName.isNotEmpty ? 'Edit ${_vm.formName}' : 'Edit'),
+              ),
+              body: _buildBody(isBlocked),
+            ),
+            if (isBlocked)
+              AbsorbPointer(
+                absorbing: true,
+                child: Container(
+                  color: Colors.black.withValues(alpha: 0.45),
+                  child: const Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        CircularProgressIndicator(color: Colors.white),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+          ],
         );
       },
     );
   }
 
-  Widget _buildBody() {
+  Widget _buildBody(bool isBlocked) {
     if (_vm.isLoading) {
       return const ShimmerFormSkeleton();
     }
@@ -208,7 +283,7 @@ class _EditFarmerDetailsViewState extends State<EditFarmerDetailsView> {
             },
           ),
         ),
-        _buildDisabledSubmitButton(),
+        _buildSubmitButton(isBlocked),
       ],
     );
   }
@@ -225,6 +300,9 @@ class _EditFarmerDetailsViewState extends State<EditFarmerDetailsView> {
           subFields.where((e) => e.value != null && e.value != '').length;
     }
 
+    final isCameraField = f.fieldStyle == FieldStyle.camera ||
+        f.fieldStyle == FieldStyle.cameraFile;
+
     return DynamicFieldBuilder(
       field: f,
       value: _textCtrl.containsKey(f.key) ? _textCtrl[f.key]!.text : df.value,
@@ -236,16 +314,27 @@ class _EditFarmerDetailsViewState extends State<EditFarmerDetailsView> {
       onPopupFormPressed: f.isPopupForm ? () => _openEditPopupSheet(df) : null,
       popupFormFilledCount: popupFormFilled,
       popupFormTotalCount: popupFormTotal,
+      // Camera field wiring
+      isUploading: isCameraField ? _vm.isFieldUploading(f.key) : false,
+      onCapturePhoto: isCameraField ? () => _captureAndUpload(f.key) : null,
+      onClearPhoto: isCameraField ? () => _vm.clearCameraImage(f.key) : null,
       onMapPolygonPressed: f.fieldStyle == FieldStyle.mapPolygon
           ? () => _openMapForField(df)
           : null,
       resolvedOptions:
           f.fieldStyle == FieldStyle.dropdown ? df.resolvedOptions : null,
+      isLoadingOptions:
+          f.fieldStyle == FieldStyle.dropdown ? df.isLoadingOptions : false,
+      optionsError:
+          f.fieldStyle == FieldStyle.dropdown ? df.optionsError : null,
+      onRetryOptions:
+          f.fieldStyle == FieldStyle.dropdown && df.optionsError != null
+              ? () => _vm.retryFetchOptions(f.key)
+              : null,
     );
   }
 
-  /// TODO: Enable update submission once backend API is ready
-  Widget _buildDisabledSubmitButton() {
+  Widget _buildSubmitButton(bool isBlocked) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
@@ -260,14 +349,11 @@ class _EditFarmerDetailsViewState extends State<EditFarmerDetailsView> {
         ],
       ),
       child: ElevatedButton.icon(
-        /// TODO: Enable update submission once backend API is ready
-        onPressed: null, // Disabled — backend not ready
+        onPressed: isBlocked ? null : _save,
         icon: const Icon(Icons.cloud_upload_outlined),
         label: const Text('Update Registration'),
         style: ElevatedButton.styleFrom(
           minimumSize: const Size(double.infinity, 48),
-          disabledBackgroundColor: AppColors.light,
-          disabledForegroundColor: AppColors.textMedium,
         ),
       ),
     );
@@ -437,7 +523,7 @@ class _EditPopupFormSheetState extends State<_EditPopupFormSheet> {
   }
 
   Future<void> _openMapForNested(DynamicFieldModel df) async {
-    await Navigator.pushNamed(
+    final result = await Navigator.pushNamed(
       context,
       '/land-measurement',
       arguments: {
@@ -445,6 +531,14 @@ class _EditPopupFormSheetState extends State<_EditPopupFormSheet> {
         'viewOnly': false,
       },
     );
+
+    if (result != null && result is Map) {
+      final coordinates = result['coordinates'] as List<dynamic>? ?? [];
+      debugPrint('=== MAP RESULT (Nested Field: ${df.field.key}) ===');
+      debugPrint('Raw result: $result');
+      debugPrint('Cleaned coordinates (to be saved in value): $coordinates');
+      setState(() => df.value = coordinates);
+    }
   }
 
   void _openNestedPopupForm(DynamicFieldModel df) {

@@ -45,6 +45,42 @@ class RegistrationFormService {
     }
   }
 
+  /// Submits an edited farmer registration to the backend.
+  ///
+  /// POSTs to the `form-edit` endpoint with the same payload structure as
+  /// [submitRegistration].
+  ///
+  /// Throws [ApiException] on non-success responses or network errors.
+  Future<void> submitEditForm(int subcategoryId, int submissionId, int userId,
+      Map<String, dynamic> payload) async {
+    final response = await _apiClient.send<Map<String, dynamic>>(
+      ApiRequest(
+        method: ApiMethod.post,
+        path: ApiEndpoints.formEdit(subcategoryId),
+        queryParameters: {
+          'submissionId': submissionId.toString(),
+          'userId': userId.toString(),
+        },
+        body: payload,
+      ),
+      decoder: (raw) {
+        if (raw is Map) {
+          return Map<String, dynamic>.from(raw);
+        }
+        return {};
+      },
+    );
+
+    if (!response.isSuccess) {
+      throw ApiException(
+        response.message.isNotEmpty
+            ? response.message
+            : 'Update registration failed. Please try again.',
+        statusCode: response.statusCode,
+      );
+    }
+  }
+
   /// Fetches a submitted form with pre-filled field values for display.
   ///
   /// Returns a [FormDetailResult] with the form name and populated fields.
