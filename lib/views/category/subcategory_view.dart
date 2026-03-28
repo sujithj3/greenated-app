@@ -6,22 +6,32 @@ import '../../models/category/category_models.dart';
 import '../../models/flow_type.dart';
 import '../../services/form_config_service.dart';
 import '../../utils/app_colors.dart';
+import '../../view_models/category/subcategory_view_model.dart';
 import '../../widgets/shimmer_loading.dart';
 
-class SubcategoryScreen extends StatefulWidget {
-  const SubcategoryScreen({super.key});
+class SubcategoryView extends StatefulWidget {
+  const SubcategoryView({super.key});
 
   @override
-  State<SubcategoryScreen> createState() => _SubcategoryScreenState();
+  State<SubcategoryView> createState() => _SubcategoryViewState();
 }
 
-class _SubcategoryScreenState extends State<SubcategoryScreen> {
+class _SubcategoryViewState extends State<SubcategoryView> {
+  late final SubcategoryViewModel _vm;
+
   @override
   void initState() {
     super.initState();
+    _vm = SubcategoryViewModel(context.read<FormConfigService>());
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<FormConfigService>().fetchCategories();
+      _vm.fetchCategories();
     });
+  }
+
+  @override
+  void dispose() {
+    _vm.dispose();
+    super.dispose();
   }
 
   @override
@@ -30,8 +40,6 @@ class _SubcategoryScreenState extends State<SubcategoryScreen> {
     final categoryName = args['category'] as String? ?? '';
     final selectionMode = args['selectionMode'] as bool? ?? false;
     final flowType = args['flowType'] as FlowType? ?? FlowType.listing;
-    final service = context.watch<FormConfigService>();
-    final category = service.getCategoryByName(categoryName);
     final catData = AppCategories.styleFor(categoryName);
     final isRegistration = flowType == FlowType.registration;
     final isPickMode = selectionMode || isRegistration;
@@ -41,38 +49,44 @@ class _SubcategoryScreenState extends State<SubcategoryScreen> {
         title: Text(isPickMode ? 'Select Subcategory' : categoryName),
         backgroundColor: catData?.color ?? AppColors.primary,
       ),
-      body: _buildBody(
-        context: context,
-        service: service,
-        categoryName: categoryName,
-        category: category,
-        catData: catData,
-        isRegistration: isRegistration,
-        isPickMode: isPickMode,
+      body: ListenableBuilder(
+        listenable: _vm,
+        builder: (context, _) {
+          final category = _vm.getCategoryByName(categoryName);
+          return _buildBody(
+            context: context,
+            categoryName: categoryName,
+            category: category,
+            catData: catData,
+            isRegistration: isRegistration,
+            isPickMode: isPickMode,
+            flowType: flowType,
+          );
+        },
       ),
     );
   }
 
   Widget _buildBody({
     required BuildContext context,
-    required FormConfigService service,
     required String categoryName,
     required CategoryModel? category,
     required CategoryData? catData,
     required bool isRegistration,
     required bool isPickMode,
+    required FlowType flowType,
   }) {
-    if (service.isLoading && category == null) {
+    if (_vm.isLoading && category == null) {
       return const ShimmerSubcategoryList();
     }
 
-    if (service.error != null && category == null) {
+    if (_vm.error != null && category == null) {
       return _SubcategoryFeedbackState(
         icon: Icons.cloud_off_outlined,
         title: 'Unable to load subcategories',
-        message: service.error!,
+        message: _vm.error!,
         actionLabel: 'Retry',
-        onAction: () => service.fetchCategories(forceRefresh: true),
+        onAction: () => _vm.fetchCategories(forceRefresh: true),
       );
     }
 
@@ -82,7 +96,7 @@ class _SubcategoryScreenState extends State<SubcategoryScreen> {
         title: 'Category not found',
         message: 'The selected category is unavailable right now.',
         actionLabel: 'Refresh',
-        onAction: () => service.fetchCategories(forceRefresh: true),
+        onAction: () => _vm.fetchCategories(forceRefresh: true),
       );
     }
 
@@ -93,19 +107,20 @@ class _SubcategoryScreenState extends State<SubcategoryScreen> {
         title: 'No subcategories available',
         message: 'This category does not have any subcategories yet.',
         actionLabel: 'Refresh',
-        onAction: () => service.fetchCategories(forceRefresh: true),
+        onAction: () => _vm.fetchCategories(forceRefresh: true),
       );
     }
 
     return RefreshIndicator(
-      onRefresh: () => service.fetchCategories(forceRefresh: true),
+      onRefresh: () => _vm.fetchCategories(forceRefresh: true),
       child: Column(
         children: <Widget>[
           if (!isPickMode)
             Container(
               width: double.infinity,
               padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
-              color: (catData?.color ?? AppColors.primary).withValues(alpha: 0.1),
+              color:
+                  (catData?.color ?? AppColors.primary).withValues(alpha: 0.1),
               child: Row(
                 children: <Widget>[
                   Icon(
@@ -170,11 +185,10 @@ class _SubcategoryScreenState extends State<SubcategoryScreen> {
 
                     Navigator.pushNamed(
                       context,
-                      '/farmer-list',
-                      arguments: <String, dynamic>{
-                        'category': categoryName,
-                        'subcategory': subcategory.subcategoryName,
-                        'viewOnly': true,
+                      '/registered-farmers',
+                      arguments: {
+                        'flowType': flowType,
+                        'subcategoryId': subcategory.subcategoryId,
                       },
                     );
                   },
@@ -220,7 +234,8 @@ class _SubcategoryTile extends StatelessWidget {
             color: color.withValues(alpha: 0.12),
             borderRadius: BorderRadius.circular(12),
           ),
-          child: Icon(catData?.icon ?? Icons.category, color: color, size: 22),
+          child:
+              Icon(catData?.icon ?? Icons.category, color: color, size: 22),
         ),
         title: Text(
           subcategory.subcategoryName,
@@ -231,7 +246,8 @@ class _SubcategoryTile extends StatelessWidget {
           style: const TextStyle(fontSize: 12, color: AppColors.textMedium),
         ),
         trailing: selectionMode
-            ? const Icon(Icons.check_circle_outline, color: AppColors.primary)
+            ? const Icon(Icons.check_circle_outline,
+                color: AppColors.primary)
             : Row(
                 mainAxisSize: MainAxisSize.min,
                 children: <Widget>[
@@ -254,7 +270,8 @@ class _SubcategoryTile extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(width: 4),
-                  const Icon(Icons.chevron_right, color: AppColors.textMedium),
+                  const Icon(Icons.chevron_right,
+                      color: AppColors.textMedium),
                 ],
               ),
       ),

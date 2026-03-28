@@ -40,6 +40,26 @@ class MockHttpClient implements ApiClient {
     return response;
   }
 
+  @override
+  Future<ApiResponse<T>> uploadFile<T>(
+    String path, {
+    required String filePath,
+    String fileKey = 'file',
+    Map<String, String> fields = const {},
+    T? Function(Object? rawData)? decoder,
+  }) async {
+    await Future<void>.delayed(latency);
+
+    final json = _success(
+      message: 'File uploaded successfully.',
+      data: <String, dynamic>{
+        'url': 'https://mock.example.com/uploads/mock-image.jpg',
+      },
+    );
+
+    return ApiResponse<T>.fromJson(json, dataParser: decoder);
+  }
+
   Map<String, dynamic> _route(ApiRequest request) {
     final key = request.routeKey;
 
@@ -52,10 +72,41 @@ class MockHttpClient implements ApiClient {
       return _mockGetFarmers();
     }
 
+    if (request.method.value == 'GET') {
+      return _mockDependentOptions(request);
+    }
+
     return _error(
       ApiStatusCode.notFound,
       'Mock route not found for $key.',
     );
+  }
+
+  Map<String, dynamic> _mockDependentOptions(ApiRequest request) {
+    final parentId = int.tryParse(
+          request.queryParameters.values.isEmpty
+              ? ''
+              : request.queryParameters.values.first,
+        ) ??
+        1;
+    final label = _segmentLabel(request.path);
+    final options = List<Map<String, dynamic>>.generate(
+      3,
+      (i) => {
+        'id': parentId * 10 + i + 1,
+        'label': '$label ${parentId * 10 + i + 1}',
+      },
+    );
+    return _success(
+      message: 'Options fetched successfully.',
+      data: options,
+    );
+  }
+
+  String _segmentLabel(String path) {
+    final segments = path.split('/');
+    final last = segments.lastWhere((s) => s.isNotEmpty, orElse: () => 'Option');
+    return '${last[0].toUpperCase()}${last.substring(1)}';
   }
 
   Map<String, dynamic> _mockRequestOtp() {

@@ -6,22 +6,32 @@ import '../../models/category/category_models.dart';
 import '../../models/flow_type.dart';
 import '../../services/form_config_service.dart';
 import '../../utils/app_colors.dart';
+import '../../view_models/category/category_view_model.dart';
 import '../../widgets/shimmer_loading.dart';
 
-class CategoryScreen extends StatefulWidget {
-  const CategoryScreen({super.key});
+class CategoryView extends StatefulWidget {
+  const CategoryView({super.key});
 
   @override
-  State<CategoryScreen> createState() => _CategoryScreenState();
+  State<CategoryView> createState() => _CategoryViewState();
 }
 
-class _CategoryScreenState extends State<CategoryScreen> {
+class _CategoryViewState extends State<CategoryView> {
+  late final CategoryViewModel _vm;
+
   @override
   void initState() {
     super.initState();
+    _vm = CategoryViewModel(context.read<FormConfigService>());
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<FormConfigService>().fetchCategories();
+      _vm.fetchCategories();
     });
+  }
+
+  @override
+  void dispose() {
+    _vm.dispose();
+    super.dispose();
   }
 
   @override
@@ -30,55 +40,53 @@ class _CategoryScreenState extends State<CategoryScreen> {
     final selectionMode = args['selectionMode'] as bool? ?? false;
     final flowType = args['flowType'] as FlowType? ?? FlowType.listing;
     final isRegistration = flowType == FlowType.registration;
-    final service = context.watch<FormConfigService>();
-
-    final title = (isRegistration || selectionMode)
-        ? 'Select Category'
-        : 'Farm Categories';
+    final title =
+        (isRegistration || selectionMode) ? 'Select Category' : 'Farm Categories';
 
     return Scaffold(
       appBar: AppBar(title: Text(title)),
-      body: _buildBody(
-        context: context,
-        service: service,
-        selectionMode: selectionMode,
-        flowType: flowType,
+      body: ListenableBuilder(
+        listenable: _vm,
+        builder: (context, _) => _buildBody(
+          context: context,
+          selectionMode: selectionMode,
+          flowType: flowType,
+        ),
       ),
     );
   }
 
   Widget _buildBody({
     required BuildContext context,
-    required FormConfigService service,
     required bool selectionMode,
     required FlowType flowType,
   }) {
-    if (service.isLoading && service.categories.isEmpty) {
+    if (_vm.isLoading && _vm.categories.isEmpty) {
       return const ShimmerCategoryGrid();
     }
 
-    if (service.error != null && service.categories.isEmpty) {
+    if (_vm.error != null && _vm.categories.isEmpty) {
       return _CategoryFeedbackState(
         icon: Icons.cloud_off_outlined,
         title: 'Unable to load categories',
-        message: service.error!,
+        message: _vm.error!,
         actionLabel: 'Retry',
-        onAction: () => service.fetchCategories(forceRefresh: true),
+        onAction: () => _vm.fetchCategories(forceRefresh: true),
       );
     }
 
-    if (service.categories.isEmpty) {
+    if (_vm.categories.isEmpty) {
       return _CategoryFeedbackState(
         icon: Icons.category_outlined,
         title: 'No categories available',
         message: 'Categories will appear here once the backend returns data.',
         actionLabel: 'Refresh',
-        onAction: () => service.fetchCategories(forceRefresh: true),
+        onAction: () => _vm.fetchCategories(forceRefresh: true),
       );
     }
 
     return RefreshIndicator(
-      onRefresh: () => service.fetchCategories(forceRefresh: true),
+      onRefresh: () => _vm.fetchCategories(forceRefresh: true),
       child: GridView.builder(
         padding: const EdgeInsets.all(16),
         gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
@@ -87,9 +95,9 @@ class _CategoryScreenState extends State<CategoryScreen> {
           crossAxisSpacing: 16,
           childAspectRatio: 1.05,
         ),
-        itemCount: service.categories.length,
+        itemCount: _vm.categories.length,
         itemBuilder: (_, index) {
-          final category = service.categories[index];
+          final category = _vm.categories[index];
           final data = AppCategories.styleFor(category.categoryName);
 
           return _CategoryCard(
