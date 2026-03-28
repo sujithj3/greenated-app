@@ -227,10 +227,7 @@ class _CategoriesGrid extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (vm.isCategoriesLoading && vm.categories.isEmpty) {
-      return const SizedBox(
-        height: 260,
-        child: ShimmerCategoryGrid(),
-      );
+      return const ShimmerCategoryGrid();
     }
 
     if (vm.categoriesError != null && vm.categories.isEmpty) {

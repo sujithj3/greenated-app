@@ -91,13 +91,14 @@ class ShimmerCategoryGrid extends StatelessWidget {
   Widget build(BuildContext context) {
     return Shimmer(
       child: GridView.builder(
-        padding: const EdgeInsets.all(16),
+        padding: EdgeInsets.zero,
+        shrinkWrap: true,
         physics: const NeverScrollableScrollPhysics(),
         gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
           crossAxisCount: 2,
-          mainAxisSpacing: 16,
-          crossAxisSpacing: 16,
-          childAspectRatio: 1.05,
+          mainAxisSpacing: 12,
+          crossAxisSpacing: 12,
+          childAspectRatio: 1.15,
         ),
         itemCount: 4,
         itemBuilder: (_, __) => Container(
@@ -226,12 +227,10 @@ class ShimmerFormSkeleton extends StatelessWidget {
           Row(
             children: const [
               Expanded(
-                  flex: 3,
-                  child: ShimmerBlock(height: 52, borderRadius: 12)),
+                  flex: 3, child: ShimmerBlock(height: 52, borderRadius: 12)),
               SizedBox(width: 12),
               Expanded(
-                  flex: 2,
-                  child: ShimmerBlock(height: 52, borderRadius: 12)),
+                  flex: 2, child: ShimmerBlock(height: 52, borderRadius: 12)),
             ],
           ),
 
