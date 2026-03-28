@@ -165,7 +165,11 @@ class FarmerRegistrationApp extends StatelessWidget {
                 subcategoryId: args['subcategoryId'] as int? ?? 0,
               );
             case '/farmer-detail':
-              page = FarmerDetailView(farmerId: settings.arguments as String);
+              final detailArgs = settings.arguments as Map<String, dynamic>? ?? {};
+              page = FarmerDetailView(
+                subcategoryId: detailArgs['subcategoryId'] as int? ?? 0,
+                submissionId: detailArgs['submissionId'] as int? ?? 0,
+              );
             default:
               page = const SplashView();
           }

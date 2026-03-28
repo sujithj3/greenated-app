@@ -118,45 +118,58 @@ class _RegisteredListViewState extends State<RegisteredListView> {
     return Card(
       elevation: 2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    farmer.fullName,
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.textDark,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: () => Navigator.pushNamed(
+          context,
+          '/farmer-detail',
+          arguments: {
+            'subcategoryId': widget.subcategoryId,
+            'submissionId': farmer.submissionId,
+          },
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      farmer.fullName,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.textDark,
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    farmer.mobileNumber,
-                    style: const TextStyle(
-                      fontSize: 14,
-                      color: AppColors.textMedium,
+                    const SizedBox(height: 4),
+                    Text(
+                      farmer.mobileNumber,
+                      style: const TextStyle(
+                        fontSize: 14,
+                        color: AppColors.textMedium,
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
-            const SizedBox(width: 8),
-            Text(
-              farmer.formName,
-              style: const TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w500,
-                color: AppColors.primary,
+              const SizedBox(width: 8),
+              Text(
+                farmer.formName,
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                  color: AppColors.primary,
+                ),
+                textAlign: TextAlign.right,
               ),
-              textAlign: TextAlign.right,
-            ),
-          ],
+              const SizedBox(width: 4),
+              const Icon(Icons.chevron_right, color: AppColors.textMedium, size: 20),
+            ],
+          ),
         ),
       ),
     );

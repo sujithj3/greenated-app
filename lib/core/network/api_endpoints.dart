@@ -24,6 +24,9 @@ class ApiEndpoints {
   static String registeredList(int subcategoryId) =>
       'subcategories/$subcategoryId/registration-list';
 
+  static String formDetail(int subcategoryId) =>
+      'subcategories/$subcategoryId/form-detail';
+
   // ── Image Upload ────────────────────────────────────────────────────
   static const String imageUpload = 'image/upload';
 

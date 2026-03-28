@@ -26,6 +26,7 @@ class DynamicFieldBuilder extends StatelessWidget {
     this.isLoadingOptions = false,
     this.optionsError,
     this.onRetryOptions,
+    this.isViewMode = false,
   });
 
   final ApiField field;
@@ -61,6 +62,9 @@ class DynamicFieldBuilder extends StatelessWidget {
 
   /// Callback to retry a failed dependent options fetch.
   final VoidCallback? onRetryOptions;
+
+  /// When true, all fields render in read-only display mode.
+  final bool isViewMode;
 
   Color get _accent => accentColor ?? AppColors.primary;
 
@@ -107,7 +111,7 @@ class DynamicFieldBuilder extends StatelessWidget {
     return TextFormField(
       controller: controller,
       decoration: InputDecoration(
-        labelText: field.required ? '${field.label} *' : field.label,
+        labelText: isViewMode ? field.label : (field.required ? '${field.label} *' : field.label),
         prefixIcon: Icon(
           isNumber
               ? Icons.numbers_outlined
@@ -117,49 +121,82 @@ class DynamicFieldBuilder extends StatelessWidget {
           color: _accent,
         ),
       ),
-      keyboardType: isNumber
-          ? const TextInputType.numberWithOptions(decimal: true)
-          : isPhone
-              ? TextInputType.phone
-              : TextInputType.text,
+      readOnly: isViewMode,
+      enabled: !isViewMode,
+      keyboardType: isViewMode
+          ? null
+          : isNumber
+              ? const TextInputType.numberWithOptions(decimal: true)
+              : isPhone
+                  ? TextInputType.phone
+                  : TextInputType.text,
       textCapitalization:
           isNumber || isPhone ? TextCapitalization.none : TextCapitalization.sentences,
-      inputFormatters: [
-        if (field.fieldType == FieldType.integer)
-          FilteringTextInputFormatter.digitsOnly,
-        if (field.fieldType == FieldType.decimal)
-          FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*')),
-        if (isPhone) FilteringTextInputFormatter.digitsOnly,
-      ],
-      maxLength: isPhone ? 15 : null,
-      onChanged: (raw) {
-        if (field.fieldType == FieldType.integer) {
-          onChanged(int.tryParse(raw.trim()));
-        } else if (field.fieldType == FieldType.decimal) {
-          onChanged(double.tryParse(raw.trim()));
-        } else {
-          onChanged(raw.trim().isEmpty ? null : raw.trim());
-        }
-      },
-      validator: (v) {
-        final sanitized = (v ?? '').trim();
-        if (field.required && sanitized.isEmpty) {
-          return '${field.label} is required';
-        }
-        if (sanitized.isNotEmpty && isNumber && double.tryParse(sanitized) == null) {
-          return 'Enter a valid number';
-        }
-        if (isPhone && sanitized.isNotEmpty && sanitized.length < 7) {
-          return 'Invalid number';
-        }
-        return null;
-      },
+      inputFormatters: isViewMode
+          ? const []
+          : [
+              if (field.fieldType == FieldType.integer)
+                FilteringTextInputFormatter.digitsOnly,
+              if (field.fieldType == FieldType.decimal)
+                FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*')),
+              if (isPhone) FilteringTextInputFormatter.digitsOnly,
+            ],
+      maxLength: isViewMode ? null : (isPhone ? 15 : null),
+      onChanged: isViewMode
+          ? null
+          : (raw) {
+              if (field.fieldType == FieldType.integer) {
+                onChanged(int.tryParse(raw.trim()));
+              } else if (field.fieldType == FieldType.decimal) {
+                onChanged(double.tryParse(raw.trim()));
+              } else {
+                onChanged(raw.trim().isEmpty ? null : raw.trim());
+              }
+            },
+      validator: isViewMode
+          ? null
+          : (v) {
+              final sanitized = (v ?? '').trim();
+              if (field.required && sanitized.isEmpty) {
+                return '${field.label} is required';
+              }
+              if (sanitized.isNotEmpty &&
+                  isNumber &&
+                  double.tryParse(sanitized) == null) {
+                return 'Enter a valid number';
+              }
+              if (isPhone && sanitized.isNotEmpty && sanitized.length < 7) {
+                return 'Invalid number';
+              }
+              return null;
+            },
     );
   }
 
   // ── Dropdown ───────────────────────────────────────────────────────────────
 
   Widget _buildDropdownField() {
+    if (isViewMode) {
+      final options = resolvedOptions ?? field.options;
+      final selectedStr = value?.toString();
+      final matched = options.firstWhere(
+        (o) => o.id.toString() == selectedStr,
+        orElse: () => ApiOption(id: -1, name: selectedStr ?? '-'),
+      );
+      final displayText = matched.name.isNotEmpty ? matched.name : (selectedStr ?? '-');
+      return InputDecorator(
+        decoration: InputDecoration(
+          labelText: field.label,
+          prefixIcon:
+              Icon(Icons.arrow_drop_down_circle_outlined, color: _accent),
+        ),
+        child: Text(
+          displayText,
+          style: const TextStyle(color: AppColors.textDark),
+        ),
+      );
+    }
+
     if (isLoadingOptions) {
       return InputDecorator(
         decoration: InputDecoration(
@@ -258,12 +295,14 @@ class DynamicFieldBuilder extends StatelessWidget {
     return FormField<bool>(
       key: ValueKey('checkbox_${field.key}'),
       initialValue: checked,
-      validator: (v) {
-        if (field.required && v != true) {
-          return '${field.label} is required';
-        }
-        return null;
-      },
+      validator: isViewMode
+          ? null
+          : (v) {
+              if (field.required && v != true) {
+                return '${field.label} is required';
+              }
+              return null;
+            },
       builder: (state) {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -282,11 +321,13 @@ class DynamicFieldBuilder extends StatelessWidget {
                 controlAffinity: ListTileControlAffinity.leading,
                 activeColor: _accent,
                 title: Text(field.label),
-                onChanged: (v) {
-                  final next = v ?? false;
-                  state.didChange(next);
-                  onChanged(next);
-                },
+                onChanged: isViewMode
+                    ? null
+                    : (v) {
+                        final next = v ?? false;
+                        state.didChange(next);
+                        onChanged(next);
+                      },
               ),
             ),
             if (state.hasError) ...[
@@ -320,12 +361,14 @@ class DynamicFieldBuilder extends StatelessWidget {
     return FormField<String>(
       key: ValueKey('radio_${field.key}'),
       initialValue: selected,
-      validator: (v) {
-        if (field.required && (v == null || v.isEmpty)) {
-          return '${field.label} is required';
-        }
-        return null;
-      },
+      validator: isViewMode
+          ? null
+          : (v) {
+              if (field.required && (v == null || v.isEmpty)) {
+                return '${field.label} is required';
+              }
+              return null;
+            },
       builder: (state) {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -344,7 +387,9 @@ class DynamicFieldBuilder extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    field.required ? '${field.label} *' : field.label,
+                    isViewMode
+                        ? field.label
+                        : (field.required ? '${field.label} *' : field.label),
                     style: const TextStyle(
                       color: AppColors.textMedium,
                       fontWeight: FontWeight.w500,
@@ -360,7 +405,7 @@ class DynamicFieldBuilder extends StatelessWidget {
                               label: Text(option.name),
                               selected: state.value == option.id.toString(),
                               selectedColor: _accent.withValues(alpha: 0.2),
-                              onSelected: (sel) {
+                              onSelected: isViewMode ? null : (sel) {
                                 final next = sel ? option.id.toString() : null;
                                 state.didChange(next);
                                 onChanged(next);
@@ -398,10 +443,11 @@ class DynamicFieldBuilder extends StatelessWidget {
     return TextFormField(
       controller: controller,
       readOnly: true,
+      enabled: !isViewMode,
       decoration: InputDecoration(
-        labelText: field.required ? '${field.label} *' : field.label,
+        labelText: isViewMode ? field.label : (field.required ? '${field.label} *' : field.label),
         prefixIcon: Icon(Icons.calendar_today_outlined, color: _accent),
-        suffixIcon: controller.text.isNotEmpty
+        suffixIcon: (!isViewMode && controller.text.isNotEmpty)
             ? IconButton(
                 icon: const Icon(Icons.close, size: 18),
                 onPressed: () {
@@ -411,27 +457,31 @@ class DynamicFieldBuilder extends StatelessWidget {
               )
             : null,
       ),
-      onTap: () async {
-        final now = DateTime.now();
-        final picked = await showDatePicker(
-          context: context,
-          initialDate: now,
-          firstDate: DateTime(1900),
-          lastDate: DateTime(now.year + 10),
-        );
-        if (picked != null) {
-          final formatted =
-              '${picked.year}-${picked.month.toString().padLeft(2, '0')}-${picked.day.toString().padLeft(2, '0')}';
-          controller.text = formatted;
-          onChanged(formatted);
-        }
-      },
-      validator: (v) {
-        if (field.required && (v == null || v.trim().isEmpty)) {
-          return '${field.label} is required';
-        }
-        return null;
-      },
+      onTap: isViewMode
+          ? null
+          : () async {
+              final now = DateTime.now();
+              final picked = await showDatePicker(
+                context: context,
+                initialDate: now,
+                firstDate: DateTime(1900),
+                lastDate: DateTime(now.year + 10),
+              );
+              if (picked != null) {
+                final formatted =
+                    '${picked.year}-${picked.month.toString().padLeft(2, '0')}-${picked.day.toString().padLeft(2, '0')}';
+                controller.text = formatted;
+                onChanged(formatted);
+              }
+            },
+      validator: isViewMode
+          ? null
+          : (v) {
+              if (field.required && (v == null || v.trim().isEmpty)) {
+                return '${field.label} is required';
+              }
+              return null;
+            },
     );
   }
 
@@ -529,36 +579,61 @@ class DynamicFieldBuilder extends StatelessWidget {
                   ),
                 ),
               ),
-              const SizedBox(height: 12),
-              // ── Retake / Delete buttons ──
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed: isUploading ? null : onCapturePhoto,
-                      icon: const Icon(Icons.refresh, size: 18),
-                      label: const Text('Retake'),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed: isUploading
-                          ? null
-                          : () {
-                              state.didChange(null);
-                              onClearPhoto?.call();
-                            },
-                      icon: const Icon(Icons.delete_outline,
-                          size: 18, color: AppColors.error),
-                      label: const Text('Remove',
-                          style: TextStyle(color: AppColors.error)),
-                      style: OutlinedButton.styleFrom(
-                        side: const BorderSide(color: AppColors.error),
+              if (!isViewMode) ...[
+                const SizedBox(height: 12),
+                // ── Retake / Delete buttons ──
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: isUploading ? null : onCapturePhoto,
+                        icon: const Icon(Icons.refresh, size: 18),
+                        label: const Text('Retake'),
                       ),
                     ),
-                  ),
-                ],
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: isUploading
+                            ? null
+                            : () {
+                                state.didChange(null);
+                                onClearPhoto?.call();
+                              },
+                        icon: const Icon(Icons.delete_outline,
+                            size: 18, color: AppColors.error),
+                        label: const Text('Remove',
+                            style: TextStyle(color: AppColors.error)),
+                        style: OutlinedButton.styleFrom(
+                          side: const BorderSide(color: AppColors.error),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ] else if (isViewMode) ...[
+              // ── View mode: no image placeholder ──
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                decoration: BoxDecoration(
+                  color: AppColors.veryLight,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: AppColors.light),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.photo_camera_outlined, color: _accent),
+                    const SizedBox(width: 10),
+                    Text(field.label,
+                        style: const TextStyle(color: AppColors.textMedium)),
+                    const Spacer(),
+                    const Text('No image',
+                        style: TextStyle(
+                            color: AppColors.textMedium, fontSize: 12)),
+                  ],
+                ),
               ),
             ] else ...[
               // ── Capture button ──
@@ -611,12 +686,12 @@ class DynamicFieldBuilder extends StatelessWidget {
     return FormField<dynamic>(
       key: ValueKey('attachment_${field.key}'),
       initialValue: value,
-      validator: (v) {
-        if (field.required && v == null) {
-          return '${field.label} is required';
-        }
-        return null;
-      },
+      validator: (isViewMode || !field.required)
+          ? null
+          : (v) {
+              if (v == null) return '${field.label} is required';
+              return null;
+            },
       builder: (state) {
         final hasAttachment = state.value != null;
         return Column(
@@ -624,13 +699,15 @@ class DynamicFieldBuilder extends StatelessWidget {
           children: [
             InkWell(
               borderRadius: BorderRadius.circular(12),
-              onTap: () async {
-                if (onPickAttachment == null) return;
-                final result = await onPickAttachment!(field);
-                if (result == null) return;
-                state.didChange(result);
-                onChanged(result);
-              },
+              onTap: isViewMode
+                  ? null
+                  : () async {
+                      if (onPickAttachment == null) return;
+                      final result = await onPickAttachment!(field);
+                      if (result == null) return;
+                      state.didChange(result);
+                      onChanged(result);
+                    },
               child: Container(
                 width: double.infinity,
                 padding:
@@ -651,9 +728,11 @@ class DynamicFieldBuilder extends StatelessWidget {
                       child: Text(
                         hasAttachment
                             ? _attachmentLabel(state.value)
-                            : field.required
-                                ? '${field.label} *'
-                                : field.label,
+                            : isViewMode
+                                ? 'No file'
+                                : (field.required
+                                    ? '${field.label} *'
+                                    : field.label),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
@@ -663,7 +742,7 @@ class DynamicFieldBuilder extends StatelessWidget {
                         ),
                       ),
                     ),
-                    if (hasAttachment)
+                    if (hasAttachment && !isViewMode)
                       InkWell(
                         onTap: () {
                           state.didChange(null);
@@ -724,6 +803,23 @@ class DynamicFieldBuilder extends StatelessWidget {
     final filled = popupFormFilledCount ?? 0;
     final total = popupFormTotalCount ?? field.subFields.length;
 
+    if (isViewMode) {
+      return OutlinedButton.icon(
+        onPressed: onPopupFormPressed,
+        icon: Icon(Icons.visibility_outlined, color: _accent),
+        label: Text(
+          filled > 0
+              ? 'View ${field.label}  ($filled / $total filled)'
+              : 'View ${field.label}',
+          style: TextStyle(color: _accent),
+        ),
+        style: OutlinedButton.styleFrom(
+          minimumSize: const Size(double.infinity, 48),
+          side: BorderSide(color: _accent, width: 1.5),
+        ),
+      );
+    }
+
     return OutlinedButton.icon(
       onPressed: onPopupFormPressed,
       icon: Icon(
@@ -749,28 +845,40 @@ class DynamicFieldBuilder extends StatelessWidget {
   // ── Map Polygon Field ──────────────────────────────────────────────────────
 
   Widget _buildMapPolygonField(BuildContext context) {
-    final hasData = value != null && (value as List).isNotEmpty;
-    final int ptsCount = hasData ? (value as List).length : 0;
+    final asList = value is List ? value as List : null;
+    final hasData = asList != null && asList.isNotEmpty;
+    final int ptsCount = hasData ? asList.length : 0;
 
     return FormField<dynamic>(
       key: ValueKey('mappolygon_${field.key}'),
       initialValue: value,
-      validator: (v) {
-        if (field.required && (v == null || (v as List).isEmpty)) {
-          return '${field.label} is required';
-        }
-        return null;
-      },
+      validator: (isViewMode || !field.required)
+          ? null
+          : (v) {
+              if (v == null || (v as List).isEmpty) {
+                return '${field.label} is required';
+              }
+              return null;
+            },
       builder: (state) {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             OutlinedButton.icon(
-              onPressed: onMapPolygonPressed,
-              icon: const Icon(Icons.map),
-              label: Text(hasData
-                  ? '${field.label} ($ptsCount pts)'
-                  : field.label),
+              onPressed: (isViewMode && !hasData) ? null : onMapPolygonPressed,
+              icon: Icon(isViewMode ? Icons.map_outlined : Icons.map,
+                  color: hasData ? _accent : AppColors.textMedium),
+              label: Text(
+                isViewMode
+                    ? (hasData
+                        ? 'View ${field.label} ($ptsCount pts)'
+                        : 'No polygon data')
+                    : (hasData
+                        ? '${field.label} ($ptsCount pts)'
+                        : field.label),
+                style: TextStyle(
+                    color: hasData ? _accent : AppColors.textMedium),
+              ),
               style: OutlinedButton.styleFrom(
                 minimumSize: const Size(double.infinity, 48),
                 side: BorderSide(

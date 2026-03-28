@@ -1,16 +1,46 @@
 import 'package:flutter/foundation.dart';
-import '../../models/farmer/farmer_model.dart';
+import '../../models/api/api_models.dart';
+import '../../services/auth_service.dart';
+import '../../services/registration_form_service.dart';
 
-/// Placeholder ViewModel for farmer detail.
-/// Firestore data loading removed. Will be wired to a real API when available.
 class FarmerDetailViewModel extends ChangeNotifier {
-  FarmerDetailViewModel();
+  FarmerDetailViewModel({
+    required RegistrationFormService service,
+    required AuthService authService,
+  })  : _service = service,
+        _authService = authService;
 
-  FarmerModel? get farmer => null;
-  bool get isLoading => false;
+  final RegistrationFormService _service;
+  final AuthService _authService;
 
-  // No-op until a real farmers API is integrated.
-  Future<void> loadFarmer(String id) async {}
-  Future<void> deleteFarmer() async {}
-  Future<void> toggleStatus() async {}
+  bool isLoading = false;
+  String? error;
+  String formName = '';
+  List<DynamicFieldModel> fields = [];
+
+  Future<void> loadFormDetail(
+      {required int subcategoryId, required int submissionId}) async {
+    final userId = _authService.userId;
+    if (userId == null) {
+      error = 'User not authenticated.';
+      notifyListeners();
+      return;
+    }
+
+    isLoading = true;
+    error = null;
+    notifyListeners();
+
+    try {
+      final result =
+          await _service.fetchFormDetail(subcategoryId, submissionId, userId);
+      formName = result.formName;
+      fields = result.fields;
+    } catch (e) {
+      error = e.toString();
+    } finally {
+      isLoading = false;
+      notifyListeners();
+    }
+  }
 }

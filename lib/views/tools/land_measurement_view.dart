@@ -42,6 +42,7 @@ class _LandMeasurementViewState extends State<LandMeasurementView> {
   }
 
   bool _isInit = false;
+  bool _viewOnly = false;
 
   @override
   void didChangeDependencies() {
@@ -49,9 +50,12 @@ class _LandMeasurementViewState extends State<LandMeasurementView> {
     if (!_isInit) {
       _isInit = true;
       final args = ModalRoute.of(context)?.settings.arguments as Map?;
-      if (args != null && args['initialPolygon'] != null) {
-        final initialPolygons = args['initialPolygon'] as Iterable<dynamic>;
-        _vm.setInitialPoints(initialPolygons);
+      if (args != null) {
+        _viewOnly = args['viewOnly'] as bool? ?? false;
+        if (args['initialPolygon'] != null) {
+          final initialPolygons = args['initialPolygon'] as Iterable<dynamic>;
+          _vm.setInitialPoints(initialPolygons);
+        }
       }
     }
   }
@@ -168,9 +172,9 @@ class _LandMeasurementViewState extends State<LandMeasurementView> {
         final points = _vm.points;
         return Scaffold(
           appBar: AppBar(
-            title: const Text('Land Measurement'),
+            title: Text(_viewOnly ? 'View Land Boundary' : 'Land Measurement'),
             actions: [
-              if (_vm.canComplete)
+              if (!_viewOnly && _vm.canComplete)
                 TextButton.icon(
                   onPressed: _done,
                   icon: const Icon(Icons.check, color: Colors.white),
@@ -184,13 +188,13 @@ class _LandMeasurementViewState extends State<LandMeasurementView> {
             children: [
               GoogleMap(
                 onMapCreated: (ctrl) => _mapController = ctrl,
-                initialCameraPosition: points.isNotEmpty 
+                initialCameraPosition: points.isNotEmpty
                     ? CameraPosition(target: points.first, zoom: 18)
                     : _defaultCamera,
                 mapType: _mapType,
                 myLocationEnabled: true,
                 myLocationButtonEnabled: false,
-                onTap: _onTap,
+                onTap: _viewOnly ? null : _onTap,
                 markers: _vm.buildMarkers(),
                 polylines: _vm.buildPolylines(),
                 polygons: _vm.buildPolygon(),
@@ -216,11 +220,17 @@ class _LandMeasurementViewState extends State<LandMeasurementView> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                points.isEmpty
-                                    ? 'Tap on the map to mark land boundary points'
-                                    : points.length < 3
-                                        ? 'Add ${3 - points.length} more point(s) to form polygon'
-                                        : 'Area: ${_vm.areaInAcres.toStringAsFixed(4)} Acres',
+                                _viewOnly
+                                    ? (points.isEmpty
+                                        ? 'No boundary points recorded'
+                                        : points.length < 3
+                                            ? '${points.length} point(s) recorded'
+                                            : 'Area: ${_vm.areaInAcres.toStringAsFixed(4)} Acres')
+                                    : (points.isEmpty
+                                        ? 'Tap on the map to mark land boundary points'
+                                        : points.length < 3
+                                            ? 'Add ${3 - points.length} more point(s) to form polygon'
+                                            : 'Area: ${_vm.areaInAcres.toStringAsFixed(4)} Acres'),
                                 style: const TextStyle(
                                   fontWeight: FontWeight.w600,
                                   color: AppColors.dark,
@@ -279,41 +289,47 @@ class _LandMeasurementViewState extends State<LandMeasurementView> {
                               color: AppColors.primary),
                     ),
                     const SizedBox(height: 8),
-                    FloatingActionButton.small(
-                      heroTag: 'undo',
-                      onPressed:
-                          points.isEmpty ? null : _vm.undoLastPoint,
-                      backgroundColor: points.isEmpty
-                          ? Colors.grey.shade300
-                          : Colors.white,
-                      child: Icon(Icons.undo,
-                          color: points.isEmpty
-                              ? Colors.grey
-                              : AppColors.warning),
-                    ),
-                    const SizedBox(height: 8),
-                    FloatingActionButton.small(
-                      heroTag: 'clear',
-                      onPressed: points.isEmpty ? null : () {
-                        _vm.clearAll();
-                        final args = ModalRoute.of(context)?.settings.arguments as Map?;
-                        if (args != null && args['onClear'] != null) {
-                          args['onClear']();
-                        }
-                      },
-                      backgroundColor: points.isEmpty
-                          ? Colors.grey.shade300
-                          : Colors.white,
-                      child: Icon(Icons.delete_outline,
-                          color:
-                              points.isEmpty ? Colors.grey : AppColors.error),
-                    ),
+                    if (!_viewOnly) ...[
+                      FloatingActionButton.small(
+                        heroTag: 'undo',
+                        onPressed:
+                            points.isEmpty ? null : _vm.undoLastPoint,
+                        backgroundColor: points.isEmpty
+                            ? Colors.grey.shade300
+                            : Colors.white,
+                        child: Icon(Icons.undo,
+                            color: points.isEmpty
+                                ? Colors.grey
+                                : AppColors.warning),
+                      ),
+                      const SizedBox(height: 8),
+                      FloatingActionButton.small(
+                        heroTag: 'clear',
+                        onPressed: points.isEmpty
+                            ? null
+                            : () {
+                                _vm.clearAll();
+                                final args = ModalRoute.of(context)
+                                    ?.settings.arguments as Map?;
+                                if (args != null && args['onClear'] != null) {
+                                  args['onClear']();
+                                }
+                              },
+                        backgroundColor: points.isEmpty
+                            ? Colors.grey.shade300
+                            : Colors.white,
+                        child: Icon(Icons.delete_outline,
+                            color: points.isEmpty
+                                ? Colors.grey
+                                : AppColors.error),
+                      ),
+                    ],
                   ],
                 ),
               ),
 
               // ── Done FAB (bottom-left) ────────────────────────────────
-              if (_vm.canComplete)
+              if (!_viewOnly && _vm.canComplete)
                 Positioned(
                   bottom: 16,
                   left: 16,
