@@ -255,3 +255,48 @@ class ShimmerFormSkeleton extends StatelessWidget {
     );
   }
 }
+
+// ─── Registered list shimmer ──────────────────────────────────────────────────
+
+class ShimmerRegisteredList extends StatelessWidget {
+  const ShimmerRegisteredList({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Shimmer(
+      child: ListView.separated(
+        padding: const EdgeInsets.all(16),
+        physics: const NeverScrollableScrollPhysics(),
+        itemCount: 6,
+        separatorBuilder: (_, __) => const SizedBox(height: 12),
+        itemBuilder: (_, __) => Card(
+          elevation: 2,
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          child: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: const [
+                      ShimmerBlock(width: 140, height: 16, borderRadius: 4),
+                      SizedBox(height: 8),
+                      ShimmerBlock(width: 100, height: 14, borderRadius: 4),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                const ShimmerBlock(width: 80, height: 14, borderRadius: 4),
+                const SizedBox(width: 4),
+                const ShimmerBlock(width: 20, height: 20, borderRadius: 10),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}

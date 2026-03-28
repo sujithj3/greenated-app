@@ -4,6 +4,7 @@ import '../../models/flow_type.dart';
 import '../../utils/app_colors.dart';
 import '../../view_models/registered_list_view_model.dart';
 import '../../models/registered_farmer.dart';
+import '../../widgets/shimmer_loading.dart';
 
 class RegisteredListView extends StatefulWidget {
   final FlowType flowType;
@@ -62,27 +63,38 @@ class _RegisteredListViewState extends State<RegisteredListView> {
       body: Consumer<RegisteredListViewModel>(
         builder: (context, viewModel, child) {
           if (viewModel.isLoading) {
-            return const Center(
-              child: CircularProgressIndicator(),
-            );
+            return const ShimmerRegisteredList();
           }
 
           if (viewModel.farmers.isEmpty) {
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Icon(Icons.people_alt_outlined,
-                      size: 64, color: AppColors.textMedium),
-                  const SizedBox(height: 16),
-                  const Text('No records found.',
-                      style:
-                          TextStyle(fontSize: 18, color: AppColors.textMedium)),
-                  const SizedBox(height: 16),
-                  ElevatedButton(
-                    onPressed: () =>
-                        viewModel.loadFirstPage(widget.subcategoryId),
-                    child: const Text('Retry'),
+            return RefreshIndicator(
+              onRefresh: () async {
+                await viewModel.loadFirstPage(widget.subcategoryId);
+              },
+              child: CustomScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                slivers: [
+                  SliverFillRemaining(
+                    hasScrollBody: false,
+                    child: Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Icon(Icons.people_alt_outlined,
+                              size: 64, color: AppColors.textMedium),
+                          const SizedBox(height: 16),
+                          const Text('No records found.',
+                              style: TextStyle(
+                                  fontSize: 18, color: AppColors.textMedium)),
+                          const SizedBox(height: 16),
+                          ElevatedButton(
+                            onPressed: () =>
+                                viewModel.loadFirstPage(widget.subcategoryId),
+                            child: const Text('Retry'),
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
                 ],
               ),
@@ -94,6 +106,7 @@ class _RegisteredListViewState extends State<RegisteredListView> {
               await viewModel.loadFirstPage(widget.subcategoryId);
             },
             child: ListView.separated(
+              physics: const AlwaysScrollableScrollPhysics(),
               controller: _scrollController,
               padding: const EdgeInsets.all(16),
               itemCount:

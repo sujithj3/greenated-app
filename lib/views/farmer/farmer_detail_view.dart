@@ -139,7 +139,12 @@ class _FarmerDetailViewState extends State<FarmerDetailView> {
                   );
 
                   if (result == true && context.mounted) {
-                    Navigator.pop(context, true);
+                    // Small delay to allow iOS CupertinoPageRoute pop animation to complete
+                    Future.delayed(const Duration(milliseconds: 400), () {
+                      if (context.mounted) {
+                        Navigator.pop(context, true);
+                      }
+                    });
                   }
                 },
                 icon: const Icon(Icons.edit, size: 18, color: AppColors.white),
