@@ -137,35 +137,48 @@ class _DashboardViewState extends State<DashboardView> {
   }
 
   Widget _buildDrawer(BuildContext context) {
+    final screenWidth = MediaQuery.of(context).size.width;
+
     return Drawer(
       child: ListView(
         padding: EdgeInsets.zero,
         children: [
           DrawerHeader(
+            padding: EdgeInsets.zero,
+            margin: const EdgeInsets.only(bottom: 8),
             decoration: const BoxDecoration(
               gradient: LinearGradient(
                 colors: [AppColors.dark, AppColors.primary],
               ),
             ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.end,
+            child: Stack(
+              clipBehavior: Clip.none,
               children: [
-                const CircleAvatar(
-                  radius: 28,
-                  backgroundColor: AppColors.light,
-                  child: Icon(Icons.eco, color: AppColors.dark, size: 28),
+                Positioned(
+                  left: 5,
+                  bottom: -35,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Image.asset(
+                        'assets/images/greenated-logo-white.png',
+                        width: screenWidth * 0.45,
+                        fit: BoxFit.contain,
+                      ),
+                      // const SizedBox(height: 10),
+                      // const Text('FARMER REGISTRATION',
+                      //     style: TextStyle(
+                      //         color: Colors.white,
+                      //         fontSize: 18,
+                      //         fontWeight: FontWeight.w800,
+                      //         letterSpacing: 2)),
+                      // Text(_vm.displayPhone,
+                      //     style:
+                      //         const TextStyle(color: AppColors.light, fontSize: 12)),
+                    ],
+                  ),
                 ),
-                const SizedBox(height: 10),
-                const Text('FARMER REGISTRATION',
-                    style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 18,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 2)),
-                Text(_vm.displayPhone,
-                    style:
-                        const TextStyle(color: AppColors.light, fontSize: 12)),
               ],
             ),
           ),
