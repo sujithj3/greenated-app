@@ -109,6 +109,13 @@ class _FarmerFormViewState extends State<FarmerFormView> {
       if (area > 0) _landAreaCtrl.text = area.toString();
     }
 
+    // Clear text controllers for fields that are now hidden
+    for (final df in _vm.dynamicFields) {
+      if (!_vm.isFieldVisible(df) && _dynTextCtrl.containsKey(df.field.key)) {
+        _dynTextCtrl[df.field.key]!.clear();
+      }
+    }
+
     setState(() {});
   }
 
@@ -230,6 +237,7 @@ class _FarmerFormViewState extends State<FarmerFormView> {
 
     bool hasData = false;
     for (final df in _vm.dynamicFields) {
+      if (!_vm.isFieldVisible(df)) continue;
       dynamic v;
       if (textValues.containsKey(df.field.key)) {
         v = textValues[df.field.key]!.trim();
@@ -419,6 +427,7 @@ class _FarmerFormViewState extends State<FarmerFormView> {
   List<Widget> _buildDynamicFields(Color catColor) {
     if (_vm.dynamicFields.isEmpty) return [];
     return _vm.dynamicFields
+        .where((df) => _vm.isFieldVisible(df))
         .map((df) => Padding(
               padding: const EdgeInsets.only(bottom: 12),
               child: _buildDynamicField(df, catColor),
@@ -637,8 +646,33 @@ class _PopupFormSheetState extends State<_PopupFormSheet> {
     super.dispose();
   }
 
+  bool _isSubFieldVisible(DynamicFieldModel df) => shouldShowField(df, _fields);
+
+  void _onSubFieldChanged(DynamicFieldModel df, dynamic val) {
+    setState(() {
+      df.value = val;
+      _resetHiddenSubFieldDependents(df.field.key);
+    });
+  }
+
+  void _resetHiddenSubFieldDependents(String parentKey) {
+    for (final df in _fields) {
+      if (df.field.dependsOn == parentKey && df.field.hasVisibilityCondition) {
+        if (!shouldShowField(df, _fields)) {
+          df.value = null;
+          _textCtrl[df.field.key]?.clear();
+          _resetHiddenSubFieldDependents(df.field.key);
+        }
+      }
+    }
+  }
+
   void _save() {
     for (final df in _fields) {
+      if (!_isSubFieldVisible(df)) {
+        df.value = null;
+        continue;
+      }
       if (_textCtrl.containsKey(df.field.key)) {
         final text = _textCtrl[df.field.key]!.text.trim();
         df.value = text.isNotEmpty ? text : null;
@@ -701,10 +735,12 @@ class _PopupFormSheetState extends State<_PopupFormSheet> {
                 padding: const EdgeInsets.all(20),
                 child: Column(
                   children: [
-                    ..._fields.map((df) => Padding(
-                          padding: const EdgeInsets.only(bottom: 14),
-                          child: _buildSubField(df, color),
-                        )),
+                    ..._fields
+                        .where((df) => _isSubFieldVisible(df))
+                        .map((df) => Padding(
+                              padding: const EdgeInsets.only(bottom: 14),
+                              child: _buildSubField(df, color),
+                            )),
                     const SizedBox(height: 8),
                     SizedBox(
                       width: double.infinity,
@@ -744,7 +780,9 @@ class _PopupFormSheetState extends State<_PopupFormSheet> {
       accentColor: color,
       onChanged: (val) {
         if (!_textCtrl.containsKey(f.key)) {
-          setState(() => df.value = val);
+          _onSubFieldChanged(df, val);
+        } else {
+          setState(() {}); // text controller manages value; rebuild for visibility
         }
       },
       onPopupFormPressed:

@@ -93,22 +93,9 @@ class _SplashViewState extends State<SplashView>
                     scale: _scaleAnim,
                     child: FadeTransition(
                       opacity: _fadeAnim,
-                      child: Container(
-                        width: (100 * scale).clamp(80.0, 130.0),
-                        height: (100 * scale).clamp(80.0, 130.0),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.15),
-                          shape: BoxShape.circle,
-                          border: Border.all(
-                            color: Colors.white.withValues(alpha: 0.4),
-                            width: 2,
-                          ),
-                        ),
-                        child: Icon(
-                          Icons.eco,
-                          size: (54 * scale).clamp(40.0, 70.0),
-                          color: AppColors.light,
-                        ),
+                      child: Image.asset(
+                        'assets/images/greenated-logo-white.png',
+                        width: screenWidth * 0.7,
                       ),
                     ),
                   ),
@@ -122,28 +109,12 @@ class _SplashViewState extends State<SplashView>
                       opacity: _fadeAnim,
                       child: Column(
                         children: [
-                          FittedBox(
-                            fit: BoxFit.scaleDown,
-                            child: Text(
-                              'GREENATED',
-                              maxLines: 1,
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize:
-                                    (34 * scale).clamp(24.0, 44.0),
-                                fontWeight: FontWeight.w800,
-                                letterSpacing: 4,
-                              ),
-                            ),
-                          ),
                           SizedBox(height: 6 * scale),
                           Text(
                             'Greenated System',
                             style: TextStyle(
-                              color:
-                                  Colors.white.withValues(alpha: 0.85),
-                              fontSize:
-                                  (14 * scale).clamp(12.0, 17.0),
+                              color: Colors.white.withValues(alpha: 0.85),
+                              fontSize: (14 * scale).clamp(12.0, 17.0),
                               letterSpacing: 1.2,
                             ),
                           ),

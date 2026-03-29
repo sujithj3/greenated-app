@@ -153,9 +153,13 @@ class ApiField {
   final List<ApiField> subFields;
   final String? dependsOn;
   final FieldDataSource? dataSource;
-  final String? showWhen;
+  final List<dynamic>? showWhen;
 
   bool get isPopupForm => fieldStyle == FieldStyle.popupForm;
+
+  /// True when this field uses local visibility (dependsOn + showWhen, no dataSource).
+  bool get hasVisibilityCondition =>
+      dependsOn != null && showWhen != null && dataSource == null;
 
   List<String> get fieldData => options.map((option) => option.name).toList();
 
@@ -195,7 +199,7 @@ class ApiField {
           ? FieldDataSource.fromJson(
               Map<String, dynamic>.from(data['dataSource'] as Map))
           : null,
-      showWhen: data['showWhen']?.toString(),
+      showWhen: _parseShowWhen(data['showWhen']),
     );
   }
 
@@ -399,4 +403,30 @@ int _asInt(Object? value, {int fallback = 0}) {
   if (value is num) return value.toInt();
   if (value is String) return int.tryParse(value) ?? fallback;
   return fallback;
+}
+
+List<dynamic>? _parseShowWhen(Object? raw) {
+  if (raw == null) return null;
+  if (raw is List) return List<dynamic>.from(raw);
+  final parsed = int.tryParse(raw.toString());
+  return [parsed ?? raw];
+}
+
+/// Returns true if [field] should be visible given the current [allFields].
+///
+/// A field is visible when it has no visibility condition, or when its parent's
+/// current value is contained in the field's showWhen list.
+bool shouldShowField(DynamicFieldModel field, List<DynamicFieldModel> allFields) {
+  final apiField = field.field;
+  if (!apiField.hasVisibilityCondition) return true;
+
+  final parentIdx =
+      allFields.indexWhere((df) => df.field.key == apiField.dependsOn);
+  if (parentIdx == -1) return true;
+
+  final parentValue = allFields[parentIdx].value;
+  if (parentValue == null) return false;
+
+  return apiField.showWhen!
+      .any((allowed) => allowed.toString() == parentValue.toString());
 }

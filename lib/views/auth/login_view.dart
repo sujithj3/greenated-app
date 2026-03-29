@@ -30,8 +30,7 @@ class _LoginViewState extends State<LoginView> {
 
   void _onOtpSent() {
     setState(() {
-      _fullPhoneNumber =
-          '${_vm.selectedCountryCode} ${_vm.lastPhoneNumber}';
+      _fullPhoneNumber = '${_vm.selectedCountryCode} ${_vm.lastPhoneNumber}';
     });
   }
 
@@ -59,129 +58,130 @@ class _LoginViewState extends State<LoginView> {
         // Prevent Scaffold from resizing — background stays fixed
         resizeToAvoidBottomInset: false,
         body: ListenableBuilder(
-        listenable: _vm,
-        builder: (context, _) => Stack(
-          children: [
-            // ── Fixed background layer ──
-            Positioned.fill(
-              child: Container(
-                decoration: const BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      AppColors.dark,
-                      AppColors.primary,
-                      Color(0xFFE8F0E4), // off-white/light green transition
-                      Color(0xFFF5F7F2), // off-white bottom
-                    ],
-                    stops: [0.0, 0.30, 0.55, 0.70],
+          listenable: _vm,
+          builder: (context, _) => Stack(
+            children: [
+              // ── Fixed background layer ──
+              Positioned.fill(
+                child: Container(
+                  decoration: const BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        AppColors.dark,
+                        AppColors.primary,
+                        Color(0xFFE8F0E4), // off-white/light green transition
+                        Color(0xFFF5F7F2), // off-white bottom
+                      ],
+                      stops: [0.0, 0.30, 0.55, 0.70],
+                    ),
                   ),
                 ),
               ),
-            ),
 
-            // ── Foreground content ──
-            SafeArea(
-              bottom: false,
-              child: CustomScrollView(
-                slivers: [
-                  // ── Branding ──
-                  SliverToBoxAdapter(
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 10),
-                      child: Column(
-                        children: [
-                          SizedBox(height: topSpacing),
-                          Icon(Icons.eco,
-                              size: 56 * scale, color: AppColors.light),
-                          SizedBox(height: 10 * scale),
-                          FittedBox(
-                            fit: BoxFit.scaleDown,
-                            child: Text(
-                              'GREENATED',
-                              maxLines: 1,
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: (28 * scale).clamp(20.0, 34.0),
-                                fontWeight: FontWeight.w800,
-                                letterSpacing: 3,
-                              ),
+              // ── Foreground content ──
+              SafeArea(
+                bottom: false,
+                child: CustomScrollView(
+                  slivers: [
+                    // ── Branding ──
+                    SliverToBoxAdapter(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 10),
+                        child: Column(
+                          children: [
+                            SizedBox(height: topSpacing),
+                            Image.asset(
+                              'assets/images/greenated-logo-white.png',
+                              width: screenWidth * 0.7,
                             ),
-                          ),
-                          SizedBox(height: 4 * scale),
-                          Text(
-                            'Greenated System',
-                            style: TextStyle(
-                              color: Colors.white.withValues(alpha: 0.75),
-                              fontSize: (13 * scale).clamp(11.0, 15.0),
-                            ),
-                          ),
-                          // ── Gap between branding and form ──
-                          SizedBox(height: (80 * scale).clamp(60.0, 100.0)),
-                        ],
-                      ),
-                    ),
-                  ),
-
-                  // ── Form Container ──
-                  SliverFillRemaining(
-                    hasScrollBody: false,
-                    child: Container(
-                      width: double.infinity,
-                      padding: EdgeInsets.fromLTRB(
-                        cardPadding,
-                        cardPadding,
-                        cardPadding,
-                        cardPadding + keyboardHeight,
-                      ),
-                      decoration: const BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.only(
-                          topLeft: Radius.circular(24),
-                          topRight: Radius.circular(24),
+                            SizedBox(height: 10 * scale),
+                            // FittedBox(
+                            //   fit: BoxFit.scaleDown,
+                            //   child: Text(
+                            //     'GREENATED',
+                            //     maxLines: 1,
+                            //     style: TextStyle(
+                            //       color: Colors.white,
+                            //       fontSize: (28 * scale).clamp(20.0, 34.0),
+                            //       fontWeight: FontWeight.w800,
+                            //       letterSpacing: 3,
+                            //     ),
+                            //   ),
+                            // ),
+                            SizedBox(height: 10 * scale),
+                            // Text(
+                            //   'Greenated System',
+                            //   style: TextStyle(
+                            //     color: Colors.white.withValues(alpha: 0.75),
+                            //     fontSize: (13 * scale).clamp(11.0, 15.0),
+                            //   ),
+                            // ),
+                            // ── Gap between branding and form ──
+                            // SizedBox(height: (30 * scale).clamp(60.0, 100.0)),
+                          ],
                         ),
                       ),
-                      child: AnimatedSwitcher(
-                        duration: const Duration(milliseconds: 350),
-                        switchInCurve: Curves.easeOutCubic,
-                        switchOutCurve: Curves.easeInCubic,
-                        transitionBuilder: (child, animation) {
-                          return FadeTransition(
-                            opacity: animation,
-                            child: SlideTransition(
-                              position: Tween<Offset>(
-                                begin: const Offset(0.05, 0),
-                                end: Offset.zero,
-                              ).animate(animation),
-                              child: child,
-                            ),
-                          );
-                        },
-                        child: _vm.codeSent
-                            ? OtpVerificationView(
-                                key: const ValueKey('otp'),
-                                viewModel: _vm,
-                                phoneNumber: _fullPhoneNumber,
-                                onVerified: _onVerified,
-                                onChangeNumber: _onChangeNumber,
-                              )
-                            : LoginWithPhoneView(
-                                key: const ValueKey('phone'),
-                                viewModel: _vm,
-                                onOtpSent: _onOtpSent,
+                    ),
+
+                    // ── Form Container ──
+                    SliverFillRemaining(
+                      hasScrollBody: false,
+                      child: Container(
+                        width: double.infinity,
+                        padding: EdgeInsets.fromLTRB(
+                          cardPadding,
+                          cardPadding,
+                          cardPadding,
+                          cardPadding + keyboardHeight,
+                        ),
+                        decoration: const BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.only(
+                            topLeft: Radius.circular(24),
+                            topRight: Radius.circular(24),
+                          ),
+                        ),
+                        child: AnimatedSwitcher(
+                          duration: const Duration(milliseconds: 350),
+                          switchInCurve: Curves.easeOutCubic,
+                          switchOutCurve: Curves.easeInCubic,
+                          transitionBuilder: (child, animation) {
+                            return FadeTransition(
+                              opacity: animation,
+                              child: SlideTransition(
+                                position: Tween<Offset>(
+                                  begin: const Offset(0.05, 0),
+                                  end: Offset.zero,
+                                ).animate(animation),
+                                child: child,
                               ),
+                            );
+                          },
+                          child: _vm.codeSent
+                              ? OtpVerificationView(
+                                  key: const ValueKey('otp'),
+                                  viewModel: _vm,
+                                  phoneNumber: _fullPhoneNumber,
+                                  onVerified: _onVerified,
+                                  onChangeNumber: _onChangeNumber,
+                                )
+                              : LoginWithPhoneView(
+                                  key: const ValueKey('phone'),
+                                  viewModel: _vm,
+                                  onOtpSent: _onOtpSent,
+                                ),
+                        ),
                       ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
-      ),
       ),
     );
   }
 }
-

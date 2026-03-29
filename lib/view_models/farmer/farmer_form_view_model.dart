@@ -180,6 +180,9 @@ class FarmerFormViewModel extends ChangeNotifier {
     }
   }
 
+  /// Whether a field should be visible based on its showWhen condition.
+  bool isFieldVisible(DynamicFieldModel df) => shouldShowField(df, dynamicFields);
+
   /// Whether a specific camera field is currently uploading.
   bool isFieldUploading(String key) => _uploadingFields[key] ?? false;
 
@@ -221,8 +224,12 @@ class FarmerFormViewModel extends ChangeNotifier {
     if (selectedCategory.isEmpty || selectedSubcategory.isEmpty) return false;
     if (editFarmer != null) return false; // edit not yet supported
 
-    // Apply text values from controllers into dynamicFields
+    // Apply text values from controllers into dynamicFields; null out hidden fields
     for (final df in dynamicFields) {
+      if (!isFieldVisible(df)) {
+        df.value = null;
+        continue;
+      }
       if (textValues.containsKey(df.field.key)) {
         final text = textValues[df.field.key]!.trim();
         df.value = text.isNotEmpty ? text : null;
@@ -315,7 +322,7 @@ class FarmerFormViewModel extends ChangeNotifier {
     for (final df in dynamicFields) {
       if (df.field.dependsOn == parentKey) {
         df.value = null;
-        df.resolvedOptions = [];
+        df.resolvedOptions = df.field.options;
         df.isLoadingOptions = false;
         df.optionsError = null;
         df.incrementFetchGeneration();
