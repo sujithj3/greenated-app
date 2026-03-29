@@ -212,14 +212,15 @@ class _FarmerDetailViewState extends State<FarmerDetailView> {
       );
     }
 
+    final visibleFields = _vm.fields
+        .where((df) => shouldShowField(df, _vm.fields))
+        .toList();
+
     return ListView.separated(
       padding: const EdgeInsets.all(16),
-      itemCount: _vm.fields.length,
+      itemCount: visibleFields.length,
       separatorBuilder: (_, __) => const SizedBox(height: 12),
-      itemBuilder: (context, index) {
-        final df = _vm.fields[index];
-        return _buildField(df);
-      },
+      itemBuilder: (context, index) => _buildField(visibleFields[index]),
     );
   }
 
@@ -370,6 +371,7 @@ class _ViewOnlyPopupSheetState extends State<_ViewOnlyPopupSheet> {
                 padding: const EdgeInsets.all(20),
                 child: Column(
                   children: widget.fields
+                      .where((df) => shouldShowField(df, widget.fields))
                       .map((df) => Padding(
                             padding: const EdgeInsets.only(bottom: 14),
                             child: _buildSubField(df),

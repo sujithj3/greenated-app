@@ -93,6 +93,13 @@ class _EditFarmerDetailsViewState extends State<EditFarmerDetailsView> {
         }
       }
     }
+
+    // Clear text controllers for fields that are now hidden
+    for (final df in _vm.fields) {
+      if (!_vm.isFieldVisible(df) && _textCtrl.containsKey(df.field.key)) {
+        _textCtrl[df.field.key]!.clear();
+      }
+    }
   }
 
   @override
@@ -270,17 +277,17 @@ class _EditFarmerDetailsViewState extends State<EditFarmerDetailsView> {
       );
     }
 
+    final visibleFields =
+        _vm.fields.where((df) => _vm.isFieldVisible(df)).toList();
+
     return Column(
       children: [
         Expanded(
           child: ListView.separated(
             padding: const EdgeInsets.all(16),
-            itemCount: _vm.fields.length,
+            itemCount: visibleFields.length,
             separatorBuilder: (_, __) => const SizedBox(height: 12),
-            itemBuilder: (context, index) {
-              final df = _vm.fields[index];
-              return _buildField(df);
-            },
+            itemBuilder: (context, index) => _buildField(visibleFields[index]),
           ),
         ),
         _buildSubmitButton(isBlocked),
@@ -405,8 +412,33 @@ class _EditPopupFormSheetState extends State<_EditPopupFormSheet> {
     super.dispose();
   }
 
+  bool _isSubFieldVisible(DynamicFieldModel df) => shouldShowField(df, _fields);
+
+  void _onSubFieldChanged(DynamicFieldModel df, dynamic val) {
+    setState(() {
+      df.value = val;
+      _resetHiddenSubFieldDependents(df.field.key);
+    });
+  }
+
+  void _resetHiddenSubFieldDependents(String parentKey) {
+    for (final df in _fields) {
+      if (df.field.dependsOn == parentKey && df.field.hasVisibilityCondition) {
+        if (!shouldShowField(df, _fields)) {
+          df.value = null;
+          _textCtrl[df.field.key]?.clear();
+          _resetHiddenSubFieldDependents(df.field.key);
+        }
+      }
+    }
+  }
+
   void _save() {
     for (final df in _fields) {
+      if (!_isSubFieldVisible(df)) {
+        df.value = null;
+        continue;
+      }
       if (_textCtrl.containsKey(df.field.key)) {
         final text = _textCtrl[df.field.key]!.text.trim();
         df.value = text.isNotEmpty ? text : null;
@@ -468,10 +500,12 @@ class _EditPopupFormSheetState extends State<_EditPopupFormSheet> {
                 padding: const EdgeInsets.all(20),
                 child: Column(
                   children: [
-                    ..._fields.map((df) => Padding(
-                          padding: const EdgeInsets.only(bottom: 14),
-                          child: _buildSubField(df),
-                        )),
+                    ..._fields
+                        .where((df) => _isSubFieldVisible(df))
+                        .map((df) => Padding(
+                              padding: const EdgeInsets.only(bottom: 14),
+                              child: _buildSubField(df),
+                            )),
                     const SizedBox(height: 8),
                     SizedBox(
                       width: double.infinity,
@@ -510,7 +544,9 @@ class _EditPopupFormSheetState extends State<_EditPopupFormSheet> {
       accentColor: AppColors.primary,
       onChanged: (val) {
         if (!_textCtrl.containsKey(f.key)) {
-          setState(() => df.value = val);
+          _onSubFieldChanged(df, val);
+        } else {
+          setState(() {}); // text controller manages value; rebuild for visibility
         }
       },
       onPopupFormPressed: f.isPopupForm ? () => _openNestedPopupForm(df) : null,

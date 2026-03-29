@@ -92,6 +92,9 @@ class EditFarmerDetailsViewModel extends ChangeNotifier {
     }
   }
 
+  /// Whether a field should be visible based on its showWhen condition.
+  bool isFieldVisible(DynamicFieldModel df) => shouldShowField(df, fields);
+
   /// Updates a dynamic field value by key.
   ///
   /// When called after the initial load (i.e. user-initiated), it triggers
@@ -151,8 +154,12 @@ class EditFarmerDetailsViewModel extends ChangeNotifier {
     required int subcategoryId,
     required int submissionId,
   }) async {
-    // Apply text values from controllers into fields
+    // Apply text values from controllers into fields; null out hidden fields
     for (final df in fields) {
+      if (!isFieldVisible(df)) {
+        df.value = null;
+        continue;
+      }
       if (textValues.containsKey(df.field.key)) {
         final text = textValues[df.field.key]!.trim();
         df.value = text.isNotEmpty ? text : null;
@@ -230,7 +237,7 @@ class EditFarmerDetailsViewModel extends ChangeNotifier {
     for (final df in fields) {
       if (df.field.dependsOn == parentKey) {
         df.value = null;
-        df.resolvedOptions = [];
+        df.resolvedOptions = df.field.options;
         df.isLoadingOptions = false;
         df.optionsError = null;
         df.incrementFetchGeneration();
