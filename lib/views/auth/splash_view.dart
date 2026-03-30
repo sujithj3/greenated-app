@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import '../../services/auth_service.dart';
 import '../../utils/app_colors.dart';
 
@@ -21,6 +22,7 @@ class _SplashViewState extends State<SplashView>
   late Animation<double> _fadeAnim;
   late Animation<double> _scaleAnim;
   late Animation<Offset> _slideAnim;
+  String _appVersion = '';
 
   @override
   void initState() {
@@ -45,7 +47,22 @@ class _SplashViewState extends State<SplashView>
     );
 
     _ctrl.forward();
+    _loadVersion();
     _navigate();
+  }
+
+  Future<void> _loadVersion() async {
+    final info = await PackageInfo.fromPlatform();
+    if (mounted) {
+      final parts = info.version.split('.');
+      String displayVersion = info.version;
+      if (parts.length >= 2) {
+        displayVersion = '${parts[0]}.${parts[1]}';
+      }
+      setState(() {
+        _appVersion = displayVersion;
+      });
+    }
   }
 
   Future<void> _navigate() async {
@@ -111,7 +128,16 @@ class _SplashViewState extends State<SplashView>
                         children: [
                           SizedBox(height: 6 * scale),
                           Text(
-                            'Greenated System',
+                            'Powering Net-Zero through',
+                            style: TextStyle(
+                              color: Colors.white.withValues(alpha: 0.85),
+                              fontSize: (14 * scale).clamp(12.0, 17.0),
+                              letterSpacing: 1.2,
+                            ),
+                          ),
+                          SizedBox(height: 6 * scale),
+                          Text(
+                            'Nature & Innovation',
                             style: TextStyle(
                               color: Colors.white.withValues(alpha: 0.85),
                               fontSize: (14 * scale).clamp(12.0, 17.0),
@@ -142,7 +168,7 @@ class _SplashViewState extends State<SplashView>
                         ),
                         SizedBox(height: 14 * scale),
                         Text(
-                          'Empowering Farmers',
+                          _appVersion.isEmpty ? 'Loading...' : "v$_appVersion",
                           style: TextStyle(
                             color: Colors.white.withValues(alpha: 0.6),
                             fontSize: (12 * scale).clamp(11.0, 15.0),
