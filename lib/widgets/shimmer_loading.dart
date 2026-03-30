@@ -91,13 +91,14 @@ class ShimmerCategoryGrid extends StatelessWidget {
   Widget build(BuildContext context) {
     return Shimmer(
       child: GridView.builder(
-        padding: const EdgeInsets.all(16),
+        padding: EdgeInsets.zero,
+        shrinkWrap: true,
         physics: const NeverScrollableScrollPhysics(),
         gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
           crossAxisCount: 2,
-          mainAxisSpacing: 16,
-          crossAxisSpacing: 16,
-          childAspectRatio: 1.05,
+          mainAxisSpacing: 12,
+          crossAxisSpacing: 12,
+          childAspectRatio: 1.15,
         ),
         itemCount: 4,
         itemBuilder: (_, __) => Container(
@@ -226,12 +227,10 @@ class ShimmerFormSkeleton extends StatelessWidget {
           Row(
             children: const [
               Expanded(
-                  flex: 3,
-                  child: ShimmerBlock(height: 52, borderRadius: 12)),
+                  flex: 3, child: ShimmerBlock(height: 52, borderRadius: 12)),
               SizedBox(width: 12),
               Expanded(
-                  flex: 2,
-                  child: ShimmerBlock(height: 52, borderRadius: 12)),
+                  flex: 2, child: ShimmerBlock(height: 52, borderRadius: 12)),
             ],
           ),
 
@@ -253,6 +252,51 @@ class ShimmerFormSkeleton extends StatelessWidget {
           child: Container(height: 1.5, color: const Color(0xFFE0E0E0)),
         ),
       ],
+    );
+  }
+}
+
+// ─── Registered list shimmer ──────────────────────────────────────────────────
+
+class ShimmerRegisteredList extends StatelessWidget {
+  const ShimmerRegisteredList({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Shimmer(
+      child: ListView.separated(
+        padding: const EdgeInsets.all(16),
+        physics: const NeverScrollableScrollPhysics(),
+        itemCount: 6,
+        separatorBuilder: (_, __) => const SizedBox(height: 12),
+        itemBuilder: (_, __) => Card(
+          elevation: 2,
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          child: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: const [
+                      ShimmerBlock(width: 140, height: 16, borderRadius: 4),
+                      SizedBox(height: 8),
+                      ShimmerBlock(width: 100, height: 14, borderRadius: 4),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                const ShimmerBlock(width: 80, height: 14, borderRadius: 4),
+                const SizedBox(width: 4),
+                const ShimmerBlock(width: 20, height: 20, borderRadius: 10),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

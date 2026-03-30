@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:fluttertoast/fluttertoast.dart';
 import '../../utils/app_colors.dart';
+import '../../utils/snack_bar_helper.dart';
 import '../../view_models/auth/login_view_model.dart';
 
 /// Phone number input view — part of the login flow.
@@ -38,40 +38,22 @@ class _LoginWithPhoneViewState extends State<LoginWithPhoneView> {
   Future<void> _sendOTP() async {
     final phoneNumber = _phoneCtrl.text.trim();
     if (!_isValidPhoneNumber(phoneNumber)) {
-      _showValidationToast();
+      context.showSnack('Enter a valid 10-digit phone number');
       return;
     }
     FocusScope.of(context).unfocus();
 
     final success = await _vm.sendOTP(phoneNumber);
     if (success && mounted) {
-      _showSnack('OTP sent to ${_vm.selectedCountryCode}$phoneNumber');
+      context.showSnack('OTP sent to ${_vm.selectedCountryCode}$phoneNumber', success: true);
       widget.onOtpSent();
     } else if (_vm.error != null && mounted) {
-      _showSnack(_vm.error!, isError: true);
+      context.showSnack(_vm.error!);
     }
   }
 
   bool _isValidPhoneNumber(String value) => RegExp(r'^\d{10}$').hasMatch(value);
 
-  void _showValidationToast() {
-    Fluttertoast.cancel();
-    Fluttertoast.showToast(
-      msg: 'Enter a valid 10-digit phone number',
-      toastLength: Toast.LENGTH_SHORT,
-      gravity: ToastGravity.BOTTOM,
-      backgroundColor: AppColors.error,
-      textColor: Colors.white,
-    );
-  }
-
-  void _showSnack(String msg, {bool isError = false}) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(msg),
-      backgroundColor: isError ? AppColors.error : AppColors.dark,
-      behavior: SnackBarBehavior.floating,
-    ));
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -103,62 +85,57 @@ class _LoginWithPhoneViewState extends State<LoginWithPhoneView> {
           ),
           SizedBox(height: (28 * scale).clamp(20.0, 34.0)),
 
-          // Phone row
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Country code picker
-              Container(
-                padding: EdgeInsets.symmetric(
-                  horizontal: 8 * scale,
-                  vertical: 14,
-                ),
-                decoration: BoxDecoration(
-                  color: AppColors.veryLight,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: AppColors.light),
-                ),
-                child: DropdownButtonHideUnderline(
-                  child: DropdownButton<String>(
-                    value: _vm.selectedCountryCode,
-                    isDense: true,
+          IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // Country code picker
+                Container(
+                  alignment: Alignment.center,
+                  padding: EdgeInsets.symmetric(
+                    horizontal: 12 * scale,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AppColors.veryLight,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: AppColors.light),
+                  ),
+                  child: Text(
+                    _vm.selectedCountryCode,
                     style: TextStyle(
                       fontSize: (14 * scale).clamp(12.0, 16.0),
                       color: AppColors.dark,
+                      fontWeight: FontWeight.w600,
                     ),
-                    items: _vm.countryCodes
-                        .map((c) => DropdownMenuItem(value: c, child: Text(c)))
-                        .toList(),
-                    onChanged: (v) => _vm.setCountryCode(v!),
                   ),
                 ),
-              ),
-              SizedBox(width: 8 * scale),
-              Expanded(
-                child: TextFormField(
-                  controller: _phoneCtrl,
-                  keyboardType: TextInputType.phone,
-                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                  maxLength: 10,
-                  style: TextStyle(
-                    fontSize: (15 * scale).clamp(13.0, 17.0),
-                  ),
-                  decoration: InputDecoration(
-                    labelText: 'Mobile Number',
-                    hintText: 'Enter mobile number',
-                    hintStyle: TextStyle(
-                      fontSize: (13 * scale).clamp(11.0, 15.0),
-                      color: AppColors.textMedium.withValues(alpha: 0.5),
+                SizedBox(width: 8 * scale),
+                Expanded(
+                  child: TextFormField(
+                    controller: _phoneCtrl,
+                    keyboardType: TextInputType.phone,
+                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                    maxLength: 10,
+                    style: TextStyle(
+                      fontSize: (15 * scale).clamp(13.0, 17.0),
                     ),
-                    prefixIcon: Icon(
-                      Icons.phone,
-                      size: (20 * scale).clamp(18.0, 24.0),
+                    decoration: InputDecoration(
+                      labelText: 'Mobile Number',
+                      hintText: 'Enter mobile number',
+                      hintStyle: TextStyle(
+                        fontSize: (13 * scale).clamp(11.0, 15.0),
+                        color: AppColors.textMedium.withValues(alpha: 0.5),
+                      ),
+                      prefixIcon: Icon(
+                        Icons.phone,
+                        size: (20 * scale).clamp(18.0, 24.0),
+                      ),
+                      counterText: '',
                     ),
-                    counterText: '',
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
 
           SizedBox(height: (28 * scale).clamp(20.0, 34.0)),

@@ -1,255 +1,404 @@
+import 'dart:convert';
 import 'package:flutter/foundation.dart';
-import '../../config/env_config.dart';
+import '../../core/network/api_client.dart';
+import '../../core/network/api_method.dart';
+import '../../core/network/api_request.dart';
 import '../../models/api/api_models.dart';
 import '../../models/farmer/farmer_model.dart';
 import '../../services/auth_service.dart';
-import '../../services/firestore_service.dart';
 import '../../services/form_config_service.dart';
-import '../../services/location_service.dart';
+import '../../services/image_upload_service.dart';
+import '../../services/registration_form_service.dart';
 
 class FarmerFormViewModel extends ChangeNotifier {
-  final AuthService _authService;
-  final FirestoreService _firestoreService;
   final FormConfigService _formConfigService;
-  final LocationService _locationService;
+  final RegistrationFormService _registrationService;
+  final AuthService _authService;
+  final ImageUploadService _imageUploadService;
+  final ApiClient _apiClient;
 
   FarmerFormViewModel(
-    this._authService,
-    this._firestoreService,
     this._formConfigService,
-    this._locationService,
+    this._registrationService,
+    this._authService,
+    this._imageUploadService,
+    this._apiClient,
   );
 
-  // State
+  // ── State ────────────────────────────────────────────────────────────────
+
   String selectedCategory = '';
   String selectedSubcategory = '';
+  int? selectedSubcategoryId;
   String selectedLandUnit = 'Acres';
   String selectedStatus = 'Active';
   List<Map<String, double>> landCoordinates = [];
-  double? latitude;
-  double? longitude;
+
+  bool isLoadingForm = true;
   bool isSaving = false;
-  bool isLocating = false;
+  String? formLoadError;
+
+  /// Tracks per-field upload state for camera fields (key → isUploading).
+  final Map<String, bool> _uploadingFields = {};
+
+  ApiForm? form;
+  List<DynamicFieldModel> dynamicFields = [];
   FarmerModel? editFarmer;
 
-  // Dynamic field state - tracks which keys are dropdowns vs text
-  final Map<String, String> dynDropdownValues = {};
-  final Set<String> _textFieldKeys = {};
-  final Set<String> _numberFieldKeys = {};
+  bool _argsProcessed = false;
 
   final List<String> landUnits = const [
     'Acres',
     'Hectares',
     'Bigha',
-    'Sq. Meters'
+    'Sq. Meters',
   ];
 
-  // FormConfigService proxies
-  bool get isConfigLoading => _formConfigService.isLoading;
+  // ── Derived getters ──────────────────────────────────────────────────────
 
-  Future<void> fetchConfig() async {
-    await _formConfigService.fetchCategories();
-    notifyListeners();
-  }
+  bool get geoRequired => form?.geoLocationRequired ?? false;
 
-  List<String> get subcategoryNames =>
-      _formConfigService.getSubcategoryNames(selectedCategory);
+  // ── Init ─────────────────────────────────────────────────────────────────
 
-  List<ApiField> get fieldsForCategory {
-    final cat = _formConfigService.getCategoryByName(selectedCategory);
-    if (cat == null || cat.subcategories.isEmpty) return [];
-    return cat.subcategories.first.primaryForm?.fields ?? [];
-  }
+  void initFromArgs(Map? args) {
+    if (_argsProcessed) return;
+    _argsProcessed = true;
 
-  // Init from route arguments
-  void init(Map? args) {
-    if (args == null) return;
-    if (args['category'] != null && selectedCategory.isEmpty) {
-      setCategory(args['category'] as String);
-    }
-    if (args['farmer'] != null && editFarmer == null) {
-      editFarmer = args['farmer'] as FarmerModel;
+    if (args != null) {
+      selectedCategory = args['category'] as String? ?? '';
+      selectedSubcategory = args['subcategory'] as String? ?? '';
+      selectedSubcategoryId = args['subcategoryId'] as int?;
+
+      if (args['farmer'] != null) {
+        editFarmer = args['farmer'] as FarmerModel;
+        if (selectedCategory.isEmpty) selectedCategory = editFarmer!.category;
+        if (selectedSubcategory.isEmpty) {
+          selectedSubcategory = editFarmer!.subcategory;
+        }
+        selectedSubcategoryId ??= editFarmer!.subcategoryId;
+      }
     }
   }
 
-  void setCategory(String cat) {
-    selectedCategory = cat;
-    selectedSubcategory = '';
-    _rebuildDynFieldKeys(cat);
+  Future<void> loadForm() async {
+    isLoadingForm = true;
+    formLoadError = null;
+    notifyListeners();
+
+    try {
+      selectedSubcategoryId ??= _formConfigService
+          .getCategoryByName(selectedCategory)
+          ?.findSubcategory(selectedSubcategory)
+          ?.subcategoryId;
+
+      if (selectedSubcategoryId != null) {
+        form = await _formConfigService
+            .getDynamicRegistrationFields(selectedSubcategoryId!);
+      } else {
+        form = null;
+      }
+    } catch (error) {
+      form = null;
+      formLoadError = error.toString();
+    }
+
+    _initDynamicFields();
+
+    if (editFarmer != null) {
+      _populateFromFarmer(editFarmer!);
+    }
+
+    isLoadingForm = false;
     notifyListeners();
   }
 
-  void setSubcategory(String sub) {
-    selectedSubcategory = sub;
-    notifyListeners();
+  void _initDynamicFields() {
+    dynamicFields.clear();
+    if (form == null) return;
+    for (final field in form!.fields) {
+      dynamicFields.add(DynamicFieldModel.fromApiField(field));
+    }
   }
+
+  void _populateFromFarmer(FarmerModel f) {
+    selectedCategory = f.category;
+    selectedSubcategory = f.subcategory;
+    selectedSubcategoryId = f.subcategoryId;
+    selectedLandUnit = f.landUnit;
+    selectedStatus = f.status;
+    landCoordinates = f.landCoordinates;
+
+    if (f.formFields.isNotEmpty) {
+      dynamicFields = f.formFields
+          .map((e) =>
+              DynamicFieldModel.fromJson(Map<String, dynamic>.from(e as Map)))
+          .toList();
+    } else {
+      if (f.name != null) _setDynValue('fullName', f.name!);
+      if (f.phone != null) _setDynValue('mobileNumber', f.phone!);
+      f.dynamicFields.forEach((key, value) => _setDynValue(key, value));
+    }
+  }
+
+  void _setDynValue(String key, dynamic value) {
+    if (value == null) return;
+    if (value is String && value.isEmpty) return;
+    final idx = dynamicFields.indexWhere((df) => df.field.key == key);
+    if (idx != -1) dynamicFields[idx].value = value;
+  }
+
+  /// Returns the initial text value for a dynamic field key (for View to seed
+  /// TextEditingControllers after form loads).
+  String initialTextFor(String key) {
+    final idx = dynamicFields.indexWhere((df) => df.field.key == key);
+    if (idx == -1) return '';
+    final v = dynamicFields[idx].value;
+    return v?.toString() ?? '';
+  }
+
+  // ── Actions ──────────────────────────────────────────────────────────────
 
   void setLandUnit(String unit) {
     selectedLandUnit = unit;
     notifyListeners();
   }
 
-  void setStatus(String status) {
-    selectedStatus = status;
+  void setLandResult(Map<String, dynamic> result) {
+    final area = result['area'] as double? ?? 0;
+    final coords = result['coordinates'] as List<Map<String, double>>? ?? [];
+    landCoordinates = coords;
+    if (area > 0) selectedLandUnit = 'Acres';
     notifyListeners();
   }
 
-  void setDropdownValue(String key, String value) {
-    dynDropdownValues[key] = value;
-    notifyListeners();
+  void updateDynamicFieldValue(String key, dynamic value) {
+    final idx = dynamicFields.indexWhere((df) => df.field.key == key);
+    if (idx != -1) {
+      dynamicFields[idx].value = value;
+      notifyListeners();
+      _handleDependencyChange(key); // fire-and-forget
+    }
   }
 
-  void _rebuildDynFieldKeys(String category) {
-    _textFieldKeys.clear();
-    _numberFieldKeys.clear();
-    dynDropdownValues.clear();
+  /// Whether a field should be visible based on its showWhen condition.
+  bool isFieldVisible(DynamicFieldModel df) => shouldShowField(df, dynamicFields);
 
-    for (final f in fieldsForCategory) {
-      _initFieldKey(f);
-      if (f.type == 'BUTTON' && f.popup != null) {
-        for (final pf in f.popup!.fields) {
-          _initFieldKey(pf);
+  /// Whether a specific camera field is currently uploading.
+  bool isFieldUploading(String key) => _uploadingFields[key] ?? false;
+
+  /// Uploads a captured image for a camera-type dynamic field.
+  ///
+  /// [fieldKey] identifies which dynamic field to store the URL in.
+  /// [localFilePath] is the path returned from the camera capture screen.
+  ///
+  /// Returns the uploaded image URL on success, or null on failure.
+  Future<String?> uploadCameraImage(String fieldKey, String localFilePath) async {
+    _uploadingFields[fieldKey] = true;
+    notifyListeners();
+
+    try {
+      final url = await _imageUploadService.uploadImage(localFilePath);
+      updateDynamicFieldValue(fieldKey, url);
+      return url;
+    } catch (e) {
+      debugPrint('Image upload failed for field "$fieldKey": $e');
+      return null;
+    } finally {
+      _uploadingFields[fieldKey] = false;
+      notifyListeners();
+    }
+  }
+
+  /// Clears the uploaded image URL for a camera-type dynamic field.
+  void clearCameraImage(String fieldKey) {
+    updateDynamicFieldValue(fieldKey, null);
+  }
+
+  /// Saves the registration. [textControllers] is a map of key → current text
+  /// for text/number/date fields, passed from the View.
+  /// Returns true on success, false on validation failure, throws on API error.
+  Future<bool> save({
+    required Map<String, String> textValues,
+    required String landAreaText,
+  }) async {
+    if (selectedCategory.isEmpty || selectedSubcategory.isEmpty) return false;
+    if (editFarmer != null) return false; // edit not yet supported
+
+    // Apply text values from controllers into dynamicFields; null out hidden fields
+    for (final df in dynamicFields) {
+      if (!isFieldVisible(df)) {
+        df.value = null;
+        continue;
+      }
+      if (textValues.containsKey(df.field.key)) {
+        final text = textValues[df.field.key]!.trim();
+        df.value = text.isNotEmpty ? text : null;
+      }
+    }
+
+    isSaving = true;
+    notifyListeners();
+
+    final Map<String, dynamic> allDynValues = {};
+    for (final df in dynamicFields) {
+      final k = df.field.key;
+      final v = df.value;
+      if (v == null) continue;
+
+      if (df.field.isPopupForm && v is List<DynamicFieldModel>) {
+        final asMap = <String, dynamic>{};
+        for (final subDf in v) {
+          if (subDf.value != null && subDf.value != '') {
+            asMap[subDf.field.key] = subDf.value;
+          }
+        }
+        if (asMap.isNotEmpty) allDynValues[k] = asMap;
+      } else if (v is Map && v.isNotEmpty) {
+        allDynValues[k] = v;
+      } else if (v is String && v.isNotEmpty) {
+        allDynValues[k] = v;
+      } else if (v is bool || v is num) {
+        allDynValues[k] = v;
+      } else if (v is List && v.isNotEmpty) {
+        allDynValues[k] = v;
+      }
+    }
+
+    final List<dynamic> serializedFields =
+        dynamicFields.map((e) => e.toJson()).toList();
+
+    final submissionPayload = <String, dynamic>{
+      'registrationData': <String, dynamic>{
+        'subcategoryId': selectedSubcategoryId ?? 0,
+        'registrationDate': DateTime.now().toIso8601String(),
+        'status': selectedStatus,
+        'userId': _authService.userId,
+        'fields': serializedFields,
+      },
+    };
+
+    final prettyJson =
+        const JsonEncoder.withIndent('  ').convert(submissionPayload);
+    debugPrint('=== SUBMITTING FARMER REGISTRATION ===');
+    debugPrint(prettyJson);
+    debugPrint('======================================');
+
+    try {
+      await _registrationService.submitRegistration(submissionPayload);
+      debugPrint(
+          '=== FARMER REGISTRATION RESULT === action=create_farmer success=true');
+      return true;
+    } finally {
+      isSaving = false;
+      notifyListeners();
+    }
+  }
+
+  // ── Dependency handling ───────────────────────────────────────────────────
+
+  Map<String, dynamic> _resolveParams(Map<String, String> templates) {
+    final resolved = <String, dynamic>{};
+    for (final entry in templates.entries) {
+      final template = entry.value;
+      String val = '';
+      if (template.startsWith(r'$')) {
+        final ref = template.substring(1);
+        final dotIdx = ref.indexOf('.');
+        final fieldKey = dotIdx > 0 ? ref.substring(0, dotIdx) : ref;
+        final idx =
+            dynamicFields.indexWhere((df) => df.field.key == fieldKey);
+        val = idx != -1 ? (dynamicFields[idx].value?.toString() ?? '') : '';
+      } else {
+        val = template;
+      }
+      
+      final parsedInt = int.tryParse(val);
+      resolved[entry.key] = parsedInt ?? val;
+    }
+    return resolved;
+  }
+
+  void _resetDependents(String parentKey) {
+    for (final df in dynamicFields) {
+      if (df.field.dependsOn == parentKey) {
+        df.value = null;
+        df.resolvedOptions = df.field.options;
+        df.isLoadingOptions = false;
+        df.optionsError = null;
+        df.incrementFetchGeneration();
+        _resetDependents(df.field.key);
+      }
+    }
+  }
+
+  Future<void> _handleDependencyChange(String changedKey) async {
+    _resetDependents(changedKey);
+    notifyListeners();
+
+    final directDependents = dynamicFields
+        .where((df) =>
+            df.field.dependsOn == changedKey && df.field.dataSource != null)
+        .toList();
+
+    for (final df in directDependents) {
+      final resolved = _resolveParams(df.field.dataSource!.params);
+      if (resolved.values.any((v) => v.toString().isEmpty)) continue;
+
+      df.isLoadingOptions = true;
+      notifyListeners();
+
+      final generation = df.fetchGeneration;
+      try {
+        final options =
+            await _fetchDependentOptions(df.field.dataSource!, resolved);
+        if (df.fetchGeneration != generation) continue;
+        df.resolvedOptions = options;
+        df.optionsError = null;
+      } catch (_) {
+        if (df.fetchGeneration != generation) continue;
+        df.optionsError = 'Failed to load options';
+        df.resolvedOptions = [];
+      } finally {
+        if (df.fetchGeneration == generation) {
+          df.isLoadingOptions = false;
+          notifyListeners();
         }
       }
     }
   }
 
-  void _initFieldKey(ApiField f) {
-    if (f.type == 'DROPDOWN') {
-      dynDropdownValues[f.key] = '';
-    } else if (f.type == 'TEXT') {
-      _textFieldKeys.add(f.key);
-    } else if (f.type == 'NUMBER') {
-      _numberFieldKeys.add(f.key);
-    }
-  }
-
-  /// Returns the set of keys that need TextEditingControllers in the View.
-  Set<String> get textFieldKeys => {..._textFieldKeys, ..._numberFieldKeys};
-
-  // Location
-  Future<AddressResult?> detectLocation() async {
-    if (EnvConfig.isDemoMode) {
-      latitude = 26.8467;
-      longitude = 80.9462;
-      notifyListeners();
-      return const AddressResult(
-        address: 'Near Panchayat Bhavan, Village Road',
-        village: 'Sundarpur',
-        district: 'Lucknow',
-        state: 'Uttar Pradesh',
-      );
-    }
-
-    isLocating = true;
-    notifyListeners();
-    try {
-      final pos = await _locationService.getCurrentPosition();
-      latitude = pos.latitude;
-      longitude = pos.longitude;
-      final result =
-          await _locationService.reverseGeocode(pos.latitude, pos.longitude);
-      isLocating = false;
-      notifyListeners();
-      return result;
-    } catch (e) {
-      isLocating = false;
-      notifyListeners();
-      rethrow;
-    }
-  }
-
-  void setLandResult(Map<String, dynamic> result) {
-    final area = result['area'] as double? ?? 0;
-    final coords = result['coordinates'] as List<Map<String, double>>? ?? [];
-    landCoordinates = coords;
-    if (area > 0) {
-      selectedLandUnit = 'Acres';
-    }
-    notifyListeners();
-  }
-
-  // Save
-  Future<bool> save(
-    Map<String, String> textFieldValues, {
-    required String name,
-    required String phone,
-    required String address,
-    required String village,
-    required String district,
-    required String state,
-    required double landArea,
-  }) async {
-    isSaving = true;
-    notifyListeners();
-
-    final Map<String, String> dynValues = {};
-    textFieldValues.forEach((k, v) {
-      if (v.isNotEmpty) dynValues[k] = v;
-    });
-    dynDropdownValues.forEach((k, v) {
-      if (v.isNotEmpty) dynValues[k] = v;
-    });
-
-    final farmer = FarmerModel(
-      id: editFarmer?.id,
-      name: name,
-      phone: phone,
-      address: address,
-      village: village,
-      district: district,
-      state: state,
-      latitude: latitude,
-      longitude: longitude,
-      category: selectedCategory,
-      subcategory: selectedSubcategory,
-      landArea: landArea,
-      landUnit: selectedLandUnit,
-      landCoordinates: landCoordinates,
-      dynamicFields: dynValues,
-      status: selectedStatus,
-      registeredBy: _authService.currentUser?.uid,
+  Future<List<ApiOption>> _fetchDependentOptions(
+    FieldDataSource ds,
+    Map<String, dynamic> resolvedParams,
+  ) async {
+    final method = ds.method == 'POST' ? ApiMethod.post : ApiMethod.get;
+    final response = await _apiClient.send<List<dynamic>>(
+      ApiRequest(
+        method: method,
+        path: ds.endpoint,
+        queryParameters: method == ApiMethod.get 
+            ? resolvedParams.map((k, v) => MapEntry(k, v.toString())) 
+            : const {},
+        body: method == ApiMethod.post ? resolvedParams : null,
+      ),
+      decoder: (raw) => raw is List<dynamic> ? raw : null,
     );
-
-    try {
-      if (editFarmer != null) {
-        await _firestoreService.updateFarmer(farmer);
-      } else {
-        await _firestoreService.addFarmer(farmer);
-      }
-      isSaving = false;
-      notifyListeners();
-      return true;
-    } catch (e) {
-      isSaving = false;
-      notifyListeners();
-      rethrow;
-    }
+    if (response.data == null) return [];
+    return response.data!
+        .whereType<Map>()
+        .map((json) => ApiOption.fromJson(Map<String, dynamic>.from(json)))
+        .toList();
   }
 
-  /// Populate ViewModel state from an existing farmer (for editing).
-  /// Returns the farmer's dynamicFields so the View can set TextEditingControllers.
-  Map<String, String> populateFromFarmer(FarmerModel f) {
-    selectedCategory = f.category;
-    selectedSubcategory = f.subcategory;
-    selectedLandUnit = f.landUnit;
-    selectedStatus = f.status;
-    landCoordinates = f.landCoordinates;
-    latitude = f.latitude;
-    longitude = f.longitude;
-    _rebuildDynFieldKeys(f.category);
+  Future<void> retryFetchOptions(String fieldKey) async {
+    final idx = dynamicFields.indexWhere((df) => df.field.key == fieldKey);
+    if (idx == -1) return;
+    final df = dynamicFields[idx];
+    if (df.field.dataSource == null || df.field.dependsOn == null) return;
+    await _handleDependencyChange(df.field.dependsOn!);
+  }
 
-    // Set dropdown values from farmer's dynamic fields
-    f.dynamicFields.forEach((key, value) {
-      if (dynDropdownValues.containsKey(key)) {
-        dynDropdownValues[key] = value;
-      }
-    });
-
-    notifyListeners();
-    // Return text field values for the View to set on controllers
-    return Map.fromEntries(
-      f.dynamicFields.entries.where((e) => textFieldKeys.contains(e.key)),
-    );
+  Future<void> ensureCategoriesLoaded() async {
+    await _formConfigService.fetchCategories();
   }
 }

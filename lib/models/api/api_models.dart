@@ -1,48 +1,40 @@
-/// Models that match the backend API response for category form configuration.
-///
-/// API shape:
-/// { statusCode, status, message, data: [ ApiCategory ] }
 library;
-
-// ─── FieldType (data type of a field) ─────────────────────────────────────────
 
 enum FieldType {
   string,
-  number,
+  integer,
+  decimal,
   boolean,
+  arrayString,
+  arrayInt,
+  arrayDict,
+  dict,
   image,
   multimedia,
   unknown;
 
   static FieldType fromApiValue(Object? rawValue) {
-    final value = (rawValue as String? ?? '').trim().toLowerCase();
+    final value = (rawValue as String? ?? '').trim().toUpperCase();
     return switch (value) {
-      'string' => FieldType.string,
-      'number' => FieldType.number,
-      'boolean' => FieldType.boolean,
-      'image' => FieldType.image,
-      'multimedia' => FieldType.multimedia,
+      'STRING' => FieldType.string,
+      'INT' => FieldType.integer,
+      'DOUBLE' => FieldType.decimal,
+      'BOOL' => FieldType.boolean,
+      'ARRAY-STRING' || 'ARRAY_STRING' => FieldType.arrayString,
+      'ARRAY-INT' || 'ARRAY_INT' => FieldType.arrayInt,
+      'ARRAY-DICT' || 'ARRAY_DICT' => FieldType.arrayDict,
+      'DICT' => FieldType.dict,
+      'IMAGE' => FieldType.image,
+      'MULTIMEDIA' => FieldType.multimedia,
+      'NUMBER' => FieldType.integer,
       _ => FieldType.unknown,
-    };
-  }
-
-  /// Infer from the legacy `type` field (TEXT, NUMBER, etc.)
-  static FieldType fromLegacyType(String type) {
-    return switch (type) {
-      'TEXT' => FieldType.string,
-      'NUMBER' => FieldType.number,
-      'CHECKBOX' => FieldType.boolean,
-      'CAMERA' => FieldType.image,
-      'FILE' => FieldType.multimedia,
-      _ => FieldType.string,
     };
   }
 }
 
-// ─── FieldStyle (UI rendering style) ──────────────────────────────────────────
-
 enum FieldStyle {
   text,
+  number,
   dropdown,
   checkbox,
   radio,
@@ -50,259 +42,391 @@ enum FieldStyle {
   camera,
   file,
   cameraFile,
-  button,
+  popupForm,
+  mapPolygon,
   unknown;
 
   static FieldStyle fromApiValue(Object? rawValue) {
-    final value = (rawValue as String? ?? '').trim().toLowerCase();
+    final value = (rawValue as String? ?? '').trim().toUpperCase();
     return switch (value) {
-      'text' => FieldStyle.text,
-      'dropdown' => FieldStyle.dropdown,
-      'checkbox' => FieldStyle.checkbox,
-      'radio' => FieldStyle.radio,
-      'date' => FieldStyle.date,
-      'camera' => FieldStyle.camera,
-      'file' => FieldStyle.file,
-      'camera_file' => FieldStyle.cameraFile,
-      'button' => FieldStyle.button,
-      _ => FieldStyle.unknown,
-    };
-  }
-
-  /// Infer from the legacy `type` field.
-  static FieldStyle fromLegacyType(String type) {
-    return switch (type) {
       'TEXT' => FieldStyle.text,
-      'NUMBER' => FieldStyle.text,
+      'NUMBER' => FieldStyle.number,
       'DROPDOWN' => FieldStyle.dropdown,
       'CHECKBOX' => FieldStyle.checkbox,
       'RADIO' => FieldStyle.radio,
       'DATE' => FieldStyle.date,
       'CAMERA' => FieldStyle.camera,
       'FILE' => FieldStyle.file,
-      'BUTTON' => FieldStyle.button,
+      'CAMERA_FILE' => FieldStyle.cameraFile,
+      'POPUP_FORM' => FieldStyle.popupForm,
+      'BUTTON' => FieldStyle.popupForm,
+      'MAP_POLYGON' => FieldStyle.mapPolygon,
       _ => FieldStyle.unknown,
     };
   }
 }
 
-// ─── Option (inside DROPDOWN / RADIO field) ─────────────────────────────────
-
 class ApiOption {
+  const ApiOption({
+    required this.id,
+    required this.name,
+  });
+
   final int id;
   final String name;
 
-  const ApiOption({required this.id, required this.name});
+  factory ApiOption.fromJson(Map<String, dynamic> json) {
+    final data = _normalizeJsonKeys(json);
+    final rawName = data['name'] ?? data['label'] ?? data['value'];
+    final String name = rawName?.toString() ?? '';
+    final rawId = data['id'] ?? data['optionId'] ?? data['value'];
+    return ApiOption(
+      id: _asInt(rawId, fallback: name.hashCode),
+      name: name,
+    );
+  }
 
-  factory ApiOption.fromJson(Map<String, dynamic> j) =>
-      ApiOption(id: j['id'] as int, name: j['name'] as String);
+  Map<String, dynamic> toJson() => <String, dynamic>{
+        'id': id,
+        'name': name,
+      };
 }
 
-// ─── ApiField ────────────────────────────────────────────────────────────────
+class FieldDataSource {
+  const FieldDataSource({
+    required this.type,
+    required this.endpoint,
+    required this.method,
+    this.params = const {},
+  });
+
+  final String type;
+  final String endpoint;
+  final String method;
+  final Map<String, String> params;
+
+  factory FieldDataSource.fromJson(Map<String, dynamic> json) {
+    final data = _normalizeJsonKeys(json);
+    String ep = data['endpoint']?.toString() ?? '';
+    if (ep.startsWith('/')) ep = ep.substring(1);
+
+    return FieldDataSource(
+      type: data['type']?.toString() ?? 'API',
+      endpoint: ep,
+      method: (data['method']?.toString() ?? 'GET').toUpperCase(),
+      params: (data['params'] as Map?)
+              ?.map((k, v) => MapEntry(k.toString(), v.toString())) ??
+          const {},
+    );
+  }
+
+  Map<String, dynamic> toJson() => <String, dynamic>{
+        'type': type,
+        'endpoint': endpoint,
+        'method': method,
+        'params': params,
+      };
+}
 
 class ApiField {
-  final int fieldId;
-  final String label;
-  final String key;
-  final String type; // Legacy: TEXT | NUMBER | DROPDOWN | BUTTON | CHECKBOX | RADIO | DATE | CAMERA | FILE
-  final FieldType? _explicitFieldType;
-  final FieldStyle? _explicitFieldStyle;
-  final bool required;
-  final List<ApiOption> options; // for DROPDOWN / RADIO
-  final ApiPopup? popup; // for BUTTON
-
-  /// Resolved data type.
-  FieldType get fieldType =>
-      _explicitFieldType ?? FieldType.fromLegacyType(type);
-
-  /// Resolved UI rendering style.
-  FieldStyle get fieldStyle =>
-      _explicitFieldStyle ?? FieldStyle.fromLegacyType(type);
-
-  /// Option names as plain strings (convenience for radio / dropdown).
-  List<String> get fieldData => options.map((o) => o.name).toList();
-
   const ApiField({
     required this.fieldId,
     required this.label,
     required this.key,
-    required this.type,
-    FieldType? fieldType,
-    FieldStyle? fieldStyle,
+    required this.fieldType,
+    required this.fieldStyle,
     required this.required,
     this.options = const [],
-    this.popup,
-  })  : _explicitFieldType = fieldType,
-        _explicitFieldStyle = fieldStyle;
+    this.subFields = const [],
+    this.dependsOn,
+    this.dataSource,
+    this.showWhen,
+  });
 
-  factory ApiField.fromJson(Map<String, dynamic> j) {
-    final type = (j['type'] as String? ?? 'TEXT').toUpperCase();
+  final int fieldId;
+  final String label;
+  final String key;
+  final FieldType fieldType;
+  final FieldStyle fieldStyle;
+  final bool required;
+  final List<ApiOption> options;
+  final List<ApiField> subFields;
+  final String? dependsOn;
+  final FieldDataSource? dataSource;
+  final List<dynamic>? showWhen;
+
+  bool get isPopupForm => fieldStyle == FieldStyle.popupForm;
+
+  /// True when this field uses local visibility (dependsOn + showWhen, no dataSource).
+  bool get hasVisibilityCondition =>
+      dependsOn != null && showWhen != null && dataSource == null;
+
+  List<String> get fieldData => options.map((option) => option.name).toList();
+
+  factory ApiField.fromJson(Map<String, dynamic> json) {
+    final data = _normalizeJsonKeys(json);
+    final resolvedFieldType = FieldType.fromApiValue(data['type']);
+    final resolvedFieldStyle = FieldStyle.fromApiValue(data['style']);
+    final rawOptions = data['options'] as List<dynamic>? ?? const [];
+
+    List<ApiOption> options = const [];
+    List<ApiField> subFields = const [];
+
+    if (resolvedFieldStyle == FieldStyle.popupForm) {
+      final rawNested = data['fields'] as List<dynamic>? ?? rawOptions;
+      subFields = rawNested
+          .whereType<Map>()
+          .map((json) => ApiField.fromJson(Map<String, dynamic>.from(json)))
+          .toList();
+    } else {
+      options = rawOptions
+          .whereType<Map>()
+          .map((json) => ApiOption.fromJson(Map<String, dynamic>.from(json)))
+          .toList();
+    }
+
     return ApiField(
-      fieldId: j['field_id'] as int,
-      label: j['label'] as String,
-      key: j['key'] as String,
-      type: type,
-      fieldType: j['field_type'] != null
-          ? FieldType.fromApiValue(j['field_type'])
+      fieldId: _asInt(data['fieldId']),
+      label: data['label']?.toString() ?? '',
+      key: data['key']?.toString() ?? '',
+      fieldType: resolvedFieldType,
+      fieldStyle: resolvedFieldStyle,
+      required: data['required'] as bool? ?? false,
+      options: options,
+      subFields: subFields,
+      dependsOn: data['dependsOn']?.toString(),
+      dataSource: data['dataSource'] is Map
+          ? FieldDataSource.fromJson(
+              Map<String, dynamic>.from(data['dataSource'] as Map))
           : null,
-      fieldStyle: j['field_style'] != null
-          ? FieldStyle.fromApiValue(j['field_style'])
-          : null,
-      required: j['required'] as bool? ?? false,
-      options: (j['options'] as List<dynamic>? ?? [])
-          .map((o) => ApiOption.fromJson(o as Map<String, dynamic>))
-          .toList(),
-      popup: j['popup'] != null
-          ? ApiPopup.fromJson(j['popup'] as Map<String, dynamic>)
-          : null,
+      showWhen: _parseShowWhen(data['showWhen']),
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    final typeValue = switch (fieldType) {
+      FieldType.string => 'STRING',
+      FieldType.integer => 'INT',
+      FieldType.decimal => 'DOUBLE',
+      FieldType.boolean => 'BOOL',
+      FieldType.arrayString => 'ARRAY_STRING',
+      FieldType.arrayInt => 'ARRAY_INT',
+      FieldType.arrayDict => 'ARRAY_DICT',
+      FieldType.dict => 'DICT',
+      FieldType.image => 'IMAGE',
+      FieldType.multimedia => 'MULTIMEDIA',
+      FieldType.unknown => 'UNKNOWN',
+    };
+
+    final styleValue = switch (fieldStyle) {
+      FieldStyle.text => 'TEXT',
+      FieldStyle.number => 'NUMBER',
+      FieldStyle.dropdown => 'DROPDOWN',
+      FieldStyle.checkbox => 'CHECKBOX',
+      FieldStyle.radio => 'RADIO',
+      FieldStyle.date => 'DATE',
+      FieldStyle.camera => 'CAMERA',
+      FieldStyle.file => 'FILE',
+      FieldStyle.cameraFile => 'CAMERA_FILE',
+      FieldStyle.popupForm => 'POPUP_FORM',
+      FieldStyle.mapPolygon => 'MAP_POLYGON',
+      FieldStyle.unknown => 'UNKNOWN',
+    };
+
+    return <String, dynamic>{
+      'fieldId': fieldId,
+      'label': label,
+      'key': key,
+      'type': typeValue,
+      'style': styleValue,
+      'required': required,
+      'options': isPopupForm
+          ? subFields.map((field) => field.toJson()).toList()
+          : options.map((option) => option.toJson()).toList(),
+      if (dependsOn != null) 'dependsOn': dependsOn,
+      if (dataSource != null) 'dataSource': dataSource!.toJson(),
+      if (showWhen != null) 'showWhen': showWhen,
+    };
+  }
+}
+
+class DynamicFieldModel {
+  DynamicFieldModel({
+    required this.field,
+    this.value,
+    List<ApiOption>? resolvedOptions,
+    this.isLoadingOptions = false,
+    this.optionsError,
+  }) : resolvedOptions = resolvedOptions ?? field.options;
+
+  final ApiField field;
+  dynamic value;
+  List<ApiOption> resolvedOptions;
+  bool isLoadingOptions;
+  String? optionsError;
+
+  int _fetchGeneration = 0;
+  int get fetchGeneration => _fetchGeneration;
+  void incrementFetchGeneration() => _fetchGeneration++;
+
+  factory DynamicFieldModel.fromApiField(ApiField field) {
+    dynamic initialValue;
+    if (field.isPopupForm) {
+      initialValue = field.subFields
+          .map((subField) => DynamicFieldModel.fromApiField(subField))
+          .toList();
+    } else if (field.fieldStyle == FieldStyle.checkbox) {
+      initialValue = false;
+    }
+    return DynamicFieldModel(
+      field: field,
+      value: initialValue,
+      resolvedOptions: field.options,
+    );
+  }
+
+  factory DynamicFieldModel.fromJson(Map<String, dynamic> json) {
+    final data = _normalizeJsonKeys(json);
+    final apiField = ApiField.fromJson(data);
+    dynamic resolvedValue;
+
+    if (apiField.isPopupForm) {
+      final rawFields = data['fields'] as List<dynamic>? ?? const [];
+      resolvedValue = rawFields
+          .whereType<Map>()
+          .map(
+            (json) =>
+                DynamicFieldModel.fromJson(Map<String, dynamic>.from(json)),
+          )
+          .toList();
+    } else {
+      resolvedValue = data['value'];
+      if (resolvedValue is List) {
+        resolvedValue = List<dynamic>.from(resolvedValue);
+      }
+    }
+
+    return DynamicFieldModel(
+      field: apiField,
+      value: resolvedValue,
+      resolvedOptions: apiField.options,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    final json = field.toJson();
+    if (field.isPopupForm) {
+      json.remove('options');
+      if (value is List<DynamicFieldModel>) {
+        json['fields'] = (value as List<DynamicFieldModel>)
+            .map((field) => field.toJson())
+            .toList();
+      } else {
+        json['fields'] = <Map<String, dynamic>>[];
+      }
+    } else {
+      json['value'] = value;
+    }
+    return json;
+  }
+
+  DynamicFieldModel copyWith({
+    ApiField? field,
+    dynamic value,
+  }) {
+    return DynamicFieldModel(
+      field: field ?? this.field,
+      value: value ?? this.value,
+      resolvedOptions: resolvedOptions,
     );
   }
 }
 
-// ─── ApiPopup (inside BUTTON field) ──────────────────────────────────────────
-class ApiPopup {
-  final String title;
-  final List<ApiField> fields;
-
-  const ApiPopup({required this.title, required this.fields});
-
-  factory ApiPopup.fromJson(Map<String, dynamic> j) => ApiPopup(
-        title: j['popup_title'] as String,
-        fields: (j['fields'] as List<dynamic>)
-            .map((f) => ApiField.fromJson(f as Map<String, dynamic>))
-            .toList(),
-      );
-}
-
-// ─── ApiFormConfig ───────────────────────────────────────────────────────────
-
-class ApiFormConfig {
-  final bool geoLocationRequired;
-
-  const ApiFormConfig({this.geoLocationRequired = false});
-
-  factory ApiFormConfig.fromJson(Map<String, dynamic> j) => ApiFormConfig(
-        geoLocationRequired: j['geoLocationRequired'] as bool? ?? false,
-      );
-}
-
-// ─── ApiSection ──────────────────────────────────────────────────────────────
-
-class ApiSection {
-  final String sectionId;
-  final String sectionTitle;
-  final List<ApiField> fields;
-
-  const ApiSection({
-    required this.sectionId,
-    required this.sectionTitle,
-    required this.fields,
-  });
-
-  factory ApiSection.fromJson(Map<String, dynamic> j) => ApiSection(
-        sectionId:
-            (j['section_id'] as String? ?? j['sectionId'] as String? ?? ''),
-        sectionTitle: (j['section_title'] as String? ??
-            j['sectionTitle'] as String? ??
-            ''),
-        fields: (j['fields'] as List<dynamic>? ?? [])
-            .map((f) => ApiField.fromJson(f as Map<String, dynamic>))
-            .toList(),
-      );
-}
-
-// ─── ApiForm ─────────────────────────────────────────────────────────────────
 class ApiForm {
-  final int formId;
-  final String formName;
-  final ApiFormConfig formConfig;
-  final List<ApiSection> sections;
-  final List<ApiField> _directFields;
-
-  /// All fields — flattened from sections if available, otherwise direct list.
-  List<ApiField> get fields => sections.isNotEmpty
-      ? sections.expand((s) => s.fields).toList()
-      : _directFields;
-
   const ApiForm({
     required this.formId,
     required this.formName,
-    this.formConfig = const ApiFormConfig(),
-    this.sections = const [],
-    List<ApiField> fields = const [],
-  }) : _directFields = fields;
+    this.geoLocationRequired = false,
+    this.fields = const [],
+  });
 
-  factory ApiForm.fromJson(Map<String, dynamic> j) {
-    final sections = (j['sections'] as List<dynamic>? ?? [])
-        .map((s) => ApiSection.fromJson(s as Map<String, dynamic>))
-        .toList();
+  final int formId;
+  final String formName;
+  final bool geoLocationRequired;
+  final List<ApiField> fields;
 
-    final directFields = (j['fields'] as List<dynamic>? ?? [])
-        .map((f) => ApiField.fromJson(f as Map<String, dynamic>))
-        .toList();
-
+  factory ApiForm.fromJson(Map<String, dynamic> json) {
+    final data = _normalizeJsonKeys(json);
     return ApiForm(
-      formId: j['form_id'] as int,
-      formName: j['form_name'] as String,
-      formConfig: j['form_config'] != null
-          ? ApiFormConfig.fromJson(j['form_config'] as Map<String, dynamic>)
-          : const ApiFormConfig(),
-      sections: sections,
-      fields: directFields,
+      formId: _asInt(data['formId']),
+      formName: data['formName']?.toString() ?? '',
+      geoLocationRequired: data['geoLocationRequired'] as bool? ?? false,
+      fields: (data['fields'] as List<dynamic>? ?? const [])
+          .whereType<Map>()
+          .map((json) => ApiField.fromJson(Map<String, dynamic>.from(json)))
+          .toList(),
     );
   }
+
+  Map<String, dynamic> toJson() => <String, dynamic>{
+        'formId': formId,
+        'formName': formName,
+        'geoLocationRequired': geoLocationRequired,
+        'fields': fields.map((field) => field.toJson()).toList(),
+      };
 }
 
-// ─── ApiSubcategory ───────────────────────────────────────────────────────────
-class ApiSubcategory {
-  final int id;
-  final String name;
-  final List<ApiForm> forms;
-
-  const ApiSubcategory({
-    required this.id,
-    required this.name,
-    required this.forms,
+Map<String, dynamic> _normalizeJsonKeys(Map<String, dynamic> json) {
+  final normalized = <String, dynamic>{};
+  json.forEach((key, value) {
+    normalized[_toCamelCase(key)] = value;
   });
-
-  /// Returns the first (primary) form for this subcategory, or null.
-  ApiForm? get primaryForm => forms.isNotEmpty ? forms.first : null;
-
-  factory ApiSubcategory.fromJson(Map<String, dynamic> j) => ApiSubcategory(
-        id: j['subcategory_id'] as int,
-        name: j['subcategory_name'] as String,
-        forms: (j['forms'] as List<dynamic>)
-            .map((f) => ApiForm.fromJson(f as Map<String, dynamic>))
-            .toList(),
-      );
+  return normalized;
 }
 
-// ─── ApiCategory ─────────────────────────────────────────────────────────────
-class ApiCategory {
-  final int id;
-  final String name;
-  final List<ApiSubcategory> subcategories;
+String _toCamelCase(String input) {
+  if (!input.contains('_')) return input;
+  final segments = input.split('_');
+  if (segments.isEmpty) return input;
+  return segments.first +
+      segments
+          .skip(1)
+          .where((segment) => segment.isNotEmpty)
+          .map(
+            (segment) => '${segment[0].toUpperCase()}${segment.substring(1)}',
+          )
+          .join();
+}
 
-  const ApiCategory({
-    required this.id,
-    required this.name,
-    required this.subcategories,
-  });
+int _asInt(Object? value, {int fallback = 0}) {
+  if (value is int) return value;
+  if (value is num) return value.toInt();
+  if (value is String) return int.tryParse(value) ?? fallback;
+  return fallback;
+}
 
-  factory ApiCategory.fromJson(Map<String, dynamic> j) => ApiCategory(
-        id: j['category_id'] as int,
-        name: j['category_name'] as String,
-        subcategories: (j['subcategories'] as List<dynamic>)
-            .map((s) => ApiSubcategory.fromJson(s as Map<String, dynamic>))
-            .toList(),
-      );
+List<dynamic>? _parseShowWhen(Object? raw) {
+  if (raw == null) return null;
+  if (raw is List) return List<dynamic>.from(raw);
+  final parsed = int.tryParse(raw.toString());
+  return [parsed ?? raw];
+}
 
-  /// Find subcategory by name.
-  ApiSubcategory? findSubcategory(String name) {
-    try {
-      return subcategories.firstWhere((s) => s.name == name);
-    } catch (_) {
-      return null;
-    }
-  }
+/// Returns true if [field] should be visible given the current [allFields].
+///
+/// A field is visible when it has no visibility condition, or when its parent's
+/// current value is contained in the field's showWhen list.
+bool shouldShowField(DynamicFieldModel field, List<DynamicFieldModel> allFields) {
+  final apiField = field.field;
+  if (!apiField.hasVisibilityCondition) return true;
+
+  final parentIdx =
+      allFields.indexWhere((df) => df.field.key == apiField.dependsOn);
+  if (parentIdx == -1) return true;
+
+  final parentValue = allFields[parentIdx].value;
+  if (parentValue == null) return false;
+
+  return apiField.showWhen!
+      .any((allowed) => allowed.toString() == parentValue.toString());
 }

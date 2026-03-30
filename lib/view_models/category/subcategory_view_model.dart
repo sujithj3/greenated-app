@@ -1,18 +1,29 @@
 import 'package:flutter/foundation.dart';
-import '../../services/firestore_service.dart';
+import '../../models/category/category_models.dart';
 import '../../services/form_config_service.dart';
-import '../../models/farmer/farmer_model.dart';
 
 class SubcategoryViewModel extends ChangeNotifier {
-  final FirestoreService _firestoreService;
   final FormConfigService _formConfigService;
 
-  SubcategoryViewModel(this._firestoreService, this._formConfigService);
+  SubcategoryViewModel(this._formConfigService) {
+    _formConfigService.addListener(_onServiceChanged);
+  }
 
-  List<String> getSubcategoryNames(String category) =>
-      _formConfigService.getSubcategoryNames(category);
+  void _onServiceChanged() => notifyListeners();
 
-  Stream<List<FarmerModel>> getFarmersByCategoryAndSub(
-          String category, String subcategory) =>
-      _firestoreService.getFarmersByCategoryAndSub(category, subcategory);
+  bool get isLoading => _formConfigService.isLoading;
+  String? get error => _formConfigService.error;
+
+  CategoryModel? getCategoryByName(String name) =>
+      _formConfigService.getCategoryByName(name);
+
+  Future<void> fetchCategories({bool forceRefresh = false}) async {
+    await _formConfigService.fetchCategories(forceRefresh: forceRefresh);
+  }
+
+  @override
+  void dispose() {
+    _formConfigService.removeListener(_onServiceChanged);
+    super.dispose();
+  }
 }

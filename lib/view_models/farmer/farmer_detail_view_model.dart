@@ -1,39 +1,46 @@
 import 'package:flutter/foundation.dart';
-import '../../models/farmer/farmer_model.dart';
-import '../../services/firestore_service.dart';
+import '../../models/api/api_models.dart';
+import '../../services/auth_service.dart';
+import '../../services/registration_form_service.dart';
 
 class FarmerDetailViewModel extends ChangeNotifier {
-  final FirestoreService _firestoreService;
+  FarmerDetailViewModel({
+    required RegistrationFormService service,
+    required AuthService authService,
+  })  : _service = service,
+        _authService = authService;
 
-  FarmerDetailViewModel(this._firestoreService);
+  final RegistrationFormService _service;
+  final AuthService _authService;
 
-  FarmerModel? _farmer;
-  bool _isLoading = true;
+  bool isLoading = false;
+  String? error;
+  String formName = '';
+  List<DynamicFieldModel> fields = [];
 
-  FarmerModel? get farmer => _farmer;
-  bool get isLoading => _isLoading;
+  Future<void> loadFormDetail(
+      {required int subcategoryId, required int submissionId}) async {
+    final userId = _authService.userId;
+    if (userId == null) {
+      error = 'User not authenticated.';
+      notifyListeners();
+      return;
+    }
 
-  Future<void> loadFarmer(String id) async {
-    _isLoading = true;
+    isLoading = true;
+    error = null;
     notifyListeners();
 
-    _farmer = await _firestoreService.getFarmerById(id);
-
-    _isLoading = false;
-    notifyListeners();
-  }
-
-  Future<void> deleteFarmer() async {
-    if (_farmer?.id == null) return;
-    await _firestoreService.deleteFarmer(_farmer!.id!);
-  }
-
-  Future<void> toggleStatus() async {
-    if (_farmer == null) return;
-    final newStatus = _farmer!.status == 'Active' ? 'Inactive' : 'Active';
-    final updated = _farmer!.copyWith(status: newStatus);
-    await _firestoreService.updateFarmer(updated);
-    _farmer = updated;
-    notifyListeners();
+    try {
+      final result =
+          await _service.fetchFormDetail(subcategoryId, submissionId, userId);
+      formName = result.formName;
+      fields = result.fields;
+    } catch (e) {
+      error = e.toString();
+    } finally {
+      isLoading = false;
+      notifyListeners();
+    }
   }
 }

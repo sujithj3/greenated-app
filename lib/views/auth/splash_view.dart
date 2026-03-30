@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import '../../services/auth_service.dart';
 import '../../utils/app_colors.dart';
 
@@ -21,6 +22,7 @@ class _SplashViewState extends State<SplashView>
   late Animation<double> _fadeAnim;
   late Animation<double> _scaleAnim;
   late Animation<Offset> _slideAnim;
+  String _appVersion = '';
 
   @override
   void initState() {
@@ -45,7 +47,22 @@ class _SplashViewState extends State<SplashView>
     );
 
     _ctrl.forward();
+    _loadVersion();
     _navigate();
+  }
+
+  Future<void> _loadVersion() async {
+    final info = await PackageInfo.fromPlatform();
+    if (mounted) {
+      final parts = info.version.split('.');
+      String displayVersion = info.version;
+      if (parts.length >= 2) {
+        displayVersion = '${parts[0]}.${parts[1]}';
+      }
+      setState(() {
+        _appVersion = displayVersion;
+      });
+    }
   }
 
   Future<void> _navigate() async {
@@ -93,22 +110,9 @@ class _SplashViewState extends State<SplashView>
                     scale: _scaleAnim,
                     child: FadeTransition(
                       opacity: _fadeAnim,
-                      child: Container(
-                        width: (100 * scale).clamp(80.0, 130.0),
-                        height: (100 * scale).clamp(80.0, 130.0),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.15),
-                          shape: BoxShape.circle,
-                          border: Border.all(
-                            color: Colors.white.withValues(alpha: 0.4),
-                            width: 2,
-                          ),
-                        ),
-                        child: Icon(
-                          Icons.eco,
-                          size: (54 * scale).clamp(40.0, 70.0),
-                          color: AppColors.light,
-                        ),
+                      child: Image.asset(
+                        'assets/images/greenated-logo-white.png',
+                        width: screenWidth * 0.7,
                       ),
                     ),
                   ),
@@ -122,28 +126,21 @@ class _SplashViewState extends State<SplashView>
                       opacity: _fadeAnim,
                       child: Column(
                         children: [
-                          FittedBox(
-                            fit: BoxFit.scaleDown,
-                            child: Text(
-                              'GREENATED',
-                              maxLines: 1,
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize:
-                                    (34 * scale).clamp(24.0, 44.0),
-                                fontWeight: FontWeight.w800,
-                                letterSpacing: 4,
-                              ),
+                          SizedBox(height: 6 * scale),
+                          Text(
+                            'Powering Net-Zero through',
+                            style: TextStyle(
+                              color: Colors.white.withValues(alpha: 0.85),
+                              fontSize: (14 * scale).clamp(12.0, 17.0),
+                              letterSpacing: 1.2,
                             ),
                           ),
                           SizedBox(height: 6 * scale),
                           Text(
-                            'Farmer Registration System',
+                            'Nature & Innovation',
                             style: TextStyle(
-                              color:
-                                  Colors.white.withValues(alpha: 0.85),
-                              fontSize:
-                                  (14 * scale).clamp(12.0, 17.0),
+                              color: Colors.white.withValues(alpha: 0.85),
+                              fontSize: (14 * scale).clamp(12.0, 17.0),
                               letterSpacing: 1.2,
                             ),
                           ),
@@ -171,7 +168,7 @@ class _SplashViewState extends State<SplashView>
                         ),
                         SizedBox(height: 14 * scale),
                         Text(
-                          'Empowering Farmers',
+                          _appVersion.isEmpty ? 'Loading...' : "v$_appVersion",
                           style: TextStyle(
                             color: Colors.white.withValues(alpha: 0.6),
                             fontSize: (12 * scale).clamp(11.0, 15.0),

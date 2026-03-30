@@ -1,11 +1,10 @@
 import 'package:flutter/foundation.dart';
 import '../../models/farmer/farmer_model.dart';
-import '../../services/firestore_service.dart';
 
+/// Placeholder ViewModel for farmer list.
+/// Firestore stream logic removed. Will be wired to a real API when available.
 class FarmerListViewModel extends ChangeNotifier {
-  final FirestoreService _firestoreService;
-
-  FarmerListViewModel(this._firestoreService);
+  FarmerListViewModel();
 
   String _searchQuery = '';
   String? _filterStatus;
@@ -13,6 +12,7 @@ class FarmerListViewModel extends ChangeNotifier {
   // Set from navigation arguments
   String? navCategory;
   String? navSubcategory;
+  bool viewOnly = false;
 
   String get searchQuery => _searchQuery;
   String? get filterStatus => _filterStatus;
@@ -20,6 +20,7 @@ class FarmerListViewModel extends ChangeNotifier {
   void init(Map? args) {
     navCategory = args?['category'] as String?;
     navSubcategory = args?['subcategory'] as String?;
+    viewOnly = args?['viewOnly'] as bool? ?? false;
   }
 
   void setSearch(String query) {
@@ -34,18 +35,6 @@ class FarmerListViewModel extends ChangeNotifier {
 
   String get title => navSubcategory ?? navCategory ?? 'All Farmers';
   bool get hasNavFilter => navCategory != null;
-
-  Stream<List<FarmerModel>> get farmersStream {
-    if (navCategory != null && navSubcategory != null) {
-      return _firestoreService.getFarmersByCategoryAndSub(
-          navCategory!, navSubcategory!);
-    } else if (navCategory != null) {
-      return _firestoreService.getFarmersByCategory(navCategory!);
-    } else if (_searchQuery.isNotEmpty) {
-      return _firestoreService.searchFarmers(_searchQuery);
-    }
-    return _firestoreService.getFarmers();
-  }
 
   List<FarmerModel> applyFilters(List<FarmerModel> farmers) {
     if (_filterStatus != null) {

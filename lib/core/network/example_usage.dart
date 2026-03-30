@@ -8,6 +8,8 @@
 library;
 
 import '../network/network.dart';
+import '../../repositories/category_repository.dart';
+import '../../services/category_api_service.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 1. REPOSITORY PATTERN (recommended)
@@ -15,74 +17,6 @@ import '../network/network.dart';
 //    Repositories own the ApiClient and expose domain-specific methods.
 //    Services / ViewModels never touch ApiClient directly.
 // ─────────────────────────────────────────────────────────────────────────────
-
-/// Abstract repository — defines the contract. Lives in the "domain" layer.
-abstract class CategoryRepository {
-  Future<List<Map<String, dynamic>>> fetchCategories();
-  Future<Map<String, dynamic>> fetchSubcategories(int categoryId);
-}
-
-/// Concrete repository — implements the contract using [ApiClient].
-/// Lives in the "data" layer.
-class CategoryRepositoryImpl implements CategoryRepository {
-  CategoryRepositoryImpl({required ApiClient apiClient})
-      : _apiClient = apiClient;
-
-  final ApiClient _apiClient;
-
-  @override
-  Future<List<Map<String, dynamic>>> fetchCategories() async {
-    // ── Send a typed request ────────────────────────────────────────────
-    final ApiResponse<List<dynamic>> response = await _apiClient.send<List<dynamic>>(
-      const ApiRequest(
-        method: ApiMethod.get,
-        path: ApiEndpoints.categories,
-      ),
-      // The decoder converts the raw `data` field into the desired type.
-      decoder: (raw) => raw is List ? raw : null,
-    );
-
-    // ── Check for failure ───────────────────────────────────────────────
-    _throwIfFailure(response);
-
-    // ── Parse into domain models ────────────────────────────────────────
-    return response.data
-            ?.map((e) => Map<String, dynamic>.from(e as Map))
-            .toList() ??
-        [];
-  }
-
-  @override
-  Future<Map<String, dynamic>> fetchSubcategories(int categoryId) async {
-    final ApiResponse<Map<String, dynamic>> response =
-        await _apiClient.send<Map<String, dynamic>>(
-      ApiRequest(
-        method: ApiMethod.get,
-        path: ApiEndpoints.subcategories(categoryId),
-      ),
-      decoder: _decodeJsonObject,
-    );
-
-    _throwIfFailure(response);
-    return response.data ?? {};
-  }
-
-  // ── Shared helpers ──────────────────────────────────────────────────────
-
-  Map<String, dynamic>? _decodeJsonObject(Object? raw) {
-    if (raw is Map<String, dynamic>) return raw;
-    if (raw is Map) return Map<String, dynamic>.from(raw);
-    return null;
-  }
-
-  void _throwIfFailure(ApiResponse<dynamic> response) {
-    if (response.isSuccess) return;
-    throw ApiException(
-      response.message.isEmpty ? 'Request failed.' : response.message,
-      statusCode: response.statusCode,
-    );
-  }
-}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 2. ERROR HANDLING PATTERN
@@ -120,8 +54,7 @@ Future<void> examplePostRequest(ApiClient client) async {
       path: ApiEndpoints.requestOtp,
       body: {'phoneNumber': '+919876543210'},
     ),
-    decoder: (raw) =>
-        raw is Map<String, dynamic> ? raw : null,
+    decoder: (raw) => raw is Map<String, dynamic> ? raw : null,
   );
 
   if (response.isSuccess) {
@@ -142,7 +75,10 @@ void exampleWiring() {
 
   // Inject into repositories
   final CategoryRepository categoryRepo = CategoryRepositoryImpl(
-    apiClient: client,
+    apiService: CategoryApiService(
+      apiClient: client,
+      userIdProvider: () => null,
+    ),
   );
 
   // Repositories are then provided to services / view models via Provider.

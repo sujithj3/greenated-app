@@ -61,6 +61,11 @@ class HttpClientImpl implements ApiClient {
         ...processed.headers,
       };
 
+      processed = processed.copyWith(
+        path: uri.toString(),
+        headers: headers,
+      );
+
       // ── 4. Execute the HTTP call ──────────────────────────────────────
       final http.Response httpResponse = await _executeRequest(
         processed.method,
@@ -80,7 +85,7 @@ class HttpClientImpl implements ApiClient {
 
       // ── 7. Run response interceptors ──────────────────────────────────
       for (final ApiInterceptor interceptor in interceptors) {
-        apiResponse = interceptor.onResponse<T>(apiResponse);
+        apiResponse = interceptor.onResponse<T>(apiResponse, processed);
       }
 
       // ── 8. Throw typed exceptions for error status codes ──────────────
@@ -106,13 +111,12 @@ class HttpClientImpl implements ApiClient {
     }
   }
 
-  /// Dispatches the HTTP call based on the [ApiMethod].
   Future<http.Response> _executeRequest(
     ApiMethod method,
     Uri uri,
     Map<String, String> headers,
     Object? body,
-  ) {
+  ) async {
     final String? encodedBody =
         body != null ? jsonEncode(body) : null;
 
@@ -147,12 +151,18 @@ class HttpClientImpl implements ApiClient {
     try {
       final dynamic decoded = jsonDecode(response.body);
       if (decoded is Map<String, dynamic>) {
+        // Unwrap { "response": { ... } } wrapper if present.
+        final Map<String, dynamic> envelope =
+            decoded.containsKey('response') && decoded['response'] is Map
+                ? Map<String, dynamic>.from(decoded['response'] as Map)
+                : decoded;
+
         // Ensure statusCode is always present in the envelope.
         return <String, dynamic>{
-          'statusCode': decoded['statusCode'] ?? response.statusCode,
-          'hasError': decoded['hasError'] ?? (response.statusCode >= 400),
-          'message': decoded['message'] ?? '',
-          'data': decoded['data'],
+          'statusCode': envelope['statusCode'] ?? response.statusCode,
+          'hasError': envelope['hasError'] ?? (response.statusCode >= 400),
+          'message': envelope['message'] ?? '',
+          'data': envelope['data'],
         };
       }
     } on FormatException {
@@ -198,6 +208,88 @@ class HttpClientImpl implements ApiClient {
           msg.isNotEmpty ? msg : 'Request failed.',
           statusCode: response.statusCode,
         );
+    }
+  }
+
+  @override
+  Future<ApiResponse<T>> uploadFile<T>(
+    String path, {
+    required String filePath,
+    String fileKey = 'file',
+    Map<String, String> fields = const {},
+    T? Function(Object? rawData)? decoder,
+  }) async {
+    // Build a synthetic ApiRequest for interceptors (auth token injection).
+    // Body is populated for logging purposes only — not sent as JSON.
+    ApiRequest synthetic = ApiRequest(
+      method: ApiMethod.post,
+      path: path,
+      body: <String, dynamic>{
+        'fileKey': fileKey,
+        'filePath': filePath,
+        if (fields.isNotEmpty) 'fields': fields,
+      },
+    );
+    for (final ApiInterceptor interceptor in interceptors) {
+      synthetic = interceptor.onRequest(synthetic);
+    }
+
+    try {
+      final Uri uri = Uri.parse(
+        '${ApiConfig.versionedBaseUrl}$path',
+      );
+
+      // Update synthetic with the full URL so logging interceptors show it.
+      synthetic = synthetic.copyWith(path: uri.toString());
+
+      final request = http.MultipartRequest('POST', uri);
+
+      // Merge default + interceptor headers (skip content-type, set by multipart).
+      final Map<String, String> headers = <String, String>{
+        ...ApiConfig.defaultHeaders,
+        ...synthetic.headers,
+      };
+      headers.remove('Content-Type');
+      request.headers.addAll(headers);
+
+      // Attach file.
+      request.files.add(
+        await http.MultipartFile.fromPath(fileKey, filePath),
+      );
+
+      // Attach extra fields.
+      request.fields.addAll(fields);
+
+      final streamedResponse =
+          await request.send().timeout(ApiConfig.receiveTimeout);
+      final response = await http.Response.fromStream(streamedResponse);
+
+      final Map<String, dynamic> json = _decodeResponseBody(response);
+
+      ApiResponse<T> apiResponse = ApiResponse<T>.fromJson(
+        json,
+        dataParser: decoder,
+      );
+
+      for (final ApiInterceptor interceptor in interceptors) {
+        apiResponse = interceptor.onResponse<T>(apiResponse, synthetic);
+      }
+
+      _throwIfError(apiResponse);
+
+      return apiResponse;
+    } on ApiException {
+      rethrow;
+    } on SocketException {
+      _notifyErrorInterceptors(const NetworkException(), synthetic);
+      throw const NetworkException();
+    } on TimeoutException {
+      _notifyErrorInterceptors(const RequestTimeoutException(), synthetic);
+      throw const RequestTimeoutException();
+    } catch (e) {
+      final exception = ApiException('Upload failed: $e');
+      _notifyErrorInterceptors(exception, synthetic);
+      throw exception;
     }
   }
 

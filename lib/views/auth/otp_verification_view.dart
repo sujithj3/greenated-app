@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:pinput/pinput.dart';
 import '../../utils/app_colors.dart';
+import '../../utils/snack_bar_helper.dart';
 import '../../view_models/auth/login_view_model.dart';
 
 /// OTP verification view — part of the login flow.
@@ -39,14 +40,14 @@ class _OtpVerificationViewState extends State<OtpVerificationView> {
 
   Future<void> _verifyOTP() async {
     if (_otpCtrl.text.length < 6) {
-      _showSnack('Please enter the 6-digit OTP', isError: true);
+      context.showSnack('Please enter the 6-digit OTP');
       return;
     }
     final success = await _vm.verifyOTP(_otpCtrl.text.trim());
     if (success && mounted) {
       widget.onVerified();
     } else if (_vm.error != null && mounted) {
-      _showSnack(_vm.error!, isError: true);
+      context.showSnack(_vm.error!);
     }
   }
 
@@ -54,20 +55,13 @@ class _OtpVerificationViewState extends State<OtpVerificationView> {
     final success = await _vm.resendOTP();
     if (mounted) {
       if (success) {
-        _showSnack('OTP resent to ${widget.phoneNumber}');
+        context.showSnack('OTP resent to ${widget.phoneNumber}', success: true);
       } else if (_vm.error != null) {
-        _showSnack(_vm.error!, isError: true);
+        context.showSnack(_vm.error!);
       }
     }
   }
 
-  void _showSnack(String msg, {bool isError = false}) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(msg),
-      backgroundColor: isError ? AppColors.error : AppColors.dark,
-      behavior: SnackBarBehavior.floating,
-    ));
-  }
 
   @override
   Widget build(BuildContext context) {

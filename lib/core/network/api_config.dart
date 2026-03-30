@@ -1,3 +1,5 @@
+import 'package:flutter/widgets.dart';
+
 import '../../config/env_config.dart';
 
 /// Centralised configuration for the HTTP client.
@@ -17,7 +19,16 @@ class ApiConfig {
 
   // ── API versioning ──────────────────────────────────────────────────────
   static const String apiVersion = 'v1';
-  static String get versionedBaseUrl => '$baseUrl/api/$apiVersion';
+
+  /// Returns the full base URL including version, normalized to ensure no
+  /// double slashes even if [baseUrl] in `.env` has a trailing slash.
+  static String get versionedBaseUrl {
+    final String base = baseUrl.endsWith('/')
+        ? baseUrl.substring(0, baseUrl.length - 1)
+        : baseUrl;
+    debugPrint("BASE URL CONSTRUCTED: $base");
+    return '$base/api/app/';
+  }
 
   // ── Default headers applied to every request ────────────────────────────
   static Map<String, String> get defaultHeaders => <String, String>{

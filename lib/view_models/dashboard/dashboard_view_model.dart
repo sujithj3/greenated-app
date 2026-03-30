@@ -1,15 +1,29 @@
 import 'package:flutter/foundation.dart';
-import '../../models/farmer/farmer_model.dart';
+import '../../models/category/category_models.dart';
 import '../../services/auth_service.dart';
-import '../../services/firestore_service.dart';
+import '../../services/form_config_service.dart';
 
 class DashboardViewModel extends ChangeNotifier {
   final AuthService _authService;
-  final FirestoreService _firestoreService;
+  final FormConfigService _formConfigService;
 
-  DashboardViewModel(this._authService, this._firestoreService);
+  DashboardViewModel(this._authService, this._formConfigService) {
+    _authService.addListener(_onServiceChanged);
+    _formConfigService.addListener(_onServiceChanged);
+  }
 
-  String get displayPhone => _authService.displayPhone;
+  void _onServiceChanged() => notifyListeners();
+
+  String get displayPhone =>
+      _authService.displayPhone.isNotEmpty ? _authService.displayPhone : 'User';
+
+  String get displayName => _authService.fullName?.isNotEmpty ?? false
+      ? _authService.fullName!
+      : 'User';
+
+  bool get isCategoriesLoading => _formConfigService.isLoading;
+  List<CategoryModel> get categories => _formConfigService.categories;
+  String? get categoriesError => _formConfigService.error;
 
   String get greeting {
     final hour = DateTime.now().hour;
@@ -18,14 +32,18 @@ class DashboardViewModel extends ChangeNotifier {
     return 'Evening';
   }
 
-  Stream<int> get totalCount => _firestoreService.getTotalCount();
-  Stream<int> get activeCount => _firestoreService.getActiveCount();
-  Stream<Map<String, int>> get categoryCounts =>
-      _firestoreService.getCategoryCounts();
-  Stream<List<FarmerModel>> get recentFarmers => _firestoreService.getFarmers();
+  Future<void> fetchCategories({bool forceRefresh = false}) async {
+    await _formConfigService.fetchCategories(forceRefresh: forceRefresh);
+  }
 
-  Future<void> signOut() async {
+  Future<void> logout() async {
     await _authService.signOut();
-    notifyListeners();
+  }
+
+  @override
+  void dispose() {
+    _authService.removeListener(_onServiceChanged);
+    _formConfigService.removeListener(_onServiceChanged);
+    super.dispose();
   }
 }
