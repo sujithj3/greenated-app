@@ -9,11 +9,15 @@ import '../../widgets/shimmer_loading.dart';
 class RegisteredListView extends StatefulWidget {
   final FlowType flowType;
   final int subcategoryId;
+  final String category;
+  final String subcategory;
 
   const RegisteredListView({
     super.key,
     required this.flowType,
     required this.subcategoryId,
+    this.category = '',
+    this.subcategory = '',
   });
 
   @override
@@ -26,13 +30,11 @@ class _RegisteredListViewState extends State<RegisteredListView> {
   @override
   void initState() {
     super.initState();
-    if (widget.flowType == FlowType.listing) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        context
-            .read<RegisteredListViewModel>()
-            .loadFirstPage(widget.subcategoryId);
-      });
-    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context
+          .read<RegisteredListViewModel>()
+          .loadFirstPage(widget.subcategoryId);
+    });
 
     _scrollController.addListener(() {
       if (_scrollController.position.pixels >=
@@ -50,13 +52,28 @@ class _RegisteredListViewState extends State<RegisteredListView> {
 
   @override
   Widget build(BuildContext context) {
-    if (widget.flowType != FlowType.listing) {
-      return const Scaffold(
-        body: Center(child: Text("Invalid Flow Type")),
-      );
-    }
+    final isRegistration = widget.flowType == FlowType.registration;
 
     return Scaffold(
+      floatingActionButton: isRegistration
+          ? FloatingActionButton.extended(
+              onPressed: () {
+                Navigator.pushNamed(
+                  context,
+                  '/farmer-form',
+                  arguments: <String, dynamic>{
+                    'category': widget.category,
+                    'subcategory': widget.subcategory,
+                    'subcategoryId': widget.subcategoryId,
+                  },
+                );
+              },
+              backgroundColor: AppColors.primary,
+              foregroundColor: Colors.white,
+              icon: const Icon(Icons.person_add),
+              label: const Text('Register Farmer'),
+            )
+          : null,
       appBar: AppBar(
         title: const Text('Registered List'),
       ),

@@ -170,25 +170,14 @@ class _SubcategoryViewState extends State<SubcategoryView> {
                       return;
                     }
 
-                    if (isRegistration) {
-                      Navigator.pushNamed(
-                        context,
-                        '/farmer-form',
-                        arguments: <String, dynamic>{
-                          'category': categoryName,
-                          'subcategory': subcategory.subcategoryName,
-                          'subcategoryId': subcategory.subcategoryId,
-                        },
-                      );
-                      return;
-                    }
-
                     Navigator.pushNamed(
                       context,
                       '/registered-farmers',
                       arguments: {
                         'flowType': flowType,
                         'subcategoryId': subcategory.subcategoryId,
+                        'category': categoryName,
+                        'subcategory': subcategory.subcategoryName,
                       },
                     );
                   },
@@ -234,8 +223,7 @@ class _SubcategoryTile extends StatelessWidget {
             color: color.withValues(alpha: 0.12),
             borderRadius: BorderRadius.circular(12),
           ),
-          child:
-              Icon(catData?.icon ?? Icons.category, color: color, size: 22),
+          child: Icon(catData?.icon ?? Icons.category, color: color, size: 22),
         ),
         title: Text(
           subcategory.subcategoryName,
@@ -246,8 +234,7 @@ class _SubcategoryTile extends StatelessWidget {
           style: const TextStyle(fontSize: 12, color: AppColors.textMedium),
         ),
         trailing: selectionMode
-            ? const Icon(Icons.check_circle_outline,
-                color: AppColors.primary)
+            ? const Icon(Icons.check_circle_outline, color: AppColors.primary)
             : Row(
                 mainAxisSize: MainAxisSize.min,
                 children: <Widget>[
@@ -270,8 +257,7 @@ class _SubcategoryTile extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(width: 4),
-                  const Icon(Icons.chevron_right,
-                      color: AppColors.textMedium),
+                  const Icon(Icons.chevron_right, color: AppColors.textMedium),
                 ],
               ),
       ),

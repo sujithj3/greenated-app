@@ -163,6 +163,8 @@ class FarmerRegistrationApp extends StatelessWidget {
               page = RegisteredListView(
                 flowType: args['flowType'] as FlowType? ?? FlowType.listing,
                 subcategoryId: args['subcategoryId'] as int? ?? 0,
+                category: args['category'] as String? ?? '',
+                subcategory: args['subcategory'] as String? ?? '',
               );
             case '/farmer-detail':
               final detailArgs =
