@@ -17,6 +17,10 @@ class DashboardViewModel extends ChangeNotifier {
   String get displayPhone =>
       _authService.displayPhone.isNotEmpty ? _authService.displayPhone : 'User';
 
+  String get displayName => _authService.fullName?.isNotEmpty ?? false
+      ? _authService.fullName!
+      : 'User';
+
   bool get isCategoriesLoading => _formConfigService.isLoading;
   List<CategoryModel> get categories => _formConfigService.categories;
   String? get categoriesError => _formConfigService.error;

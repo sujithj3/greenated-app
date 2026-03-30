@@ -75,7 +75,10 @@ void exampleWiring() {
 
   // Inject into repositories
   final CategoryRepository categoryRepo = CategoryRepositoryImpl(
-    apiService: CategoryApiService(apiClient: client),
+    apiService: CategoryApiService(
+      apiClient: client,
+      userIdProvider: () => null,
+    ),
   );
 
   // Repositories are then provided to services / view models via Provider.

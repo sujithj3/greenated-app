@@ -65,6 +65,7 @@ class FarmerRegistrationApp extends StatelessWidget {
         Provider<CategoryApiService>(
           create: (context) => CategoryApiService(
             apiClient: context.read<ApiClient>(),
+            userIdProvider: () => context.read<AuthService>().userId,
           ),
         ),
         Provider<CategoryRepository>(

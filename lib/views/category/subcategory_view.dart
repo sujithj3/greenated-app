@@ -211,7 +211,7 @@ class _SubcategoryTile extends StatelessWidget {
     final color = catData?.color ?? AppColors.primary;
     final subtitle = selectionMode
         ? categoryName
-        : '${subcategory.farmerCount} farmers · ${subcategory.landCount ?? 0} lands';
+        : '${subcategory.farmerCount} farmers';
 
     return Card(
       child: ListTile(
