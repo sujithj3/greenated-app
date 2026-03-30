@@ -82,7 +82,7 @@ class _DashboardViewState extends State<DashboardView> {
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            _vm.displayPhone,
+                            _vm.displayName,
                             style: const TextStyle(
                               color: Colors.white,
                               fontSize: 18,
