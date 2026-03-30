@@ -362,25 +362,25 @@ class _CategoryTile extends StatelessWidget {
                   fontWeight: FontWeight.w700,
                 ),
               ),
-              const SizedBox(height: 4),
-              Row(
-                children: [
-                  const Icon(Icons.layers_outlined,
-                      color: Colors.white70, size: 14),
-                  const SizedBox(width: 4),
-                  Text(
-                    '$landCount lands',
-                    style: const TextStyle(color: Colors.white70, fontSize: 12),
-                  ),
-                ],
-              ),
+              // const SizedBox(height: 4),
+              // Row(
+              //   children: [
+              //     const Icon(Icons.layers_outlined,
+              //         color: Colors.white70, size: 14),
+              //     const SizedBox(width: 4),
+              //     Text(
+              //       '$landCount lands',
+              //       style: const TextStyle(color: Colors.white70, fontSize: 12),
+              //     ),
+              //   ],
+              // ),
               const SizedBox(height: 4),
               Row(
                 children: [
                   const Icon(Icons.list, color: Colors.white70, size: 14),
                   const SizedBox(width: 4),
                   Text(
-                    '$subcategoryCount subcategories',
+                    '$subcategoryCount ${subcategoryCount <= 1 ? 'subcategory' : 'subcategories'}',
                     style: const TextStyle(color: Colors.white70, fontSize: 12),
                   ),
                 ],

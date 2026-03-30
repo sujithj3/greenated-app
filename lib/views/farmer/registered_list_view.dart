@@ -198,16 +198,16 @@ class _RegisteredListViewState extends State<RegisteredListView> {
                   ],
                 ),
               ),
-              const SizedBox(width: 8),
-              Text(
-                farmer.formName,
-                style: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w500,
-                  color: AppColors.primary,
-                ),
-                textAlign: TextAlign.right,
-              ),
+              // const SizedBox(width: 8),
+              // Text(
+              //   farmer.formName,
+              //   style: const TextStyle(
+              //     fontSize: 14,
+              //     fontWeight: FontWeight.w500,
+              //     color: AppColors.primary,
+              //   ),
+              //   textAlign: TextAlign.right,
+              // ),
               const SizedBox(width: 4),
               const Icon(Icons.chevron_right,
                   color: AppColors.textMedium, size: 20),

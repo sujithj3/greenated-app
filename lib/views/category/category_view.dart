@@ -185,25 +185,25 @@ class _CategoryCard extends StatelessWidget {
                   fontWeight: FontWeight.w700,
                 ),
               ),
-              const SizedBox(height: 4),
-              Row(
-                children: <Widget>[
-                  const Icon(Icons.layers_outlined,
-                      color: Colors.white70, size: 14),
-                  const SizedBox(width: 4),
-                  Text(
-                    '${category.totalLandCount ?? 0} lands',
-                    style: const TextStyle(color: Colors.white70, fontSize: 12),
-                  ),
-                ],
-              ),
+              // const SizedBox(height: 4),
+              // Row(
+              //   children: <Widget>[
+              //     const Icon(Icons.layers_outlined,
+              //         color: Colors.white70, size: 14),
+              //     const SizedBox(width: 4),
+              //     Text(
+              //       '${category.totalLandCount ?? 0} lands',
+              //       style: const TextStyle(color: Colors.white70, fontSize: 12),
+              //     ),
+              //   ],
+              // ),
               const SizedBox(height: 4),
               Row(
                 children: <Widget>[
                   const Icon(Icons.list, color: Colors.white70, size: 14),
                   const SizedBox(width: 4),
                   Text(
-                    '${category.subcategoryCount} subcategories',
+                    '${category.subcategoryCount} ${category.subcategoryCount <= 1 ? 'subcategory' : 'subcategories'}',
                     style: const TextStyle(color: Colors.white70, fontSize: 12),
                   ),
                 ],
