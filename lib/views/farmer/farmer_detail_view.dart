@@ -236,6 +236,9 @@ class _FarmerDetailViewState extends State<FarmerDetailView> {
           subFields.where((e) => e.value != null && e.value != '').length;
     }
 
+    final isCameraField =
+        f.fieldStyle == FieldStyle.camera || f.fieldStyle == FieldStyle.cameraFile;
+
     return DynamicFieldBuilder(
       field: f,
       value: _textCtrl.containsKey(f.key) ? _textCtrl[f.key]!.text : df.value,
@@ -252,6 +255,7 @@ class _FarmerDetailViewState extends State<FarmerDetailView> {
           : null,
       resolvedOptions:
           f.fieldStyle == FieldStyle.dropdown ? df.resolvedOptions : null,
+      previewUrl: isCameraField ? df.previewUrl : null,
     );
   }
 }
@@ -398,6 +402,9 @@ class _ViewOnlyPopupSheetState extends State<_ViewOnlyPopupSheet> {
           subFields.where((e) => e.value != null && e.value != '').length;
     }
 
+    final isCameraField =
+        f.fieldStyle == FieldStyle.camera || f.fieldStyle == FieldStyle.cameraFile;
+
     return DynamicFieldBuilder(
       field: f,
       value: _textCtrl.containsKey(f.key) ? _textCtrl[f.key]!.text : df.value,
@@ -413,6 +420,7 @@ class _ViewOnlyPopupSheetState extends State<_ViewOnlyPopupSheet> {
           : null,
       resolvedOptions:
           f.fieldStyle == FieldStyle.dropdown ? df.resolvedOptions : null,
+      previewUrl: isCameraField ? df.previewUrl : null,
     );
   }
 }

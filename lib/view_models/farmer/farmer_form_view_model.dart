@@ -7,7 +7,7 @@ import '../../models/api/api_models.dart';
 import '../../models/farmer/farmer_model.dart';
 import '../../services/auth_service.dart';
 import '../../services/form_config_service.dart';
-import '../../services/image_upload_service.dart';
+import '../../services/image_upload_service.dart' show ImageUploadService, ImageUploadResult;
 import '../../services/registration_form_service.dart';
 
 class FarmerFormViewModel extends ChangeNotifier {
@@ -188,18 +188,24 @@ class FarmerFormViewModel extends ChangeNotifier {
 
   /// Uploads a captured image for a camera-type dynamic field.
   ///
-  /// [fieldKey] identifies which dynamic field to store the URL in.
+  /// [fieldKey] identifies which dynamic field to store the imagePath in.
   /// [localFilePath] is the path returned from the camera capture screen.
   ///
-  /// Returns the uploaded image URL on success, or null on failure.
-  Future<String?> uploadCameraImage(String fieldKey, String localFilePath) async {
+  /// Returns the [ImageUploadResult] on success, or null on failure.
+  Future<ImageUploadResult?> uploadCameraImage(String fieldKey, String localFilePath) async {
     _uploadingFields[fieldKey] = true;
     notifyListeners();
 
     try {
-      final url = await _imageUploadService.uploadImage(localFilePath);
-      updateDynamicFieldValue(fieldKey, url);
-      return url;
+      final result = await _imageUploadService.uploadImage(localFilePath);
+      final idx = dynamicFields.indexWhere((df) => df.field.key == fieldKey);
+      if (idx != -1) {
+        dynamicFields[idx].value = result.imagePath;
+        dynamicFields[idx].previewUrl = result.previewUrl;
+        notifyListeners();
+        _handleDependencyChange(fieldKey);
+      }
+      return result;
     } catch (e) {
       debugPrint('Image upload failed for field "$fieldKey": $e');
       return null;
@@ -209,9 +215,14 @@ class FarmerFormViewModel extends ChangeNotifier {
     }
   }
 
-  /// Clears the uploaded image URL for a camera-type dynamic field.
+  /// Clears the uploaded image for a camera-type dynamic field.
   void clearCameraImage(String fieldKey) {
-    updateDynamicFieldValue(fieldKey, null);
+    final idx = dynamicFields.indexWhere((df) => df.field.key == fieldKey);
+    if (idx != -1) {
+      dynamicFields[idx].value = null;
+      dynamicFields[idx].previewUrl = null;
+      notifyListeners();
+    }
   }
 
   /// Saves the registration. [textControllers] is a map of key → current text
@@ -228,6 +239,7 @@ class FarmerFormViewModel extends ChangeNotifier {
     for (final df in dynamicFields) {
       if (!isFieldVisible(df)) {
         df.value = null;
+        df.previewUrl = null;
         continue;
       }
       if (textValues.containsKey(df.field.key)) {
@@ -322,6 +334,7 @@ class FarmerFormViewModel extends ChangeNotifier {
     for (final df in dynamicFields) {
       if (df.field.dependsOn == parentKey) {
         df.value = null;
+        df.previewUrl = null;
         df.resolvedOptions = df.field.options;
         df.isLoadingOptions = false;
         df.optionsError = null;

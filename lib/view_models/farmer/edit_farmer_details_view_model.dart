@@ -5,7 +5,7 @@ import '../../core/network/api_method.dart';
 import '../../core/network/api_request.dart';
 import '../../models/api/api_models.dart';
 import '../../services/auth_service.dart';
-import '../../services/image_upload_service.dart';
+import '../../services/image_upload_service.dart' show ImageUploadService, ImageUploadResult;
 import '../../services/registration_form_service.dart';
 
 /// ViewModel for the Edit Farmer Details flow.
@@ -116,16 +116,21 @@ class EditFarmerDetailsViewModel extends ChangeNotifier {
 
   /// Uploads a captured image for a camera-type dynamic field.
   ///
-  /// Returns the uploaded image URL on success, or null on failure.
-  Future<String?> uploadCameraImage(
+  /// Returns the [ImageUploadResult] on success, or null on failure.
+  Future<ImageUploadResult?> uploadCameraImage(
       String fieldKey, String localFilePath) async {
     _uploadingFields[fieldKey] = true;
     notifyListeners();
 
     try {
-      final url = await _imageUploadService.uploadImage(localFilePath);
-      updateFieldValue(fieldKey, url);
-      return url;
+      final result = await _imageUploadService.uploadImage(localFilePath);
+      final idx = fields.indexWhere((df) => df.field.key == fieldKey);
+      if (idx != -1) {
+        fields[idx].value = result.imagePath;
+        fields[idx].previewUrl = result.previewUrl;
+        notifyListeners();
+      }
+      return result;
     } catch (e) {
       debugPrint('Image upload failed for field "$fieldKey": $e');
       return null;
@@ -135,9 +140,14 @@ class EditFarmerDetailsViewModel extends ChangeNotifier {
     }
   }
 
-  /// Clears the uploaded image URL for a camera-type dynamic field.
+  /// Clears the uploaded image for a camera-type dynamic field.
   void clearCameraImage(String fieldKey) {
-    updateFieldValue(fieldKey, null);
+    final idx = fields.indexWhere((df) => df.field.key == fieldKey);
+    if (idx != -1) {
+      fields[idx].value = null;
+      fields[idx].previewUrl = null;
+      notifyListeners();
+    }
   }
 
   // ── Save (POST edit) ──────────────────────────────────────────────────────
@@ -158,6 +168,7 @@ class EditFarmerDetailsViewModel extends ChangeNotifier {
     for (final df in fields) {
       if (!isFieldVisible(df)) {
         df.value = null;
+        df.previewUrl = null;
         continue;
       }
       if (textValues.containsKey(df.field.key)) {
@@ -237,6 +248,7 @@ class EditFarmerDetailsViewModel extends ChangeNotifier {
     for (final df in fields) {
       if (df.field.dependsOn == parentKey) {
         df.value = null;
+        df.previewUrl = null;
         df.resolvedOptions = df.field.options;
         df.isLoadingOptions = false;
         df.optionsError = null;

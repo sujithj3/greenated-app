@@ -254,6 +254,7 @@ class DynamicFieldModel {
   DynamicFieldModel({
     required this.field,
     this.value,
+    this.previewUrl,
     List<ApiOption>? resolvedOptions,
     this.isLoadingOptions = false,
     this.optionsError,
@@ -261,6 +262,11 @@ class DynamicFieldModel {
 
   final ApiField field;
   dynamic value;
+
+  /// Presigned S3 URL for displaying camera-field images in the UI.
+  /// Display-only — never included in form submissions (excluded from toJson).
+  String? previewUrl;
+
   List<ApiOption> resolvedOptions;
   bool isLoadingOptions;
   String? optionsError;
@@ -309,6 +315,7 @@ class DynamicFieldModel {
     return DynamicFieldModel(
       field: apiField,
       value: resolvedValue,
+      previewUrl: data['previewUrl'] as String?,
       resolvedOptions: apiField.options,
     );
   }
@@ -333,10 +340,12 @@ class DynamicFieldModel {
   DynamicFieldModel copyWith({
     ApiField? field,
     dynamic value,
+    String? previewUrl,
   }) {
     return DynamicFieldModel(
       field: field ?? this.field,
       value: value ?? this.value,
+      previewUrl: previewUrl ?? this.previewUrl,
       resolvedOptions: resolvedOptions,
     );
   }

@@ -27,6 +27,7 @@ class DynamicFieldBuilder extends StatelessWidget {
     this.optionsError,
     this.onRetryOptions,
     this.isViewMode = false,
+    this.previewUrl,
   });
 
   final ApiField field;
@@ -65,6 +66,10 @@ class DynamicFieldBuilder extends StatelessWidget {
 
   /// When true, all fields render in read-only display mode.
   final bool isViewMode;
+
+  /// Presigned S3 URL for displaying a camera-field image.
+  /// Takes priority over [value] when resolving the image URL for display.
+  final String? previewUrl;
 
   Color get _accent => accentColor ?? AppColors.primary;
 
@@ -488,9 +493,9 @@ class DynamicFieldBuilder extends StatelessWidget {
   // ── Camera Field (dynamic, with network image preview) ─────────────────────
 
   Widget _buildCameraField(BuildContext context) {
-    final imageUrl = value is String && (value as String).isNotEmpty
-        ? value as String
-        : null;
+    final imageUrl = (previewUrl != null && previewUrl!.isNotEmpty)
+        ? previewUrl
+        : (value is String && (value as String).isNotEmpty ? value as String : null);
 
     return FormField<dynamic>(
       key: ValueKey('camera_${field.key}'),

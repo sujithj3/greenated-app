@@ -119,10 +119,10 @@ class _EditFarmerDetailsViewState extends State<EditFarmerDetailsView> {
         await Navigator.pushNamed(context, '/camera-capture') as String?;
     if (localPath == null || !mounted) return;
 
-    final url = await _vm.uploadCameraImage(fieldKey, localPath);
+    final result = await _vm.uploadCameraImage(fieldKey, localPath);
     if (!mounted) return;
 
-    if (url != null) {
+    if (result != null) {
       context.showSnack('Photo uploaded successfully', success: true);
     } else {
       context.showSnack('Photo upload failed. Please try again.');
@@ -325,6 +325,7 @@ class _EditFarmerDetailsViewState extends State<EditFarmerDetailsView> {
       isUploading: isCameraField ? _vm.isFieldUploading(f.key) : false,
       onCapturePhoto: isCameraField ? () => _captureAndUpload(f.key) : null,
       onClearPhoto: isCameraField ? () => _vm.clearCameraImage(f.key) : null,
+      previewUrl: isCameraField ? df.previewUrl : null,
       onMapPolygonPressed: f.fieldStyle == FieldStyle.mapPolygon
           ? () => _openMapForField(df)
           : null,
@@ -426,6 +427,7 @@ class _EditPopupFormSheetState extends State<_EditPopupFormSheet> {
       if (df.field.dependsOn == parentKey && df.field.hasVisibilityCondition) {
         if (!shouldShowField(df, _fields)) {
           df.value = null;
+          df.previewUrl = null;
           _textCtrl[df.field.key]?.clear();
           _resetHiddenSubFieldDependents(df.field.key);
         }
@@ -437,6 +439,7 @@ class _EditPopupFormSheetState extends State<_EditPopupFormSheet> {
     for (final df in _fields) {
       if (!_isSubFieldVisible(df)) {
         df.value = null;
+        df.previewUrl = null;
         continue;
       }
       if (_textCtrl.containsKey(df.field.key)) {
@@ -537,6 +540,9 @@ class _EditPopupFormSheetState extends State<_EditPopupFormSheet> {
           subFields.where((e) => e.value != null && e.value != '').length;
     }
 
+    final isCameraField =
+        f.fieldStyle == FieldStyle.camera || f.fieldStyle == FieldStyle.cameraFile;
+
     return DynamicFieldBuilder(
       field: f,
       value: _textCtrl.containsKey(f.key) ? _textCtrl[f.key]!.text : df.value,
@@ -555,6 +561,7 @@ class _EditPopupFormSheetState extends State<_EditPopupFormSheet> {
       onMapPolygonPressed: f.fieldStyle == FieldStyle.mapPolygon
           ? () => _openMapForNested(df)
           : null,
+      previewUrl: isCameraField ? df.previewUrl : null,
     );
   }
 
