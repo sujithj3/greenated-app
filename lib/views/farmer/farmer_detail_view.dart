@@ -1,10 +1,17 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+import 'package:package_info_plus/package_info_plus.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
+import 'package:share_plus/share_plus.dart';
 
 import '../../models/api/api_models.dart';
 import '../../services/auth_service.dart';
 import '../../services/registration_form_service.dart';
 import '../../utils/app_colors.dart';
+import '../../utils/snack_bar_helper.dart';
 import '../../view_models/farmer/farmer_detail_view_model.dart';
 import '../../widgets/dynamic_field_builder.dart';
 import '../../widgets/shimmer_loading.dart';
@@ -118,6 +125,80 @@ class _FarmerDetailViewState extends State<FarmerDetailView> {
     );
   }
 
+  Future<void> _generateAndShareKml(DynamicFieldModel df) async {
+    try {
+      final rawList = df.value is List ? df.value as List : null;
+      if (rawList == null || rawList.isEmpty) {
+        if (mounted) context.showSnack('Unable to generate kml file');
+        return;
+      }
+
+      final coords = rawList
+          .whereType<Map>()
+          .map((e) {
+            final lat = (e['lat'] as num?)?.toDouble();
+            final lng = (e['lng'] as num?)?.toDouble();
+            if (lat == null || lng == null) return null;
+            return (lat: lat, lng: lng);
+          })
+          .whereType<({double lat, double lng})>()
+          .toList();
+
+      if (coords.isEmpty) {
+        if (mounted) context.showSnack('Unable to generate kml file');
+        return;
+      }
+
+      // KML polygons must be closed — repeat first point at end.
+      final closed = [...coords];
+      if (closed.first.lat != closed.last.lat ||
+          closed.first.lng != closed.last.lng) {
+        closed.add(closed.first);
+      }
+
+      final coordLines =
+          closed.map((c) => '              ${c.lng},${c.lat},0').join('\n');
+
+      final now = DateTime.now();
+      final dateStr = DateFormat('dd-MMM-yyyy').format(now);
+
+      final packageInfo = await PackageInfo.fromPlatform();
+      final appName =
+          packageInfo.appName.isNotEmpty ? packageInfo.appName : 'App';
+      final docName = '${appName}_KML_FormID(${widget.submissionId})_$dateStr';
+
+      final kmlContent = '''<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2">
+  <Document>
+    <name>$docName</name>
+    <Placemark>
+      <name>Land Polygon</name>
+      <Polygon>
+        <outerBoundaryIs>
+          <LinearRing>
+            <coordinates>
+$coordLines
+            </coordinates>
+          </LinearRing>
+        </outerBoundaryIs>
+      </Polygon>
+    </Placemark>
+  </Document>
+</kml>''';
+
+      final dir = await getTemporaryDirectory();
+      final file = File('${dir.path}/$docName.kml');
+      await file.writeAsString(kmlContent);
+
+      await Share.shareXFiles(
+        [XFile(file.path, mimeType: 'application/vnd.google-earth.kml+xml')],
+        subject: '$docName.kml',
+      );
+    } catch (_) {
+      if (mounted) context.showSnack('Unable to generate kml file');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return ListenableBuilder(
@@ -212,9 +293,8 @@ class _FarmerDetailViewState extends State<FarmerDetailView> {
       );
     }
 
-    final visibleFields = _vm.fields
-        .where((df) => shouldShowField(df, _vm.fields))
-        .toList();
+    final visibleFields =
+        _vm.fields.where((df) => shouldShowField(df, _vm.fields)).toList();
 
     return ListView.separated(
       padding: const EdgeInsets.all(16),
@@ -236,8 +316,8 @@ class _FarmerDetailViewState extends State<FarmerDetailView> {
           subFields.where((e) => e.value != null && e.value != '').length;
     }
 
-    final isCameraField =
-        f.fieldStyle == FieldStyle.camera || f.fieldStyle == FieldStyle.cameraFile;
+    final isCameraField = f.fieldStyle == FieldStyle.camera ||
+        f.fieldStyle == FieldStyle.cameraFile;
 
     return DynamicFieldBuilder(
       field: f,
@@ -252,6 +332,9 @@ class _FarmerDetailViewState extends State<FarmerDetailView> {
       popupFormTotalCount: popupFormTotal,
       onMapPolygonPressed: f.fieldStyle == FieldStyle.mapPolygon
           ? () => _openViewOnlyMap(df)
+          : null,
+      onGenerateKml: f.fieldStyle == FieldStyle.mapPolygon
+          ? () => _generateAndShareKml(df)
           : null,
       resolvedOptions:
           f.fieldStyle == FieldStyle.dropdown ? df.resolvedOptions : null,
@@ -402,8 +485,8 @@ class _ViewOnlyPopupSheetState extends State<_ViewOnlyPopupSheet> {
           subFields.where((e) => e.value != null && e.value != '').length;
     }
 
-    final isCameraField =
-        f.fieldStyle == FieldStyle.camera || f.fieldStyle == FieldStyle.cameraFile;
+    final isCameraField = f.fieldStyle == FieldStyle.camera ||
+        f.fieldStyle == FieldStyle.cameraFile;
 
     return DynamicFieldBuilder(
       field: f,

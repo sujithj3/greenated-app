@@ -22,6 +22,7 @@ class DynamicFieldBuilder extends StatelessWidget {
     this.onCapturePhoto,
     this.onClearPhoto,
     this.onMapPolygonPressed,
+    this.onGenerateKml,
     this.resolvedOptions,
     this.isLoadingOptions = false,
     this.optionsError,
@@ -51,6 +52,10 @@ class DynamicFieldBuilder extends StatelessWidget {
 
   /// Callback to open the map for a map polygon field.
   final VoidCallback? onMapPolygonPressed;
+
+  /// Callback to generate and share a KML file for a map polygon field.
+  /// When non-null, a "Generate KML" button is shown next to the "View Map" button.
+  final VoidCallback? onGenerateKml;
 
   /// Runtime-resolved options for dependent dropdowns (null = use field.options).
   final List<ApiOption>? resolvedOptions;
@@ -116,7 +121,9 @@ class DynamicFieldBuilder extends StatelessWidget {
     return TextFormField(
       controller: controller,
       decoration: InputDecoration(
-        labelText: isViewMode ? field.label : (field.required ? '${field.label} *' : field.label),
+        labelText: isViewMode
+            ? field.label
+            : (field.required ? '${field.label} *' : field.label),
         prefixIcon: Icon(
           isNumber
               ? Icons.numbers_outlined
@@ -135,8 +142,9 @@ class DynamicFieldBuilder extends StatelessWidget {
               : isPhone
                   ? TextInputType.phone
                   : TextInputType.text,
-      textCapitalization:
-          isNumber || isPhone ? TextCapitalization.none : TextCapitalization.sentences,
+      textCapitalization: isNumber || isPhone
+          ? TextCapitalization.none
+          : TextCapitalization.sentences,
       inputFormatters: isViewMode
           ? const []
           : [
@@ -188,7 +196,8 @@ class DynamicFieldBuilder extends StatelessWidget {
         (o) => o.id.toString() == selectedStr,
         orElse: () => ApiOption(id: -1, name: selectedStr ?? '-'),
       );
-      final displayText = matched.name.isNotEmpty ? matched.name : (selectedStr ?? '-');
+      final displayText =
+          matched.name.isNotEmpty ? matched.name : (selectedStr ?? '-');
       return InputDecorator(
         decoration: InputDecoration(
           labelText: field.label,
@@ -242,17 +251,19 @@ class DynamicFieldBuilder extends StatelessWidget {
     }
 
     final options = resolvedOptions ?? field.options;
-    final bool isDependentWithNoOptions =
-        field.dataSource != null && field.dependsOn != null && field.dependsOn!.isNotEmpty && options.isEmpty;
+    final bool isDependentWithNoOptions = field.dataSource != null &&
+        field.dependsOn != null &&
+        field.dependsOn!.isNotEmpty &&
+        options.isEmpty;
     final selectedStr = value?.toString();
-    final selected = options.any((o) => o.id.toString() == selectedStr)
-        ? selectedStr
-        : null;
+    final selected =
+        options.any((o) => o.id.toString() == selectedStr) ? selectedStr : null;
 
     final String hintText;
     if (isDependentWithNoOptions) {
       final parentKey = field.dependsOn!;
-      hintText = 'Select ${parentKey[0].toUpperCase()}${parentKey.substring(1)} first';
+      hintText =
+          'Select ${parentKey[0].toUpperCase()}${parentKey.substring(1)} first';
     } else {
       hintText = 'Select ${field.label.isNotEmpty ? field.label : 'an option'}';
     }
@@ -262,18 +273,18 @@ class DynamicFieldBuilder extends StatelessWidget {
       value: selected,
       decoration: InputDecoration(
         labelText: field.required ? '${field.label} *' : field.label,
-        prefixIcon:
-            Icon(Icons.arrow_drop_down_circle_outlined, color: _accent),
+        prefixIcon: Icon(Icons.arrow_drop_down_circle_outlined, color: _accent),
       ),
       hint: Text(hintText),
-      disabledHint: Text(hintText,
-          style: const TextStyle(color: AppColors.textMedium)),
+      disabledHint:
+          Text(hintText, style: const TextStyle(color: AppColors.textMedium)),
       items: options.isEmpty
           ? [
               const DropdownMenuItem<String>(
                 value: 'no_data',
                 enabled: false,
-                child: Text('No data found', style: TextStyle(color: AppColors.textMedium)),
+                child: Text('No data found',
+                    style: TextStyle(color: AppColors.textMedium)),
               )
             ]
           : options
@@ -359,9 +370,8 @@ class DynamicFieldBuilder extends StatelessWidget {
   Widget _buildRadioField(BuildContext context) {
     final options = field.options;
     final selectedStr = value?.toString();
-    final selected = options.any((o) => o.id.toString() == selectedStr)
-        ? selectedStr
-        : null;
+    final selected =
+        options.any((o) => o.id.toString() == selectedStr) ? selectedStr : null;
 
     return FormField<String>(
       key: ValueKey('radio_${field.key}'),
@@ -410,11 +420,14 @@ class DynamicFieldBuilder extends StatelessWidget {
                               label: Text(option.name),
                               selected: state.value == option.id.toString(),
                               selectedColor: _accent.withValues(alpha: 0.2),
-                              onSelected: isViewMode ? null : (sel) {
-                                final next = sel ? option.id.toString() : null;
-                                state.didChange(next);
-                                onChanged(next);
-                              },
+                              onSelected: isViewMode
+                                  ? null
+                                  : (sel) {
+                                      final next =
+                                          sel ? option.id.toString() : null;
+                                      state.didChange(next);
+                                      onChanged(next);
+                                    },
                             ))
                         .toList(),
                   ),
@@ -450,7 +463,9 @@ class DynamicFieldBuilder extends StatelessWidget {
       readOnly: true,
       enabled: !isViewMode,
       decoration: InputDecoration(
-        labelText: isViewMode ? field.label : (field.required ? '${field.label} *' : field.label),
+        labelText: isViewMode
+            ? field.label
+            : (field.required ? '${field.label} *' : field.label),
         prefixIcon: Icon(Icons.calendar_today_outlined, color: _accent),
         suffixIcon: (!isViewMode && controller.text.isNotEmpty)
             ? IconButton(
@@ -495,7 +510,9 @@ class DynamicFieldBuilder extends StatelessWidget {
   Widget _buildCameraField(BuildContext context) {
     final imageUrl = (previewUrl != null && previewUrl!.isNotEmpty)
         ? previewUrl
-        : (value is String && (value as String).isNotEmpty ? value as String : null);
+        : (value is String && (value as String).isNotEmpty
+            ? value as String
+            : null);
 
     return FormField<dynamic>(
       key: ValueKey('camera_${field.key}'),
@@ -531,10 +548,12 @@ class DynamicFieldBuilder extends StatelessWidget {
                               width: double.infinity,
                               height: double.infinity,
                               placeholder: (_, __) => const Center(
-                                child: CircularProgressIndicator(color: Colors.white),
+                                child: CircularProgressIndicator(
+                                    color: Colors.white),
                               ),
                               errorWidget: (_, __, ___) => const Center(
-                                child: Icon(Icons.broken_image_outlined, color: Colors.grey, size: 50),
+                                child: Icon(Icons.broken_image_outlined,
+                                    color: Colors.grey, size: 50),
                               ),
                             ),
                           ),
@@ -565,7 +584,8 @@ class DynamicFieldBuilder extends StatelessWidget {
                       decoration: BoxDecoration(
                         color: AppColors.veryLight,
                         borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: AppColors.error.withValues(alpha: 0.4)),
+                        border: Border.all(
+                            color: AppColors.error.withValues(alpha: 0.4)),
                       ),
                       child: const Center(
                         child: Column(
@@ -621,7 +641,8 @@ class DynamicFieldBuilder extends StatelessWidget {
               // ── View mode: no image placeholder ──
               Container(
                 width: double.infinity,
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                 decoration: BoxDecoration(
                   color: AppColors.veryLight,
                   borderRadius: BorderRadius.circular(12),
@@ -721,8 +742,7 @@ class DynamicFieldBuilder extends StatelessWidget {
                   color: AppColors.veryLight,
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
-                    color:
-                        state.hasError ? AppColors.error : AppColors.light,
+                    color: state.hasError ? AppColors.error : AppColors.light,
                   ),
                 ),
                 child: Row(
@@ -756,8 +776,8 @@ class DynamicFieldBuilder extends StatelessWidget {
                         borderRadius: BorderRadius.circular(14),
                         child: const Padding(
                           padding: EdgeInsets.all(4),
-                          child: Icon(Icons.close, size: 18,
-                              color: AppColors.textMedium),
+                          child: Icon(Icons.close,
+                              size: 18, color: AppColors.textMedium),
                         ),
                       ),
                   ],
@@ -866,36 +886,90 @@ class DynamicFieldBuilder extends StatelessWidget {
               return null;
             },
       builder: (state) {
+        final pairLabel = hasData ? 'View Land Map' : 'No polygon data';
+        final soloLabel = isViewMode
+            ? (hasData
+                ? 'View ${field.label} ($ptsCount pts)'
+                : 'No polygon data')
+            : (hasData ? '${field.label} ($ptsCount pts)' : field.label);
+
+        final viewMapButton = OutlinedButton.icon(
+          onPressed: (isViewMode && !hasData) ? null : onMapPolygonPressed,
+          icon: Icon(isViewMode ? Icons.map_outlined : Icons.map,
+              color: hasData ? _accent : AppColors.textMedium),
+          label: Text(
+            (onGenerateKml != null && hasData) ? pairLabel : soloLabel,
+            style: TextStyle(color: hasData ? _accent : AppColors.textMedium),
+          ),
+          style: OutlinedButton.styleFrom(
+            minimumSize: const Size(double.infinity, 48),
+            side: BorderSide(
+              color: state.hasError
+                  ? AppColors.error
+                  : hasData
+                      ? _accent
+                      : AppColors.light,
+              width: hasData ? 1.5 : 1,
+            ),
+          ),
+        );
+
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            OutlinedButton.icon(
-              onPressed: (isViewMode && !hasData) ? null : onMapPolygonPressed,
-              icon: Icon(isViewMode ? Icons.map_outlined : Icons.map,
-                  color: hasData ? _accent : AppColors.textMedium),
-              label: Text(
-                isViewMode
-                    ? (hasData
-                        ? 'View ${field.label} ($ptsCount pts)'
-                        : 'No polygon data')
-                    : (hasData
-                        ? '${field.label} ($ptsCount pts)'
-                        : field.label),
-                style: TextStyle(
-                    color: hasData ? _accent : AppColors.textMedium),
-              ),
-              style: OutlinedButton.styleFrom(
-                minimumSize: const Size(double.infinity, 48),
-                side: BorderSide(
-                  color: state.hasError
-                      ? AppColors.error
-                      : hasData
-                          ? _accent
-                          : AppColors.light,
-                  width: hasData ? 1.5 : 1,
+            if (onGenerateKml != null && hasData)
+              IntrinsicHeight(
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Expanded(
+                      flex: 3,
+                      child: OutlinedButton.icon(
+                        onPressed: onMapPolygonPressed,
+                        icon: Icon(
+                          isViewMode ? Icons.map_outlined : Icons.map,
+                          color: _accent,
+                          size: 18,
+                        ),
+                        label: Text(
+                          pairLabel,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(color: _accent),
+                        ),
+                        style: OutlinedButton.styleFrom(
+                          minimumSize: const Size(0, 44),
+                          padding: const EdgeInsets.symmetric(horizontal: 10),
+                          side: BorderSide(color: _accent, width: 1.5),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      flex: 2,
+                      child: OutlinedButton.icon(
+                        onPressed: onGenerateKml,
+                        icon: Icon(
+                          Icons.file_download_outlined,
+                          color: _accent,
+                          size: 18,
+                        ),
+                        label: Text(
+                          'Export KML',
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(color: _accent),
+                        ),
+                        style: OutlinedButton.styleFrom(
+                          minimumSize: const Size(0, 44),
+                          padding: const EdgeInsets.symmetric(horizontal: 10),
+                          side: BorderSide(color: _accent, width: 1.5),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-              ),
-            ),
+              )
+            else
+              viewMapButton,
             if (state.hasError) ...[
               const SizedBox(height: 6),
               Padding(
