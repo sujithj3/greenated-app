@@ -186,16 +186,24 @@ $coordLines
   </Document>
 </kml>''';
 
-      final dir = await getTemporaryDirectory();
+      final dir = await getApplicationDocumentsDirectory();
       final file = File('${dir.path}/$docName.kml');
       await file.writeAsString(kmlContent);
 
+      final box = context.findRenderObject() as RenderBox?;
+
       await Share.shareXFiles(
-        [XFile(file.path, mimeType: 'application/vnd.google-earth.kml+xml')],
-        subject: '$docName.kml',
+        [
+          XFile(file.path)
+        ], // Removed strict mimeType so iOS auto-infers from .kml
+        subject: '$docName',
+        sharePositionOrigin: box != null
+            ? box.localToGlobal(Offset.zero) & box.size
+            : null, // Required for iPads so the app doesn't crash
       );
-    } catch (_) {
-      if (mounted) context.showSnack('Unable to generate kml file');
+    } catch (e) {
+      debugPrint('Error generating KML: $e');
+      if (mounted) context.showSnack('Unable to generate KML file. Try again.');
     }
   }
 
