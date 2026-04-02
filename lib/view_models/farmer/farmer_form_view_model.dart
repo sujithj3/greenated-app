@@ -4,10 +4,10 @@ import '../../core/network/api_client.dart';
 import '../../core/network/api_method.dart';
 import '../../core/network/api_request.dart';
 import '../../models/api/api_models.dart';
-import '../../models/farmer/farmer_model.dart';
 import '../../services/auth_service.dart';
 import '../../services/form_config_service.dart';
-import '../../services/image_upload_service.dart' show ImageUploadService, ImageUploadResult;
+import '../../services/image_upload_service.dart'
+    show ImageUploadService, ImageUploadResult;
 import '../../services/registration_form_service.dart';
 
 class FarmerFormViewModel extends ChangeNotifier {
@@ -43,7 +43,6 @@ class FarmerFormViewModel extends ChangeNotifier {
 
   ApiForm? form;
   List<DynamicFieldModel> dynamicFields = [];
-  FarmerModel? editFarmer;
 
   bool _argsProcessed = false;
 
@@ -68,15 +67,6 @@ class FarmerFormViewModel extends ChangeNotifier {
       selectedCategory = args['category'] as String? ?? '';
       selectedSubcategory = args['subcategory'] as String? ?? '';
       selectedSubcategoryId = args['subcategoryId'] as int?;
-
-      if (args['farmer'] != null) {
-        editFarmer = args['farmer'] as FarmerModel;
-        if (selectedCategory.isEmpty) selectedCategory = editFarmer!.category;
-        if (selectedSubcategory.isEmpty) {
-          selectedSubcategory = editFarmer!.subcategory;
-        }
-        selectedSubcategoryId ??= editFarmer!.subcategoryId;
-      }
     }
   }
 
@@ -104,10 +94,6 @@ class FarmerFormViewModel extends ChangeNotifier {
 
     _initDynamicFields();
 
-    if (editFarmer != null) {
-      _populateFromFarmer(editFarmer!);
-    }
-
     isLoadingForm = false;
     notifyListeners();
   }
@@ -118,33 +104,6 @@ class FarmerFormViewModel extends ChangeNotifier {
     for (final field in form!.fields) {
       dynamicFields.add(DynamicFieldModel.fromApiField(field));
     }
-  }
-
-  void _populateFromFarmer(FarmerModel f) {
-    selectedCategory = f.category;
-    selectedSubcategory = f.subcategory;
-    selectedSubcategoryId = f.subcategoryId;
-    selectedLandUnit = f.landUnit;
-    selectedStatus = f.status;
-    landCoordinates = f.landCoordinates;
-
-    if (f.formFields.isNotEmpty) {
-      dynamicFields = f.formFields
-          .map((e) =>
-              DynamicFieldModel.fromJson(Map<String, dynamic>.from(e as Map)))
-          .toList();
-    } else {
-      if (f.name != null) _setDynValue('fullName', f.name!);
-      if (f.phone != null) _setDynValue('mobileNumber', f.phone!);
-      f.dynamicFields.forEach((key, value) => _setDynValue(key, value));
-    }
-  }
-
-  void _setDynValue(String key, dynamic value) {
-    if (value == null) return;
-    if (value is String && value.isEmpty) return;
-    final idx = dynamicFields.indexWhere((df) => df.field.key == key);
-    if (idx != -1) dynamicFields[idx].value = value;
   }
 
   /// Returns the initial text value for a dynamic field key (for View to seed
@@ -181,7 +140,8 @@ class FarmerFormViewModel extends ChangeNotifier {
   }
 
   /// Whether a field should be visible based on its showWhen condition.
-  bool isFieldVisible(DynamicFieldModel df) => shouldShowField(df, dynamicFields);
+  bool isFieldVisible(DynamicFieldModel df) =>
+      shouldShowField(df, dynamicFields);
 
   /// Whether a specific camera field is currently uploading.
   bool isFieldUploading(String key) => _uploadingFields[key] ?? false;
@@ -192,7 +152,8 @@ class FarmerFormViewModel extends ChangeNotifier {
   /// [localFilePath] is the path returned from the camera capture screen.
   ///
   /// Returns the [ImageUploadResult] on success, or null on failure.
-  Future<ImageUploadResult?> uploadCameraImage(String fieldKey, String localFilePath) async {
+  Future<ImageUploadResult?> uploadCameraImage(
+      String fieldKey, String localFilePath) async {
     _uploadingFields[fieldKey] = true;
     notifyListeners();
 
@@ -233,7 +194,6 @@ class FarmerFormViewModel extends ChangeNotifier {
     required String landAreaText,
   }) async {
     if (selectedCategory.isEmpty || selectedSubcategory.isEmpty) return false;
-    if (editFarmer != null) return false; // edit not yet supported
 
     // Apply text values from controllers into dynamicFields; null out hidden fields
     for (final df in dynamicFields) {
@@ -317,13 +277,12 @@ class FarmerFormViewModel extends ChangeNotifier {
         final ref = template.substring(1);
         final dotIdx = ref.indexOf('.');
         final fieldKey = dotIdx > 0 ? ref.substring(0, dotIdx) : ref;
-        final idx =
-            dynamicFields.indexWhere((df) => df.field.key == fieldKey);
+        final idx = dynamicFields.indexWhere((df) => df.field.key == fieldKey);
         val = idx != -1 ? (dynamicFields[idx].value?.toString() ?? '') : '';
       } else {
         val = template;
       }
-      
+
       final parsedInt = int.tryParse(val);
       resolved[entry.key] = parsedInt ?? val;
     }
@@ -389,8 +348,8 @@ class FarmerFormViewModel extends ChangeNotifier {
       ApiRequest(
         method: method,
         path: ds.endpoint,
-        queryParameters: method == ApiMethod.get 
-            ? resolvedParams.map((k, v) => MapEntry(k, v.toString())) 
+        queryParameters: method == ApiMethod.get
+            ? resolvedParams.map((k, v) => MapEntry(k, v.toString()))
             : const {},
         body: method == ApiMethod.post ? resolvedParams : null,
       ),

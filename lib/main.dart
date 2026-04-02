@@ -23,7 +23,6 @@ import 'views/dashboard/dashboard_view.dart';
 import 'views/category/category_view.dart';
 import 'views/category/subcategory_view.dart';
 import 'views/farmer/farmer_form_view.dart';
-import 'views/farmer/farmer_list_view.dart';
 import 'views/farmer/farmer_detail_view.dart';
 import 'views/farmer/edit_farmer_details_view.dart';
 import 'views/tools/land_measurement_view.dart';
@@ -157,8 +156,6 @@ class FarmerRegistrationApp extends StatelessWidget {
               page = const LandMeasurementView();
             case '/camera-capture':
               page = const CameraCaptureView();
-            case '/farmer-list':
-              page = const FarmerListView();
             case '/registered-farmers':
               final args = settings.arguments as Map<String, dynamic>? ?? {};
               page = RegisteredListView(
