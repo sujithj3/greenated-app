@@ -118,13 +118,36 @@ class DynamicFieldBuilder extends StatelessWidget {
         field.label.toLowerCase().contains('phone') ||
         field.label.toLowerCase().contains('mobile');
 
+    if (isViewMode) {
+      return InputDecorator(
+        decoration: InputDecoration(
+          labelText: field.label,
+          floatingLabelBehavior: FloatingLabelBehavior.always,
+          prefixIcon: Icon(
+            isNumber
+                ? Icons.numbers_outlined
+                : isPhone
+                    ? Icons.phone_outlined
+                    : Icons.edit_note_outlined,
+            color: _accent,
+          ),
+        ),
+        child: Text(
+          controller.text.isEmpty ? '-' : controller.text,
+          style: const TextStyle(
+            color: AppColors.textDark,
+            fontSize: 16,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+      );
+    }
+
     return TextFormField(
       controller: controller,
       decoration: InputDecoration(
-        labelText: isViewMode
-            ? field.label
-            : (field.required ? '${field.label} *' : field.label),
-        hintText: isViewMode ? null : field.effectiveplaceHolder,
+        labelText: field.required ? '${field.label} *' : field.label,
+        hintText: field.effectiveplaceHolder,
         floatingLabelBehavior: FloatingLabelBehavior.always,
         prefixIcon: Icon(
           isNumber
@@ -135,56 +158,46 @@ class DynamicFieldBuilder extends StatelessWidget {
           color: _accent,
         ),
       ),
-      readOnly: isViewMode,
-      enabled: !isViewMode,
-      keyboardType: isViewMode
-          ? null
-          : isNumber
-              ? const TextInputType.numberWithOptions(decimal: true)
-              : isPhone
-                  ? TextInputType.phone
-                  : TextInputType.text,
+      keyboardType: isNumber
+          ? const TextInputType.numberWithOptions(decimal: true)
+          : isPhone
+              ? TextInputType.phone
+              : TextInputType.text,
       textCapitalization: isNumber || isPhone
           ? TextCapitalization.none
           : TextCapitalization.sentences,
-      inputFormatters: isViewMode
-          ? const []
-          : [
-              if (field.fieldType == FieldType.integer)
-                FilteringTextInputFormatter.digitsOnly,
-              if (field.fieldType == FieldType.decimal)
-                FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*')),
-              if (isPhone) FilteringTextInputFormatter.digitsOnly,
-            ],
-      maxLength: isViewMode ? null : (isPhone ? 15 : null),
-      onChanged: isViewMode
-          ? null
-          : (raw) {
-              if (field.fieldType == FieldType.integer) {
-                onChanged(int.tryParse(raw.trim()));
-              } else if (field.fieldType == FieldType.decimal) {
-                onChanged(double.tryParse(raw.trim()));
-              } else {
-                onChanged(raw.trim().isEmpty ? null : raw.trim());
-              }
-            },
-      validator: isViewMode
-          ? null
-          : (v) {
-              final sanitized = (v ?? '').trim();
-              if (field.required && sanitized.isEmpty) {
-                return '${field.label} is required';
-              }
-              if (sanitized.isNotEmpty &&
-                  isNumber &&
-                  double.tryParse(sanitized) == null) {
-                return 'Enter a valid number';
-              }
-              if (isPhone && sanitized.isNotEmpty && sanitized.length < 7) {
-                return 'Invalid number';
-              }
-              return null;
-            },
+      inputFormatters: [
+        if (field.fieldType == FieldType.integer)
+          FilteringTextInputFormatter.digitsOnly,
+        if (field.fieldType == FieldType.decimal)
+          FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*')),
+        if (isPhone) FilteringTextInputFormatter.digitsOnly,
+      ],
+      maxLength: isPhone ? 15 : null,
+      onChanged: (raw) {
+        if (field.fieldType == FieldType.integer) {
+          onChanged(int.tryParse(raw.trim()));
+        } else if (field.fieldType == FieldType.decimal) {
+          onChanged(double.tryParse(raw.trim()));
+        } else {
+          onChanged(raw.trim().isEmpty ? null : raw.trim());
+        }
+      },
+      validator: (v) {
+        final sanitized = (v ?? '').trim();
+        if (field.required && sanitized.isEmpty) {
+          return '${field.label} is required';
+        }
+        if (sanitized.isNotEmpty &&
+            isNumber &&
+            double.tryParse(sanitized) == null) {
+          return 'Enter a valid number';
+        }
+        if (isPhone && sanitized.isNotEmpty && sanitized.length < 7) {
+          return 'Invalid number';
+        }
+        return null;
+      },
     );
   }
 
@@ -345,7 +358,13 @@ class DynamicFieldBuilder extends StatelessWidget {
                 contentPadding: const EdgeInsets.symmetric(horizontal: 12),
                 controlAffinity: ListTileControlAffinity.leading,
                 activeColor: _accent,
-                title: Text(field.label),
+                title: Text(
+                  field.label,
+                  style: TextStyle(
+                    color: isViewMode ? AppColors.textDark : null,
+                    fontWeight: isViewMode ? FontWeight.w500 : null,
+                  ),
+                ),
                 onChanged: isViewMode
                     ? null
                     : (v) {
@@ -426,9 +445,19 @@ class DynamicFieldBuilder extends StatelessWidget {
                     runSpacing: 8,
                     children: options
                         .map((option) => ChoiceChip(
-                              label: Text(option.name),
+                              label: Text(
+                                option.name,
+                                style: TextStyle(
+                                  color: (isViewMode &&
+                                          state.value == option.id.toString())
+                                      ? AppColors.textDark
+                                      : null,
+                                ),
+                              ),
                               selected: state.value == option.id.toString(),
-                              selectedColor: _accent.withValues(alpha: 0.2),
+                              selectedColor: isViewMode
+                                  ? _accent.withValues(alpha: 0.15)
+                                  : _accent.withValues(alpha: 0.2),
                               onSelected: isViewMode
                                   ? null
                                   : (sel) {
@@ -467,18 +496,33 @@ class DynamicFieldBuilder extends StatelessWidget {
   Widget _buildDateField(BuildContext context) {
     final controller = textController ?? TextEditingController();
 
+    if (isViewMode) {
+      return InputDecorator(
+        decoration: InputDecoration(
+          labelText: field.label,
+          floatingLabelBehavior: FloatingLabelBehavior.always,
+          prefixIcon: Icon(Icons.calendar_today_outlined, color: _accent),
+        ),
+        child: Text(
+          controller.text.isEmpty ? '-' : controller.text,
+          style: const TextStyle(
+            color: AppColors.textDark,
+            fontSize: 16,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+      );
+    }
+
     return TextFormField(
       controller: controller,
       readOnly: true,
-      enabled: !isViewMode,
       decoration: InputDecoration(
-        labelText: isViewMode
-            ? field.label
-            : (field.required ? '${field.label} *' : field.label),
-        hintText: isViewMode ? null : field.effectiveplaceHolder,
+        labelText: field.required ? '${field.label} *' : field.label,
+        hintText: field.effectiveplaceHolder,
         floatingLabelBehavior: FloatingLabelBehavior.always,
         prefixIcon: Icon(Icons.calendar_today_outlined, color: _accent),
-        suffixIcon: (!isViewMode && controller.text.isNotEmpty)
+        suffixIcon: controller.text.isNotEmpty
             ? IconButton(
                 icon: const Icon(Icons.close, size: 18),
                 onPressed: () {
@@ -488,38 +532,34 @@ class DynamicFieldBuilder extends StatelessWidget {
               )
             : null,
       ),
-      onTap: isViewMode
-          ? null
-          : () async {
-              final now = DateTime.now();
-              // Try to parse existing value as initial date
-              DateTime initialDate = now;
-              if (controller.text.isNotEmpty) {
-                final parsed = _parseDateDMY(controller.text);
-                if (parsed != null) initialDate = parsed;
-              }
-              final picked = await showDatePicker(
-                context: context,
-                initialDate: initialDate,
-                firstDate: DateTime(1900),
-                lastDate: DateTime(now.year + 10),
-                locale: const Locale('en', 'GB'),
-              );
-              if (picked != null) {
-                final formatted =
-                    '${picked.day.toString().padLeft(2, '0')}-${picked.month.toString().padLeft(2, '0')}-${picked.year}';
-                controller.text = formatted;
-                onChanged(formatted);
-              }
-            },
-      validator: isViewMode
-          ? null
-          : (v) {
-              if (field.required && (v == null || v.trim().isEmpty)) {
-                return '${field.label} is required';
-              }
-              return null;
-            },
+      onTap: () async {
+        final now = DateTime.now();
+        // Try to parse existing value as initial date
+        DateTime initialDate = now;
+        if (controller.text.isNotEmpty) {
+          final parsed = _parseDateDMY(controller.text);
+          if (parsed != null) initialDate = parsed;
+        }
+        final picked = await showDatePicker(
+          context: context,
+          initialDate: initialDate,
+          firstDate: DateTime(1900),
+          lastDate: DateTime(now.year + 10),
+          locale: const Locale('en', 'GB'),
+        );
+        if (picked != null) {
+          final formatted =
+              '${picked.day.toString().padLeft(2, '0')}-${picked.month.toString().padLeft(2, '0')}-${picked.year}';
+          controller.text = formatted;
+          onChanged(formatted);
+        }
+      },
+      validator: (v) {
+        if (field.required && (v == null || v.trim().isEmpty)) {
+          return '${field.label} is required';
+        }
+        return null;
+      },
     );
   }
 
