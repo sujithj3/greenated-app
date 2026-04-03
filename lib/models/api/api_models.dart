@@ -136,6 +136,7 @@ class ApiField {
     required this.fieldType,
     required this.fieldStyle,
     required this.required,
+    this.placeHolder,
     this.options = const [],
     this.subFields = const [],
     this.dependsOn,
@@ -149,6 +150,7 @@ class ApiField {
   final FieldType fieldType;
   final FieldStyle fieldStyle;
   final bool required;
+  final String? placeHolder;
   final List<ApiOption> options;
   final List<ApiField> subFields;
   final String? dependsOn;
@@ -156,6 +158,10 @@ class ApiField {
   final List<dynamic>? showWhen;
 
   bool get isPopupForm => fieldStyle == FieldStyle.popupForm;
+
+  /// Returns [placeHolder] if non-null and non-empty, otherwise falls back to [label].
+  String get effectiveplaceHolder =>
+      (placeHolder != null && placeHolder!.isNotEmpty) ? placeHolder! : label;
 
   /// True when this field uses local visibility (dependsOn + showWhen, no dataSource).
   bool get hasVisibilityCondition =>
@@ -192,6 +198,7 @@ class ApiField {
       fieldType: resolvedFieldType,
       fieldStyle: resolvedFieldStyle,
       required: data['required'] as bool? ?? false,
+      placeHolder: data['placeHolder'] as String?,
       options: options,
       subFields: subFields,
       dependsOn: data['dependsOn']?.toString(),
@@ -240,6 +247,7 @@ class ApiField {
       'type': typeValue,
       'style': styleValue,
       'required': required,
+      if (placeHolder != null) 'placeHolder': placeHolder,
       'options': isPopupForm
           ? subFields.map((field) => field.toJson()).toList()
           : options.map((option) => option.toJson()).toList(),
@@ -419,6 +427,14 @@ List<dynamic>? _parseShowWhen(Object? raw) {
   if (raw is List) return List<dynamic>.from(raw);
   final parsed = int.tryParse(raw.toString());
   return [parsed ?? raw];
+}
+
+/// Converts a date string from YYYY-MM-DD to DD-MM-YYYY format.
+/// Returns the original string if it doesn't match YYYY-MM-DD.
+String formatDateForDisplay(String value) {
+  final match = RegExp(r'^(\d{4})-(\d{2})-(\d{2})$').firstMatch(value);
+  if (match == null) return value;
+  return '${match.group(3)}-${match.group(2)}-${match.group(1)}';
 }
 
 /// Returns true if [field] should be visible given the current [allFields].

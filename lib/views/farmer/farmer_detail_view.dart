@@ -82,7 +82,10 @@ class _FarmerDetailViewState extends State<FarmerDetailView> {
       if (f.fieldStyle == FieldStyle.text ||
           f.fieldStyle == FieldStyle.number ||
           f.fieldStyle == FieldStyle.date) {
-        final initial = df.value?.toString() ?? '';
+        var initial = df.value?.toString() ?? '';
+        if (f.fieldStyle == FieldStyle.date && initial.isNotEmpty) {
+          initial = formatDateForDisplay(initial);
+        }
         if (!_textCtrl.containsKey(f.key)) {
           _textCtrl[f.key] = TextEditingController(text: initial);
         } else if (initial.isNotEmpty && _textCtrl[f.key]!.text.isEmpty) {
@@ -377,8 +380,11 @@ class _ViewOnlyPopupSheetState extends State<_ViewOnlyPopupSheet> {
       if (f.fieldStyle == FieldStyle.text ||
           f.fieldStyle == FieldStyle.number ||
           f.fieldStyle == FieldStyle.date) {
-        _textCtrl[f.key] =
-            TextEditingController(text: df.value?.toString() ?? '');
+        var initText = df.value?.toString() ?? '';
+        if (f.fieldStyle == FieldStyle.date && initText.isNotEmpty) {
+          initText = formatDateForDisplay(initText);
+        }
+        _textCtrl[f.key] = TextEditingController(text: initText);
       }
     }
   }

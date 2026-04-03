@@ -186,7 +186,6 @@ class _DashboardViewState extends State<DashboardView> {
           _drawerItem(
               context, Icons.person_add, 'Register Farmer', '/categories',
               arguments: {'flowType': FlowType.registration}),
-          _drawerItem(context, Icons.people, 'Farmers List', '/farmer-list'),
           _drawerItem(context, Icons.category, 'Categories', '/categories',
               arguments: {'flowType': FlowType.listing}),
           _drawerItem(

@@ -75,8 +75,7 @@ class _FarmerFormViewState extends State<FarmerFormView> {
 
   void _syncTextControllers() {
     // Dispose any old controllers for keys no longer present
-    final currentKeys =
-        _vm.dynamicFields.map((df) => df.field.key).toSet();
+    final currentKeys = _vm.dynamicFields.map((df) => df.field.key).toSet();
     _dynTextCtrl.removeWhere((key, ctrl) {
       if (!currentKeys.contains(key)) {
         ctrl.dispose();
@@ -91,22 +90,18 @@ class _FarmerFormViewState extends State<FarmerFormView> {
       if (f.fieldStyle == FieldStyle.text ||
           f.fieldStyle == FieldStyle.number ||
           f.fieldStyle == FieldStyle.date) {
+        var initial = _vm.initialTextFor(f.key);
+        if (f.fieldStyle == FieldStyle.date && initial.isNotEmpty) {
+          initial = formatDateForDisplay(initial);
+        }
         if (!_dynTextCtrl.containsKey(f.key)) {
-          _dynTextCtrl[f.key] =
-              TextEditingController(text: _vm.initialTextFor(f.key));
+          _dynTextCtrl[f.key] = TextEditingController(text: initial);
         } else {
-          final initial = _vm.initialTextFor(f.key);
           if (initial.isNotEmpty) {
             _dynTextCtrl[f.key]!.text = initial;
           }
         }
       }
-    }
-
-    // Sync land area from edit farmer if present
-    if (_vm.editFarmer != null) {
-      final area = _vm.editFarmer!.landArea;
-      if (area > 0) _landAreaCtrl.text = area.toString();
     }
 
     // Clear text controllers for fields that are now hidden
@@ -123,14 +118,15 @@ class _FarmerFormViewState extends State<FarmerFormView> {
 
   Future<void> _openMap() async {
     final result = await Navigator.pushNamed(
-      context, 
+      context,
       '/land-measurement',
       arguments: {
         'initialPolygon': _vm.landCoordinates,
         'onClear': () {
           _vm.setLandResult({'area': 0.0, 'coordinates': []});
           _landAreaCtrl.clear();
-          if (mounted) context.showSnack('Land measurement removed', success: true);
+          if (mounted)
+            context.showSnack('Land measurement removed', success: true);
         }
       },
     ) as Map<String, dynamic>?;
@@ -144,7 +140,8 @@ class _FarmerFormViewState extends State<FarmerFormView> {
       }
       if (mounted) {
         if (area > 0) {
-          context.showSnack('Area: ${area.toStringAsFixed(4)} acres', success: true);
+          context.showSnack('Area: ${area.toStringAsFixed(4)} acres',
+              success: true);
         } else {
           context.showSnack('Land measurement removed', success: true);
         }
@@ -156,7 +153,7 @@ class _FarmerFormViewState extends State<FarmerFormView> {
 
   Future<void> _openMapForDynamicField(DynamicFieldModel df) async {
     final result = await Navigator.pushNamed(
-      context, 
+      context,
       '/land-measurement',
       arguments: {
         'initialPolygon': df.value,
@@ -168,13 +165,15 @@ class _FarmerFormViewState extends State<FarmerFormView> {
     ) as Map<String, dynamic>?;
     if (result != null && mounted) {
       final rawCoords = result['coordinates'] as List<dynamic>? ?? [];
-      final coords = rawCoords.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+      final coords =
+          rawCoords.map((e) => Map<String, dynamic>.from(e as Map)).toList();
       _vm.updateDynamicFieldValue(df.field.key, coords.isEmpty ? null : coords);
       if (mounted) {
         if (coords.isEmpty) {
           context.showSnack('Polygon removed', success: true);
         } else {
-          context.showSnack('Polygon saved (${coords.length} points)', success: true);
+          context.showSnack('Polygon saved (${coords.length} points)',
+              success: true);
         }
       }
     }
@@ -226,10 +225,6 @@ class _FarmerFormViewState extends State<FarmerFormView> {
       context.showSnack('Select a subcategory.');
       return;
     }
-    if (_vm.editFarmer != null) {
-      context.showSnack('Edit not yet supported via API.');
-      return;
-    }
 
     final textValues = Map.fromEntries(
       _dynTextCtrl.entries.map((e) => MapEntry(e.key, e.value.text)),
@@ -252,7 +247,8 @@ class _FarmerFormViewState extends State<FarmerFormView> {
         if (v is List && v.isNotEmpty) {
           if (df.field.isPopupForm && v is List<DynamicFieldModel>) {
             for (final subDf in v) {
-              if (subDf.value != null && subDf.value.toString().trim().isNotEmpty) {
+              if (subDf.value != null &&
+                  subDf.value.toString().trim().isNotEmpty) {
                 hasData = true;
                 break;
               }
@@ -300,17 +296,14 @@ class _FarmerFormViewState extends State<FarmerFormView> {
         final catColor = catData?.color ?? AppColors.primary;
 
         final isBlocked = _vm.isSaving ||
-            _vm.dynamicFields.any(
-                (df) => _vm.isFieldUploading(df.field.key)) ||
+            _vm.dynamicFields.any((df) => _vm.isFieldUploading(df.field.key)) ||
             _vm.dynamicFields.any((df) => df.isLoadingOptions);
 
         return Stack(
           children: [
             Scaffold(
               appBar: AppBar(
-                title: Text(_vm.editFarmer != null
-                    ? 'Edit Registration'
-                    : 'New Registration'),
+                title: const Text('New Registration'),
               ),
               body: _vm.isLoadingForm
                   ? const ShimmerFormSkeleton()
@@ -343,9 +336,7 @@ class _FarmerFormViewState extends State<FarmerFormView> {
                                 child: ElevatedButton.icon(
                                   onPressed: isBlocked ? null : _save,
                                   icon: const Icon(Icons.how_to_reg),
-                                  label: Text(_vm.editFarmer != null
-                                      ? 'Update Registration'
-                                      : 'Complete Registration'),
+                                  label: const Text('Complete Registration'),
                                 ),
                               ),
                               const SizedBox(height: 32),
@@ -446,8 +437,8 @@ class _FarmerFormViewState extends State<FarmerFormView> {
           subFieldsList.where((e) => e.value != null && e.value != '').length;
     }
 
-    final isCameraField =
-        f.fieldStyle == FieldStyle.camera || f.fieldStyle == FieldStyle.cameraFile;
+    final isCameraField = f.fieldStyle == FieldStyle.camera ||
+        f.fieldStyle == FieldStyle.cameraFile;
 
     return DynamicFieldBuilder(
       field: f,
@@ -531,7 +522,6 @@ class _FarmerFormViewState extends State<FarmerFormView> {
     ];
   }
 }
-
 
 // ─── Error State ──────────────────────────────────────────────────────────────
 
@@ -629,12 +619,14 @@ class _PopupFormSheetState extends State<_PopupFormSheet> {
 
     for (final df in _fields) {
       final f = df.field;
-      final init = df.value;
+      var initText = df.value?.toString() ?? '';
+      if (f.fieldStyle == FieldStyle.date && initText.isNotEmpty) {
+        initText = formatDateForDisplay(initText);
+      }
       if (f.fieldStyle == FieldStyle.text ||
           f.fieldStyle == FieldStyle.number ||
           f.fieldStyle == FieldStyle.date) {
-        _textCtrl[f.key] =
-            TextEditingController(text: init?.toString() ?? '');
+        _textCtrl[f.key] = TextEditingController(text: initText);
       }
     }
   }
@@ -725,8 +717,7 @@ class _PopupFormSheetState extends State<_PopupFormSheet> {
                   ),
                   IconButton(
                     onPressed: () => Navigator.pop(context),
-                    icon:
-                        const Icon(Icons.close, color: AppColors.textMedium),
+                    icon: const Icon(Icons.close, color: AppColors.textMedium),
                   ),
                 ],
               ),
@@ -751,8 +742,7 @@ class _PopupFormSheetState extends State<_PopupFormSheet> {
                         onPressed: _save,
                         icon: const Icon(Icons.check),
                         label: const Text('Done'),
-                        style: ElevatedButton.styleFrom(
-                            backgroundColor: color),
+                        style: ElevatedButton.styleFrom(backgroundColor: color),
                       ),
                     ),
                   ],
@@ -776,8 +766,8 @@ class _PopupFormSheetState extends State<_PopupFormSheet> {
           subFieldsList.where((e) => e.value != null && e.value != '').length;
     }
 
-    final isCameraField =
-        f.fieldStyle == FieldStyle.camera || f.fieldStyle == FieldStyle.cameraFile;
+    final isCameraField = f.fieldStyle == FieldStyle.camera ||
+        f.fieldStyle == FieldStyle.cameraFile;
 
     return DynamicFieldBuilder(
       field: f,
@@ -788,7 +778,8 @@ class _PopupFormSheetState extends State<_PopupFormSheet> {
         if (!_textCtrl.containsKey(f.key)) {
           _onSubFieldChanged(df, val);
         } else {
-          setState(() {}); // text controller manages value; rebuild for visibility
+          setState(
+              () {}); // text controller manages value; rebuild for visibility
         }
       },
       onPopupFormPressed:
@@ -804,7 +795,7 @@ class _PopupFormSheetState extends State<_PopupFormSheet> {
 
   Future<void> _openMapForNestedDynamicField(DynamicFieldModel df) async {
     final result = await Navigator.pushNamed(
-      context, 
+      context,
       '/land-measurement',
       arguments: {
         'initialPolygon': df.value,
@@ -815,7 +806,8 @@ class _PopupFormSheetState extends State<_PopupFormSheet> {
     ) as Map<String, dynamic>?;
     if (result != null && mounted) {
       final rawCoords = result['coordinates'] as List<dynamic>? ?? [];
-      final coords = rawCoords.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+      final coords =
+          rawCoords.map((e) => Map<String, dynamic>.from(e as Map)).toList();
       setState(() => df.value = coords.isEmpty ? null : coords);
     }
   }
