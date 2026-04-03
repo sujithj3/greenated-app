@@ -90,11 +90,13 @@ class _FarmerFormViewState extends State<FarmerFormView> {
       if (f.fieldStyle == FieldStyle.text ||
           f.fieldStyle == FieldStyle.number ||
           f.fieldStyle == FieldStyle.date) {
+        var initial = _vm.initialTextFor(f.key);
+        if (f.fieldStyle == FieldStyle.date && initial.isNotEmpty) {
+          initial = formatDateForDisplay(initial);
+        }
         if (!_dynTextCtrl.containsKey(f.key)) {
-          _dynTextCtrl[f.key] =
-              TextEditingController(text: _vm.initialTextFor(f.key));
+          _dynTextCtrl[f.key] = TextEditingController(text: initial);
         } else {
-          final initial = _vm.initialTextFor(f.key);
           if (initial.isNotEmpty) {
             _dynTextCtrl[f.key]!.text = initial;
           }
@@ -617,11 +619,14 @@ class _PopupFormSheetState extends State<_PopupFormSheet> {
 
     for (final df in _fields) {
       final f = df.field;
-      final init = df.value;
+      var initText = df.value?.toString() ?? '';
+      if (f.fieldStyle == FieldStyle.date && initText.isNotEmpty) {
+        initText = formatDateForDisplay(initText);
+      }
       if (f.fieldStyle == FieldStyle.text ||
           f.fieldStyle == FieldStyle.number ||
           f.fieldStyle == FieldStyle.date) {
-        _textCtrl[f.key] = TextEditingController(text: init?.toString() ?? '');
+        _textCtrl[f.key] = TextEditingController(text: initText);
       }
     }
   }

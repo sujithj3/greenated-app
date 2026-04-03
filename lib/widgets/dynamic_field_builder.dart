@@ -124,6 +124,8 @@ class DynamicFieldBuilder extends StatelessWidget {
         labelText: isViewMode
             ? field.label
             : (field.required ? '${field.label} *' : field.label),
+        hintText: isViewMode ? null : field.effectiveplaceHolder,
+        floatingLabelBehavior: FloatingLabelBehavior.always,
         prefixIcon: Icon(
           isNumber
               ? Icons.numbers_outlined
@@ -271,26 +273,33 @@ class DynamicFieldBuilder extends StatelessWidget {
     return DropdownButtonFormField<String>(
       key: ValueKey('dropdown_${field.key}'),
       value: selected,
+      isExpanded: true,
       decoration: InputDecoration(
         labelText: field.required ? '${field.label} *' : field.label,
         prefixIcon: Icon(Icons.arrow_drop_down_circle_outlined, color: _accent),
       ),
-      hint: Text(hintText),
-      disabledHint:
-          Text(hintText, style: const TextStyle(color: AppColors.textMedium)),
+      hint: Text(hintText, overflow: TextOverflow.ellipsis),
+      disabledHint: Text(
+        hintText,
+        overflow: TextOverflow.ellipsis,
+        style: const TextStyle(color: AppColors.textMedium),
+      ),
       items: options.isEmpty
           ? [
               const DropdownMenuItem<String>(
                 value: 'no_data',
                 enabled: false,
-                child: Text('No data found',
-                    style: TextStyle(color: AppColors.textMedium)),
+                child: Text(
+                  'No data found',
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(color: AppColors.textMedium),
+                ),
               )
             ]
           : options
               .map((o) => DropdownMenuItem(
                     value: o.id.toString(),
-                    child: Text(o.name),
+                    child: Text(o.name, overflow: TextOverflow.ellipsis),
                   ))
               .toList(),
       onChanged: isDependentWithNoOptions ? null : (v) => onChanged(v),
@@ -466,6 +475,8 @@ class DynamicFieldBuilder extends StatelessWidget {
         labelText: isViewMode
             ? field.label
             : (field.required ? '${field.label} *' : field.label),
+        hintText: isViewMode ? null : field.effectiveplaceHolder,
+        floatingLabelBehavior: FloatingLabelBehavior.always,
         prefixIcon: Icon(Icons.calendar_today_outlined, color: _accent),
         suffixIcon: (!isViewMode && controller.text.isNotEmpty)
             ? IconButton(
@@ -481,15 +492,22 @@ class DynamicFieldBuilder extends StatelessWidget {
           ? null
           : () async {
               final now = DateTime.now();
+              // Try to parse existing value as initial date
+              DateTime initialDate = now;
+              if (controller.text.isNotEmpty) {
+                final parsed = _parseDateDMY(controller.text);
+                if (parsed != null) initialDate = parsed;
+              }
               final picked = await showDatePicker(
                 context: context,
-                initialDate: now,
+                initialDate: initialDate,
                 firstDate: DateTime(1900),
                 lastDate: DateTime(now.year + 10),
+                locale: const Locale('en', 'GB'),
               );
               if (picked != null) {
                 final formatted =
-                    '${picked.year}-${picked.month.toString().padLeft(2, '0')}-${picked.day.toString().padLeft(2, '0')}';
+                    '${picked.day.toString().padLeft(2, '0')}-${picked.month.toString().padLeft(2, '0')}-${picked.year}';
                 controller.text = formatted;
                 onChanged(formatted);
               }
@@ -503,6 +521,17 @@ class DynamicFieldBuilder extends StatelessWidget {
               return null;
             },
     );
+  }
+
+  /// Parses a date string in DD-MM-YYYY format. Returns null if parsing fails.
+  static DateTime? _parseDateDMY(String text) {
+    final parts = text.split('-');
+    if (parts.length != 3) return null;
+    final day = int.tryParse(parts[0]);
+    final month = int.tryParse(parts[1]);
+    final year = int.tryParse(parts[2]);
+    if (day == null || month == null || year == null) return null;
+    return DateTime(year, month, day);
   }
 
   // ── Camera Field (dynamic, with network image preview) ─────────────────────

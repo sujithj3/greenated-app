@@ -1,4 +1,5 @@
 import 'package:flutter/cupertino.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter/foundation.dart'
     show defaultTargetPlatform, TargetPlatform;
 import 'package:flutter/material.dart';
@@ -104,6 +105,14 @@ class FarmerRegistrationApp extends StatelessWidget {
         title: 'Greenated',
         debugShowCheckedModeBanner: false,
         theme: AppTheme.theme,
+        localizationsDelegates: const [
+          GlobalMaterialLocalizations.delegate,
+          GlobalWidgetsLocalizations.delegate,
+          GlobalCupertinoLocalizations.delegate,
+        ],
+        supportedLocales: const [
+          Locale('en', 'GB'),
+        ],
         builder: (context, child) {
           return Stack(
             children: [
