@@ -113,6 +113,7 @@ class _FarmerDetailViewState extends State<FarmerDetailView> {
       builder: (_) => _ViewOnlyPopupSheet(
         parentField: df.field,
         fields: df.value as List<DynamicFieldModel>? ?? [],
+        onGenerateKml: (subDf) => _generateAndShareKml(subDf),
       ),
     );
   }
@@ -359,10 +360,12 @@ $coordLines
 class _ViewOnlyPopupSheet extends StatefulWidget {
   final ApiField parentField;
   final List<DynamicFieldModel> fields;
+  final void Function(DynamicFieldModel df)? onGenerateKml;
 
   const _ViewOnlyPopupSheet({
     required this.parentField,
     required this.fields,
+    this.onGenerateKml,
   });
 
   @override
@@ -405,6 +408,7 @@ class _ViewOnlyPopupSheetState extends State<_ViewOnlyPopupSheet> {
       builder: (_) => _ViewOnlyPopupSheet(
         parentField: df.field,
         fields: df.value as List<DynamicFieldModel>? ?? [],
+        onGenerateKml: widget.onGenerateKml,
       ),
     );
   }
@@ -514,6 +518,9 @@ class _ViewOnlyPopupSheetState extends State<_ViewOnlyPopupSheet> {
       popupFormTotalCount: popupFormTotal,
       onMapPolygonPressed: f.fieldStyle == FieldStyle.mapPolygon
           ? () => _openViewOnlyMap(df)
+          : null,
+      onGenerateKml: f.fieldStyle == FieldStyle.mapPolygon
+          ? () => widget.onGenerateKml?.call(df)
           : null,
       resolvedOptions:
           f.fieldStyle == FieldStyle.dropdown ? df.resolvedOptions : null,

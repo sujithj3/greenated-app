@@ -5,7 +5,8 @@ import '../../core/network/api_method.dart';
 import '../../core/network/api_request.dart';
 import '../../models/api/api_models.dart';
 import '../../services/auth_service.dart';
-import '../../services/image_upload_service.dart' show ImageUploadService, ImageUploadResult;
+import '../../services/image_upload_service.dart'
+    show ImageUploadService, ImageUploadResult;
 import '../../services/registration_form_service.dart';
 
 /// ViewModel for the Edit Farmer Details flow.
@@ -150,6 +151,24 @@ class EditFarmerDetailsViewModel extends ChangeNotifier {
     }
   }
 
+  /// Uploads an image and tracks uploading state without updating [fields].
+  /// Used by popup forms whose subfields live in a local copy, not in [fields].
+  /// The caller is responsible for applying the result to their own field model.
+  Future<ImageUploadResult?> uploadImageOnly(
+      String fieldKey, String localFilePath) async {
+    _uploadingFields[fieldKey] = true;
+    notifyListeners();
+    try {
+      return await _imageUploadService.uploadImage(localFilePath);
+    } catch (e) {
+      debugPrint('Image upload failed for field "$fieldKey": $e');
+      return null;
+    } finally {
+      _uploadingFields[fieldKey] = false;
+      notifyListeners();
+    }
+  }
+
   // ── Save (POST edit) ──────────────────────────────────────────────────────
 
   /// Submits the edited registration.
@@ -223,7 +242,10 @@ class EditFarmerDetailsViewModel extends ChangeNotifier {
 
   // ── Dependency handling (ported from FarmerFormViewModel) ────────────────
 
-  Map<String, dynamic> _resolveParams(Map<String, String> templates) {
+  /// Resolves template params using values from [fieldList] (defaults to [fields]).
+  Map<String, dynamic> _resolveParams(Map<String, String> templates,
+      [List<DynamicFieldModel>? fieldList]) {
+    final source = fieldList ?? fields;
     final resolved = <String, dynamic>{};
     for (final entry in templates.entries) {
       final template = entry.value;
@@ -232,8 +254,8 @@ class EditFarmerDetailsViewModel extends ChangeNotifier {
         final ref = template.substring(1);
         final dotIdx = ref.indexOf('.');
         final fieldKey = dotIdx > 0 ? ref.substring(0, dotIdx) : ref;
-        final idx = fields.indexWhere((df) => df.field.key == fieldKey);
-        val = idx != -1 ? (fields[idx].value?.toString() ?? '') : '';
+        final idx = source.indexWhere((df) => df.field.key == fieldKey);
+        val = idx != -1 ? (source[idx].value?.toString() ?? '') : '';
       } else {
         val = template;
       }
@@ -244,8 +266,11 @@ class EditFarmerDetailsViewModel extends ChangeNotifier {
     return resolved;
   }
 
-  void _resetDependents(String parentKey) {
-    for (final df in fields) {
+  /// Resets all dependents of [parentKey] within [fieldList] (defaults to [fields]).
+  void _resetDependents(String parentKey,
+      [List<DynamicFieldModel>? fieldList]) {
+    final source = fieldList ?? fields;
+    for (final df in source) {
       if (df.field.dependsOn == parentKey) {
         df.value = null;
         df.previewUrl = null;
@@ -253,7 +278,7 @@ class EditFarmerDetailsViewModel extends ChangeNotifier {
         df.isLoadingOptions = false;
         df.optionsError = null;
         df.incrementFetchGeneration();
-        _resetDependents(df.field.key);
+        _resetDependents(df.field.key, fieldList);
       }
     }
   }
@@ -292,6 +317,56 @@ class EditFarmerDetailsViewModel extends ChangeNotifier {
         }
       }
     }
+  }
+
+  /// Resolves dependent dropdown options for subfields within a popup form.
+  /// [changedKey] is the key of the field whose value changed.
+  /// [fieldList] is the popup's local copy of [DynamicFieldModel] list.
+  Future<void> handleSubfieldDependencyChange(
+      String changedKey, List<DynamicFieldModel> fieldList) async {
+    _resetDependents(changedKey, fieldList);
+    notifyListeners();
+
+    final directDependents = fieldList
+        .where((df) =>
+            df.field.dependsOn == changedKey && df.field.dataSource != null)
+        .toList();
+
+    for (final df in directDependents) {
+      final resolved = _resolveParams(df.field.dataSource!.params, fieldList);
+      if (resolved.values.any((v) => v.toString().isEmpty)) continue;
+
+      df.isLoadingOptions = true;
+      notifyListeners();
+
+      final generation = df.fetchGeneration;
+      try {
+        final options =
+            await _fetchDependentOptions(df.field.dataSource!, resolved);
+        if (df.fetchGeneration != generation) continue;
+        df.resolvedOptions = options;
+        df.optionsError = null;
+      } catch (_) {
+        if (df.fetchGeneration != generation) continue;
+        df.optionsError = 'Failed to load options';
+        df.resolvedOptions = [];
+      } finally {
+        if (df.fetchGeneration == generation) {
+          df.isLoadingOptions = false;
+          notifyListeners();
+        }
+      }
+    }
+  }
+
+  /// Retries dependent option fetching for a subfield inside a popup form.
+  Future<void> retrySubfieldOptions(
+      String fieldKey, List<DynamicFieldModel> fieldList) async {
+    final idx = fieldList.indexWhere((df) => df.field.key == fieldKey);
+    if (idx == -1) return;
+    final df = fieldList[idx];
+    if (df.field.dataSource == null || df.field.dependsOn == null) return;
+    await handleSubfieldDependencyChange(df.field.dependsOn!, fieldList);
   }
 
   Future<List<ApiOption>> _fetchDependentOptions(

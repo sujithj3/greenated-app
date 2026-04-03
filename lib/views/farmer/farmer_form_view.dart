@@ -209,6 +209,7 @@ class _FarmerFormViewState extends State<FarmerFormView> {
         catColor: catColor,
         initialFields: currentValues,
         onSaved: (result) => _vm.updateDynamicFieldValue(df.field.key, result),
+        viewModel: _vm,
       ),
     );
   }
@@ -295,9 +296,11 @@ class _FarmerFormViewState extends State<FarmerFormView> {
         final catData = AppCategories.styleFor(_vm.selectedCategory);
         final catColor = catData?.color ?? AppColors.primary;
 
-        final isBlocked = _vm.isSaving ||
-            _vm.dynamicFields.any((df) => _vm.isFieldUploading(df.field.key)) ||
-            _vm.dynamicFields.any((df) => df.isLoadingOptions);
+        final isUploading =
+            _vm.dynamicFields.any((df) => _vm.isFieldUploading(df.field.key));
+        final showOverlay =
+            _vm.isSaving || _vm.dynamicFields.any((df) => df.isLoadingOptions);
+        final isBlocked = showOverlay || isUploading;
 
         return Stack(
           children: [
@@ -347,17 +350,19 @@ class _FarmerFormViewState extends State<FarmerFormView> {
             if (isBlocked)
               AbsorbPointer(
                 absorbing: true,
-                child: Container(
-                  color: Colors.black.withValues(alpha: 0.45),
-                  child: const Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        CircularProgressIndicator(color: Colors.white),
-                      ],
-                    ),
-                  ),
-                ),
+                child: showOverlay
+                    ? Container(
+                        color: Colors.black.withValues(alpha: 0.45),
+                        child: const Center(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              CircularProgressIndicator(color: Colors.white),
+                            ],
+                          ),
+                        ),
+                      )
+                    : const SizedBox.shrink(),
               ),
           ],
         );
@@ -596,12 +601,14 @@ class _PopupFormSheet extends StatefulWidget {
   final Color catColor;
   final List<DynamicFieldModel> initialFields;
   final void Function(List<DynamicFieldModel> updated) onSaved;
+  final FarmerFormViewModel viewModel;
 
   const _PopupFormSheet({
     required this.parentField,
     required this.catColor,
     required this.initialFields,
     required this.onSaved,
+    required this.viewModel,
   });
 
   @override
@@ -646,6 +653,7 @@ class _PopupFormSheetState extends State<_PopupFormSheet> {
       df.value = val;
       _resetHiddenSubFieldDependents(df.field.key);
     });
+    widget.viewModel.handleSubfieldDependencyChange(df.field.key, _fields);
   }
 
   void _resetHiddenSubFieldDependents(String parentKey) {
@@ -680,79 +688,111 @@ class _PopupFormSheetState extends State<_PopupFormSheet> {
   @override
   Widget build(BuildContext context) {
     final color = widget.catColor;
-    return DraggableScrollableSheet(
-      initialChildSize: 0.55,
-      maxChildSize: 0.92,
-      minChildSize: 0.35,
-      builder: (_, ctrl) => Container(
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-        ),
-        child: Column(
-          children: [
-            Container(
-              margin: const EdgeInsets.only(top: 12),
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(
-                color: AppColors.divider,
-                borderRadius: BorderRadius.circular(2),
+    return ListenableBuilder(
+      listenable: widget.viewModel,
+      builder: (context, _) => DraggableScrollableSheet(
+        initialChildSize: 0.55,
+        maxChildSize: 0.92,
+        minChildSize: 0.35,
+        builder: (_, ctrl) => Container(
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          child: Column(
+            children: [
+              Container(
+                margin: const EdgeInsets.only(top: 12),
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: AppColors.divider,
+                  borderRadius: BorderRadius.circular(2),
+                ),
               ),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 16, 8, 8),
-              child: Row(
-                children: [
-                  Icon(Icons.tune, color: color, size: 20),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      widget.parentField.label,
-                      style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w700,
-                          color: color),
-                    ),
-                  ),
-                  IconButton(
-                    onPressed: () => Navigator.pop(context),
-                    icon: const Icon(Icons.close, color: AppColors.textMedium),
-                  ),
-                ],
-              ),
-            ),
-            const Divider(height: 1),
-            Expanded(
-              child: SingleChildScrollView(
-                controller: ctrl,
-                padding: const EdgeInsets.all(20),
-                child: Column(
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 16, 8, 8),
+                child: Row(
                   children: [
-                    ..._fields
-                        .where((df) => _isSubFieldVisible(df))
-                        .map((df) => Padding(
-                              padding: const EdgeInsets.only(bottom: 14),
-                              child: _buildSubField(df, color),
-                            )),
-                    const SizedBox(height: 8),
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton.icon(
-                        onPressed: _save,
-                        icon: const Icon(Icons.check),
-                        label: const Text('Done'),
-                        style: ElevatedButton.styleFrom(backgroundColor: color),
+                    Icon(Icons.tune, color: color, size: 20),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        widget.parentField.label,
+                        style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w700,
+                            color: color),
                       ),
+                    ),
+                    IconButton(
+                      onPressed: () => Navigator.pop(context),
+                      icon:
+                          const Icon(Icons.close, color: AppColors.textMedium),
                     ),
                   ],
                 ),
               ),
-            ),
-          ],
+              const Divider(height: 1),
+              Expanded(
+                child: SingleChildScrollView(
+                  controller: ctrl,
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    children: [
+                      ..._fields
+                          .where((df) => _isSubFieldVisible(df))
+                          .map((df) => Padding(
+                                padding: const EdgeInsets.only(bottom: 14),
+                                child: _buildSubField(df, color),
+                              )),
+                      const SizedBox(height: 8),
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton.icon(
+                          onPressed: _save,
+                          icon: const Icon(Icons.check),
+                          label: const Text('Done'),
+                          style:
+                              ElevatedButton.styleFrom(backgroundColor: color),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
+  }
+
+  Future<void> _captureAndUploadSubField(DynamicFieldModel df) async {
+    final localPath =
+        await Navigator.pushNamed(context, '/camera-capture') as String?;
+    if (localPath == null || !mounted) return;
+
+    final result =
+        await widget.viewModel.uploadImageOnly(df.field.key, localPath);
+    if (!mounted) return;
+
+    if (result != null) {
+      setState(() {
+        df.value = result.imagePath;
+        df.previewUrl = result.previewUrl;
+      });
+      context.showSnack('Photo uploaded successfully', success: true);
+    } else {
+      context.showSnack('Photo upload failed. Please try again.');
+    }
+  }
+
+  void _clearSubFieldPhoto(DynamicFieldModel df) {
+    setState(() {
+      df.value = null;
+      df.previewUrl = null;
+    });
   }
 
   Widget _buildSubField(DynamicFieldModel df, Color color) {
@@ -790,6 +830,21 @@ class _PopupFormSheetState extends State<_PopupFormSheet> {
           ? () => _openMapForNestedDynamicField(df)
           : null,
       previewUrl: isCameraField ? df.previewUrl : null,
+      isUploading:
+          isCameraField ? widget.viewModel.isFieldUploading(f.key) : false,
+      onCapturePhoto:
+          isCameraField ? () => _captureAndUploadSubField(df) : null,
+      onClearPhoto: isCameraField ? () => _clearSubFieldPhoto(df) : null,
+      resolvedOptions:
+          f.fieldStyle == FieldStyle.dropdown ? df.resolvedOptions : null,
+      isLoadingOptions:
+          f.fieldStyle == FieldStyle.dropdown ? df.isLoadingOptions : false,
+      optionsError:
+          f.fieldStyle == FieldStyle.dropdown ? df.optionsError : null,
+      onRetryOptions:
+          f.fieldStyle == FieldStyle.dropdown && df.optionsError != null
+              ? () => widget.viewModel.retrySubfieldOptions(f.key, _fields)
+              : null,
     );
   }
 
@@ -823,6 +878,7 @@ class _PopupFormSheetState extends State<_PopupFormSheet> {
         catColor: color,
         initialFields: currentValues,
         onSaved: (result) => setState(() => df.value = result),
+        viewModel: widget.viewModel,
       ),
     );
   }
