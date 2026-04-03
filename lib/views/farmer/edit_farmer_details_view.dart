@@ -199,9 +199,11 @@ class _EditFarmerDetailsViewState extends State<EditFarmerDetailsView> {
     return ListenableBuilder(
       listenable: _vm,
       builder: (context, _) {
-        final isBlocked = _vm.isSaving ||
-            _vm.fields.any((df) => _vm.isFieldUploading(df.field.key)) ||
-            _vm.fields.any((df) => df.isLoadingOptions);
+        final isUploading =
+            _vm.fields.any((df) => _vm.isFieldUploading(df.field.key));
+        final showOverlay =
+            _vm.isSaving || _vm.fields.any((df) => df.isLoadingOptions);
+        final isBlocked = showOverlay || isUploading;
 
         return Stack(
           children: [
@@ -215,17 +217,19 @@ class _EditFarmerDetailsViewState extends State<EditFarmerDetailsView> {
             if (isBlocked)
               AbsorbPointer(
                 absorbing: true,
-                child: Container(
-                  color: Colors.black.withValues(alpha: 0.45),
-                  child: const Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        CircularProgressIndicator(color: Colors.white),
-                      ],
-                    ),
-                  ),
-                ),
+                child: showOverlay
+                    ? Container(
+                        color: Colors.black.withValues(alpha: 0.45),
+                        child: const Center(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              CircularProgressIndicator(color: Colors.white),
+                            ],
+                          ),
+                        ),
+                      )
+                    : const SizedBox.shrink(),
               ),
           ],
         );

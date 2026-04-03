@@ -636,35 +636,47 @@ class DynamicFieldBuilder extends StatelessWidget {
               if (!isViewMode) ...[
                 const SizedBox(height: 12),
                 // ── Retake / Delete buttons ──
-                Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        onPressed: isUploading ? null : onCapturePhoto,
-                        icon: const Icon(Icons.refresh, size: 18),
-                        label: const Text('Retake'),
-                      ),
+                if (isUploading)
+                  OutlinedButton.icon(
+                    onPressed: null,
+                    icon: const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
                     ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        onPressed: isUploading
-                            ? null
-                            : () {
-                                state.didChange(null);
-                                onClearPhoto?.call();
-                              },
-                        icon: const Icon(Icons.delete_outline,
-                            size: 18, color: AppColors.error),
-                        label: const Text('Remove',
-                            style: TextStyle(color: AppColors.error)),
-                        style: OutlinedButton.styleFrom(
-                          side: const BorderSide(color: AppColors.error),
+                    label: const Text('Uploading...'),
+                    style: OutlinedButton.styleFrom(
+                      minimumSize: const Size(double.infinity, 48),
+                    ),
+                  )
+                else
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: onCapturePhoto,
+                          icon: const Icon(Icons.refresh, size: 18),
+                          label: const Text('Retake'),
                         ),
                       ),
-                    ),
-                  ],
-                ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: () {
+                            state.didChange(null);
+                            onClearPhoto?.call();
+                          },
+                          icon: const Icon(Icons.delete_outline,
+                              size: 18, color: AppColors.error),
+                          label: const Text('Remove',
+                              style: TextStyle(color: AppColors.error)),
+                          style: OutlinedButton.styleFrom(
+                            side: const BorderSide(color: AppColors.error),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
               ],
             ] else if (isViewMode) ...[
               // ── View mode: no image placeholder ──

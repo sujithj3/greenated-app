@@ -296,9 +296,11 @@ class _FarmerFormViewState extends State<FarmerFormView> {
         final catData = AppCategories.styleFor(_vm.selectedCategory);
         final catColor = catData?.color ?? AppColors.primary;
 
-        final isBlocked = _vm.isSaving ||
-            _vm.dynamicFields.any((df) => _vm.isFieldUploading(df.field.key)) ||
-            _vm.dynamicFields.any((df) => df.isLoadingOptions);
+        final isUploading =
+            _vm.dynamicFields.any((df) => _vm.isFieldUploading(df.field.key));
+        final showOverlay =
+            _vm.isSaving || _vm.dynamicFields.any((df) => df.isLoadingOptions);
+        final isBlocked = showOverlay || isUploading;
 
         return Stack(
           children: [
@@ -348,17 +350,19 @@ class _FarmerFormViewState extends State<FarmerFormView> {
             if (isBlocked)
               AbsorbPointer(
                 absorbing: true,
-                child: Container(
-                  color: Colors.black.withValues(alpha: 0.45),
-                  child: const Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        CircularProgressIndicator(color: Colors.white),
-                      ],
-                    ),
-                  ),
-                ),
+                child: showOverlay
+                    ? Container(
+                        color: Colors.black.withValues(alpha: 0.45),
+                        child: const Center(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              CircularProgressIndicator(color: Colors.white),
+                            ],
+                          ),
+                        ),
+                      )
+                    : const SizedBox.shrink(),
               ),
           ],
         );
@@ -687,78 +691,80 @@ class _PopupFormSheetState extends State<_PopupFormSheet> {
     return ListenableBuilder(
       listenable: widget.viewModel,
       builder: (context, _) => DraggableScrollableSheet(
-      initialChildSize: 0.55,
-      maxChildSize: 0.92,
-      minChildSize: 0.35,
-      builder: (_, ctrl) => Container(
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-        ),
-        child: Column(
-          children: [
-            Container(
-              margin: const EdgeInsets.only(top: 12),
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(
-                color: AppColors.divider,
-                borderRadius: BorderRadius.circular(2),
+        initialChildSize: 0.55,
+        maxChildSize: 0.92,
+        minChildSize: 0.35,
+        builder: (_, ctrl) => Container(
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          child: Column(
+            children: [
+              Container(
+                margin: const EdgeInsets.only(top: 12),
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: AppColors.divider,
+                  borderRadius: BorderRadius.circular(2),
+                ),
               ),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 16, 8, 8),
-              child: Row(
-                children: [
-                  Icon(Icons.tune, color: color, size: 20),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      widget.parentField.label,
-                      style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w700,
-                          color: color),
-                    ),
-                  ),
-                  IconButton(
-                    onPressed: () => Navigator.pop(context),
-                    icon: const Icon(Icons.close, color: AppColors.textMedium),
-                  ),
-                ],
-              ),
-            ),
-            const Divider(height: 1),
-            Expanded(
-              child: SingleChildScrollView(
-                controller: ctrl,
-                padding: const EdgeInsets.all(20),
-                child: Column(
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 16, 8, 8),
+                child: Row(
                   children: [
-                    ..._fields
-                        .where((df) => _isSubFieldVisible(df))
-                        .map((df) => Padding(
-                              padding: const EdgeInsets.only(bottom: 14),
-                              child: _buildSubField(df, color),
-                            )),
-                    const SizedBox(height: 8),
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton.icon(
-                        onPressed: _save,
-                        icon: const Icon(Icons.check),
-                        label: const Text('Done'),
-                        style: ElevatedButton.styleFrom(backgroundColor: color),
+                    Icon(Icons.tune, color: color, size: 20),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        widget.parentField.label,
+                        style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w700,
+                            color: color),
                       ),
+                    ),
+                    IconButton(
+                      onPressed: () => Navigator.pop(context),
+                      icon:
+                          const Icon(Icons.close, color: AppColors.textMedium),
                     ),
                   ],
                 ),
               ),
-            ),
-          ],
+              const Divider(height: 1),
+              Expanded(
+                child: SingleChildScrollView(
+                  controller: ctrl,
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    children: [
+                      ..._fields
+                          .where((df) => _isSubFieldVisible(df))
+                          .map((df) => Padding(
+                                padding: const EdgeInsets.only(bottom: 14),
+                                child: _buildSubField(df, color),
+                              )),
+                      const SizedBox(height: 8),
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton.icon(
+                          onPressed: _save,
+                          icon: const Icon(Icons.check),
+                          label: const Text('Done'),
+                          style:
+                              ElevatedButton.styleFrom(backgroundColor: color),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
-    ),
     );
   }
 
