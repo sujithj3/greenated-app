@@ -41,7 +41,7 @@ class _CategoryViewState extends State<CategoryView> {
     final flowType = args['flowType'] as FlowType? ?? FlowType.listing;
     final isRegistration = flowType == FlowType.registration;
     final title =
-        (isRegistration || selectionMode) ? 'Select Category' : 'Farm Categories';
+        (isRegistration || selectionMode) ? 'Select Category' : 'VCM Projects';
 
     return Scaffold(
       appBar: AppBar(title: Text(title)),

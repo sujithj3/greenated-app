@@ -141,7 +141,8 @@ class _SubcategoryViewState extends State<SubcategoryView> {
                         ),
                       ),
                       Text(
-                        '${category.subcategoryCount} subcategories',
+                      //  '${category.subcategoryCount} ${category.subcategoryCount == 1 ? "Project" : "Projects"}',
+                      "Projects",
                         style: const TextStyle(
                           color: AppColors.textMedium,
                           fontSize: 13,
