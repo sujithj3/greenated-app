@@ -144,6 +144,7 @@ class _EditFarmerDetailsViewState extends State<EditFarmerDetailsView> {
         parentField: df.field,
         initialFields: currentValues,
         onSaved: (result) => _vm.updateFieldValue(df.field.key, result),
+        viewModel: _vm,
       ),
     );
   }
@@ -377,11 +378,13 @@ class _EditPopupFormSheet extends StatefulWidget {
   final ApiField parentField;
   final List<DynamicFieldModel> initialFields;
   final void Function(List<DynamicFieldModel> updated) onSaved;
+  final EditFarmerDetailsViewModel viewModel;
 
   const _EditPopupFormSheet({
     required this.parentField,
     required this.initialFields,
     required this.onSaved,
+    required this.viewModel,
   });
 
   @override
@@ -426,6 +429,7 @@ class _EditPopupFormSheetState extends State<_EditPopupFormSheet> {
       df.value = val;
       _resetHiddenSubFieldDependents(df.field.key);
     });
+    widget.viewModel.handleSubfieldDependencyChange(df.field.key, _fields);
   }
 
   void _resetHiddenSubFieldDependents(String parentKey) {
@@ -459,79 +463,110 @@ class _EditPopupFormSheetState extends State<_EditPopupFormSheet> {
 
   @override
   Widget build(BuildContext context) {
-    return DraggableScrollableSheet(
-      initialChildSize: 0.55,
-      maxChildSize: 0.92,
-      minChildSize: 0.35,
-      builder: (_, ctrl) => Container(
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-        ),
-        child: Column(
-          children: [
-            Container(
-              margin: const EdgeInsets.only(top: 12),
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(
-                color: AppColors.divider,
-                borderRadius: BorderRadius.circular(2),
+    return ListenableBuilder(
+      listenable: widget.viewModel,
+      builder: (context, _) => DraggableScrollableSheet(
+        initialChildSize: 0.55,
+        maxChildSize: 0.92,
+        minChildSize: 0.35,
+        builder: (_, ctrl) => Container(
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          child: Column(
+            children: [
+              Container(
+                margin: const EdgeInsets.only(top: 12),
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: AppColors.divider,
+                  borderRadius: BorderRadius.circular(2),
+                ),
               ),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 16, 8, 8),
-              child: Row(
-                children: [
-                  const Icon(Icons.edit_outlined,
-                      color: AppColors.primary, size: 20),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      widget.parentField.label,
-                      style: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w700,
-                          color: AppColors.primary),
-                    ),
-                  ),
-                  IconButton(
-                    onPressed: () => Navigator.pop(context),
-                    icon: const Icon(Icons.close, color: AppColors.textMedium),
-                  ),
-                ],
-              ),
-            ),
-            const Divider(height: 1),
-            Expanded(
-              child: SingleChildScrollView(
-                controller: ctrl,
-                padding: const EdgeInsets.all(20),
-                child: Column(
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 16, 8, 8),
+                child: Row(
                   children: [
-                    ..._fields
-                        .where((df) => _isSubFieldVisible(df))
-                        .map((df) => Padding(
-                              padding: const EdgeInsets.only(bottom: 14),
-                              child: _buildSubField(df),
-                            )),
-                    const SizedBox(height: 8),
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton.icon(
-                        onPressed: _save,
-                        icon: const Icon(Icons.check),
-                        label: const Text('Done'),
+                    const Icon(Icons.edit_outlined,
+                        color: AppColors.primary, size: 20),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        widget.parentField.label,
+                        style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.primary),
                       ),
+                    ),
+                    IconButton(
+                      onPressed: () => Navigator.pop(context),
+                      icon:
+                          const Icon(Icons.close, color: AppColors.textMedium),
                     ),
                   ],
                 ),
               ),
-            ),
-          ],
+              const Divider(height: 1),
+              Expanded(
+                child: SingleChildScrollView(
+                  controller: ctrl,
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    children: [
+                      ..._fields
+                          .where((df) => _isSubFieldVisible(df))
+                          .map((df) => Padding(
+                                padding: const EdgeInsets.only(bottom: 14),
+                                child: _buildSubField(df),
+                              )),
+                      const SizedBox(height: 8),
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton.icon(
+                          onPressed: _save,
+                          icon: const Icon(Icons.check),
+                          label: const Text('Done'),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
+  }
+
+  Future<void> _captureAndUploadSubField(DynamicFieldModel df) async {
+    final localPath =
+        await Navigator.pushNamed(context, '/camera-capture') as String?;
+    if (localPath == null || !mounted) return;
+
+    final result =
+        await widget.viewModel.uploadImageOnly(df.field.key, localPath);
+    if (!mounted) return;
+
+    if (result != null) {
+      setState(() {
+        df.value = result.imagePath;
+        df.previewUrl = result.previewUrl;
+      });
+      context.showSnack('Photo uploaded successfully', success: true);
+    } else {
+      context.showSnack('Photo upload failed. Please try again.');
+    }
+  }
+
+  void _clearSubFieldPhoto(DynamicFieldModel df) {
+    setState(() {
+      df.value = null;
+      df.previewUrl = null;
+    });
   }
 
   Widget _buildSubField(DynamicFieldModel df) {
@@ -546,8 +581,8 @@ class _EditPopupFormSheetState extends State<_EditPopupFormSheet> {
           subFields.where((e) => e.value != null && e.value != '').length;
     }
 
-    final isCameraField =
-        f.fieldStyle == FieldStyle.camera || f.fieldStyle == FieldStyle.cameraFile;
+    final isCameraField = f.fieldStyle == FieldStyle.camera ||
+        f.fieldStyle == FieldStyle.cameraFile;
 
     return DynamicFieldBuilder(
       field: f,
@@ -558,7 +593,8 @@ class _EditPopupFormSheetState extends State<_EditPopupFormSheet> {
         if (!_textCtrl.containsKey(f.key)) {
           _onSubFieldChanged(df, val);
         } else {
-          setState(() {}); // text controller manages value; rebuild for visibility
+          setState(
+              () {}); // text controller manages value; rebuild for visibility
         }
       },
       onPopupFormPressed: f.isPopupForm ? () => _openNestedPopupForm(df) : null,
@@ -568,6 +604,21 @@ class _EditPopupFormSheetState extends State<_EditPopupFormSheet> {
           ? () => _openMapForNested(df)
           : null,
       previewUrl: isCameraField ? df.previewUrl : null,
+      isUploading:
+          isCameraField ? widget.viewModel.isFieldUploading(f.key) : false,
+      onCapturePhoto:
+          isCameraField ? () => _captureAndUploadSubField(df) : null,
+      onClearPhoto: isCameraField ? () => _clearSubFieldPhoto(df) : null,
+      resolvedOptions:
+          f.fieldStyle == FieldStyle.dropdown ? df.resolvedOptions : null,
+      isLoadingOptions:
+          f.fieldStyle == FieldStyle.dropdown ? df.isLoadingOptions : false,
+      optionsError:
+          f.fieldStyle == FieldStyle.dropdown ? df.optionsError : null,
+      onRetryOptions:
+          f.fieldStyle == FieldStyle.dropdown && df.optionsError != null
+              ? () => widget.viewModel.retrySubfieldOptions(f.key, _fields)
+              : null,
     );
   }
 
@@ -600,6 +651,7 @@ class _EditPopupFormSheetState extends State<_EditPopupFormSheet> {
         parentField: df.field,
         initialFields: currentValues,
         onSaved: (result) => setState(() => df.value = result),
+        viewModel: widget.viewModel,
       ),
     );
   }

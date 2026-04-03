@@ -209,6 +209,7 @@ class _FarmerFormViewState extends State<FarmerFormView> {
         catColor: catColor,
         initialFields: currentValues,
         onSaved: (result) => _vm.updateDynamicFieldValue(df.field.key, result),
+        viewModel: _vm,
       ),
     );
   }
@@ -596,12 +597,14 @@ class _PopupFormSheet extends StatefulWidget {
   final Color catColor;
   final List<DynamicFieldModel> initialFields;
   final void Function(List<DynamicFieldModel> updated) onSaved;
+  final FarmerFormViewModel viewModel;
 
   const _PopupFormSheet({
     required this.parentField,
     required this.catColor,
     required this.initialFields,
     required this.onSaved,
+    required this.viewModel,
   });
 
   @override
@@ -646,6 +649,7 @@ class _PopupFormSheetState extends State<_PopupFormSheet> {
       df.value = val;
       _resetHiddenSubFieldDependents(df.field.key);
     });
+    widget.viewModel.handleSubfieldDependencyChange(df.field.key, _fields);
   }
 
   void _resetHiddenSubFieldDependents(String parentKey) {
@@ -680,7 +684,9 @@ class _PopupFormSheetState extends State<_PopupFormSheet> {
   @override
   Widget build(BuildContext context) {
     final color = widget.catColor;
-    return DraggableScrollableSheet(
+    return ListenableBuilder(
+      listenable: widget.viewModel,
+      builder: (context, _) => DraggableScrollableSheet(
       initialChildSize: 0.55,
       maxChildSize: 0.92,
       minChildSize: 0.35,
@@ -752,7 +758,35 @@ class _PopupFormSheetState extends State<_PopupFormSheet> {
           ],
         ),
       ),
+    ),
     );
+  }
+
+  Future<void> _captureAndUploadSubField(DynamicFieldModel df) async {
+    final localPath =
+        await Navigator.pushNamed(context, '/camera-capture') as String?;
+    if (localPath == null || !mounted) return;
+
+    final result =
+        await widget.viewModel.uploadImageOnly(df.field.key, localPath);
+    if (!mounted) return;
+
+    if (result != null) {
+      setState(() {
+        df.value = result.imagePath;
+        df.previewUrl = result.previewUrl;
+      });
+      context.showSnack('Photo uploaded successfully', success: true);
+    } else {
+      context.showSnack('Photo upload failed. Please try again.');
+    }
+  }
+
+  void _clearSubFieldPhoto(DynamicFieldModel df) {
+    setState(() {
+      df.value = null;
+      df.previewUrl = null;
+    });
   }
 
   Widget _buildSubField(DynamicFieldModel df, Color color) {
@@ -790,6 +824,21 @@ class _PopupFormSheetState extends State<_PopupFormSheet> {
           ? () => _openMapForNestedDynamicField(df)
           : null,
       previewUrl: isCameraField ? df.previewUrl : null,
+      isUploading:
+          isCameraField ? widget.viewModel.isFieldUploading(f.key) : false,
+      onCapturePhoto:
+          isCameraField ? () => _captureAndUploadSubField(df) : null,
+      onClearPhoto: isCameraField ? () => _clearSubFieldPhoto(df) : null,
+      resolvedOptions:
+          f.fieldStyle == FieldStyle.dropdown ? df.resolvedOptions : null,
+      isLoadingOptions:
+          f.fieldStyle == FieldStyle.dropdown ? df.isLoadingOptions : false,
+      optionsError:
+          f.fieldStyle == FieldStyle.dropdown ? df.optionsError : null,
+      onRetryOptions:
+          f.fieldStyle == FieldStyle.dropdown && df.optionsError != null
+              ? () => widget.viewModel.retrySubfieldOptions(f.key, _fields)
+              : null,
     );
   }
 
@@ -823,6 +872,7 @@ class _PopupFormSheetState extends State<_PopupFormSheet> {
         catColor: color,
         initialFields: currentValues,
         onSaved: (result) => setState(() => df.value = result),
+        viewModel: widget.viewModel,
       ),
     );
   }
