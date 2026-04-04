@@ -9,6 +9,7 @@ import 'package:share_plus/share_plus.dart';
 
 import '../../models/api/api_models.dart';
 import '../../services/auth_service.dart';
+import '../../utils/field_fill_state.dart';
 import '../../services/registration_form_service.dart';
 import '../../utils/app_colors.dart';
 import '../../utils/snack_bar_helper.dart';
@@ -323,9 +324,8 @@ $coordLines
     int? popupFormTotal;
     if (f.isPopupForm) {
       final subFields = df.value as List<DynamicFieldModel>? ?? [];
-      popupFormTotal = subFields.length;
-      popupFormFilled =
-          subFields.where((e) => e.value != null && e.value != '').length;
+      popupFormTotal = getTotalCount(subFields);
+      popupFormFilled = getFilledCount(subFields);
     }
 
     final isCameraField = f.fieldStyle == FieldStyle.camera ||
@@ -427,9 +427,9 @@ class _ViewOnlyPopupSheetState extends State<_ViewOnlyPopupSheet> {
   @override
   Widget build(BuildContext context) {
     return DraggableScrollableSheet(
-      initialChildSize: 0.55,
+      initialChildSize: 0.75,
       maxChildSize: 0.92,
-      minChildSize: 0.35,
+      minChildSize: 0.4,
       builder: (_, ctrl) => Container(
         decoration: const BoxDecoration(
           color: Colors.white,
@@ -498,9 +498,8 @@ class _ViewOnlyPopupSheetState extends State<_ViewOnlyPopupSheet> {
     int? popupFormTotal;
     if (f.isPopupForm) {
       final subFields = df.value as List<DynamicFieldModel>? ?? [];
-      popupFormTotal = subFields.length;
-      popupFormFilled =
-          subFields.where((e) => e.value != null && e.value != '').length;
+      popupFormTotal = getTotalCount(subFields);
+      popupFormFilled = getFilledCount(subFields);
     }
 
     final isCameraField = f.fieldStyle == FieldStyle.camera ||

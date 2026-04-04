@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../config/app_constants.dart';
 import '../../models/api/api_models.dart';
 import '../../services/auth_service.dart';
+import '../../utils/field_fill_state.dart';
 import '../../services/form_config_service.dart';
 import '../../services/image_upload_service.dart';
 import '../../services/registration_form_service.dart';
@@ -497,9 +498,8 @@ class _FarmerFormViewState extends State<FarmerFormView> {
     int? popupFormTotal;
     if (f.isPopupForm) {
       final subFieldsList = df.value as List<DynamicFieldModel>? ?? [];
-      popupFormTotal = subFieldsList.length;
-      popupFormFilled =
-          subFieldsList.where((e) => e.value != null && e.value != '').length;
+      popupFormTotal = getTotalCount(subFieldsList);
+      popupFormFilled = getFilledCount(subFieldsList);
     }
 
     final isCameraField = f.fieldStyle == FieldStyle.camera ||
@@ -775,9 +775,9 @@ class _PopupFormSheetState extends State<_PopupFormSheet> {
     return ListenableBuilder(
       listenable: widget.viewModel,
       builder: (context, _) => DraggableScrollableSheet(
-        initialChildSize: 0.55,
+        initialChildSize: 0.75,
         maxChildSize: 0.92,
-        minChildSize: 0.35,
+        minChildSize: 0.4,
         builder: (_, ctrl) => Container(
           decoration: const BoxDecoration(
             color: Colors.white,
@@ -885,9 +885,8 @@ class _PopupFormSheetState extends State<_PopupFormSheet> {
     int? popupFormTotal;
     if (f.isPopupForm) {
       final subFieldsList = df.value as List<DynamicFieldModel>? ?? [];
-      popupFormTotal = subFieldsList.length;
-      popupFormFilled =
-          subFieldsList.where((e) => e.value != null && e.value != '').length;
+      popupFormTotal = getTotalCount(subFieldsList);
+      popupFormFilled = getFilledCount(subFieldsList);
     }
 
     final isCameraField = f.fieldStyle == FieldStyle.camera ||

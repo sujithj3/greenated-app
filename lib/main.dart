@@ -33,6 +33,10 @@ import 'view_models/registered_list_view_model.dart';
 import 'views/farmer/registered_list_view.dart';
 import 'models/flow_type.dart';
 
+/// Global key for the root ScaffoldMessenger. Ensures SnackBars render above
+/// all routes, bottom sheets, and dialogs — not behind them.
+final rootScaffoldMessengerKey = GlobalKey<ScaffoldMessengerState>();
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await dotenv.load();
@@ -104,6 +108,7 @@ class FarmerRegistrationApp extends StatelessWidget {
       child: MaterialApp(
         title: 'Greenated',
         debugShowCheckedModeBanner: false,
+        scaffoldMessengerKey: rootScaffoldMessengerKey,
         theme: AppTheme.theme,
         localizationsDelegates: const [
           GlobalMaterialLocalizations.delegate,
