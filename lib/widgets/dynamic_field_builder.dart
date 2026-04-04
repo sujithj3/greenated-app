@@ -959,7 +959,7 @@ class DynamicFieldBuilder extends StatelessWidget {
     final int ptsCount = hasData ? asList.length : 0;
 
     return FormField<dynamic>(
-      key: ValueKey('mappolygon_${field.key}'),
+      key: ValueKey('mappolygon_${field.key}_${hasData ? ptsCount : 0}'),
       initialValue: value,
       validator: (isViewMode || !field.required)
           ? null

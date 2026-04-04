@@ -427,9 +427,9 @@ class _ViewOnlyPopupSheetState extends State<_ViewOnlyPopupSheet> {
   @override
   Widget build(BuildContext context) {
     return DraggableScrollableSheet(
-      initialChildSize: 0.55,
+      initialChildSize: 0.75,
       maxChildSize: 0.92,
-      minChildSize: 0.35,
+      minChildSize: 0.4,
       builder: (_, ctrl) => Container(
         decoration: const BoxDecoration(
           color: Colors.white,
