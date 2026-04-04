@@ -336,7 +336,8 @@ class DynamicFieldBuilder extends StatelessWidget {
       validator: isViewMode
           ? null
           : (v) {
-              if (field.required && v != true) {
+              final val = value is bool ? value as bool : false;
+              if (field.required && val != true) {
                 return '${field.label} is required';
               }
               return null;
@@ -354,7 +355,7 @@ class DynamicFieldBuilder extends StatelessWidget {
                 ),
               ),
               child: CheckboxListTile(
-                value: state.value ?? false,
+                value: checked,
                 contentPadding: const EdgeInsets.symmetric(horizontal: 12),
                 controlAffinity: ListTileControlAffinity.leading,
                 activeColor: _accent,
@@ -407,7 +408,8 @@ class DynamicFieldBuilder extends StatelessWidget {
       validator: isViewMode
           ? null
           : (v) {
-              if (field.required && (v == null || v.isEmpty)) {
+              final sel = value?.toString();
+              if (field.required && (sel == null || sel.isEmpty)) {
                 return '${field.label} is required';
               }
               return null;
@@ -454,7 +456,7 @@ class DynamicFieldBuilder extends StatelessWidget {
                                       : null,
                                 ),
                               ),
-                              selected: state.value == option.id.toString(),
+                              selected: selected == option.id.toString(),
                               selectedColor: isViewMode
                                   ? _accent.withValues(alpha: 0.15)
                                   : _accent.withValues(alpha: 0.2),
@@ -587,7 +589,8 @@ class DynamicFieldBuilder extends StatelessWidget {
       key: ValueKey('camera_${field.key}'),
       initialValue: value,
       validator: (v) {
-        if (field.required && (v == null || (v is String && v.isEmpty))) {
+        final val = value;
+        if (field.required && (val == null || (val is String && val.isEmpty))) {
           return '${field.label} is required';
         }
         return null;
@@ -796,11 +799,11 @@ class DynamicFieldBuilder extends StatelessWidget {
       validator: (isViewMode || !field.required)
           ? null
           : (v) {
-              if (v == null) return '${field.label} is required';
+              if (value == null) return '${field.label} is required';
               return null;
             },
       builder: (state) {
-        final hasAttachment = state.value != null;
+        final hasAttachment = value != null;
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -833,7 +836,7 @@ class DynamicFieldBuilder extends StatelessWidget {
                     Expanded(
                       child: Text(
                         hasAttachment
-                            ? _attachmentLabel(state.value)
+                            ? _attachmentLabel(value)
                             : isViewMode
                                 ? 'No file'
                                 : (field.required
@@ -961,7 +964,8 @@ class DynamicFieldBuilder extends StatelessWidget {
       validator: (isViewMode || !field.required)
           ? null
           : (v) {
-              if (v == null || (v as List).isEmpty) {
+              final val = value is List ? value as List : null;
+              if (val == null || val.isEmpty) {
                 return '${field.label} is required';
               }
               return null;
