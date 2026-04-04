@@ -26,6 +26,7 @@ class _FarmerFormViewState extends State<FarmerFormView> {
 
   late final FarmerFormViewModel _vm;
   bool _isInit = false;
+  AutovalidateMode _autoValidateMode = AutovalidateMode.disabled;
 
   // ── Flutter-owned controllers (stay in View) ─────────────────────────────
   final _landAreaCtrl = TextEditingController();
@@ -125,8 +126,9 @@ class _FarmerFormViewState extends State<FarmerFormView> {
         'onClear': () {
           _vm.setLandResult({'area': 0.0, 'coordinates': []});
           _landAreaCtrl.clear();
-          if (mounted)
+          if (mounted) {
             context.showSnack('Land measurement removed', success: true);
+          }
         }
       },
     ) as Map<String, dynamic>?;
@@ -217,7 +219,9 @@ class _FarmerFormViewState extends State<FarmerFormView> {
   // ── Save ──────────────────────────────────────────────────────────────────
 
   Future<void> _save() async {
-    if (!_formKey.currentState!.validate()) return;
+    // 1. Trigger widget-level validation to show inline error text for on-screen fields
+    final isFormValid = _formKey.currentState?.validate() ?? true;
+
     if (_vm.selectedCategory.isEmpty) {
       context.showSnack('Select a category.');
       return;
@@ -231,9 +235,12 @@ class _FarmerFormViewState extends State<FarmerFormView> {
       _dynTextCtrl.entries.map((e) => MapEntry(e.key, e.value.text)),
     );
 
+    // 2. Strict manual validation for all visible fields (including off-screen ones)
+    final visibleFields =
+        _vm.dynamicFields.where((df) => _vm.isFieldVisible(df)).toList();
     bool hasData = false;
-    for (final df in _vm.dynamicFields) {
-      if (!_vm.isFieldVisible(df)) continue;
+
+    for (final df in visibleFields) {
       dynamic v;
       if (textValues.containsKey(df.field.key)) {
         v = textValues[df.field.key]!.trim();
@@ -242,6 +249,40 @@ class _FarmerFormViewState extends State<FarmerFormView> {
         v = df.value;
       }
 
+      // Check required validation
+      if (df.field.required) {
+        bool isEmpty = false;
+        if (v == null) {
+          isEmpty = true;
+        } else if (v is String && v.isEmpty) {
+          isEmpty = true;
+        } else if (v is List) {
+          if (v.isEmpty) {
+            isEmpty = true;
+          } else if (df.field.isPopupForm && v is List<DynamicFieldModel>) {
+            bool hasSubData = false;
+            for (final subDf in v) {
+              if (subDf.value != null &&
+                  subDf.value.toString().trim().isNotEmpty) {
+                hasSubData = true;
+                break;
+              }
+            }
+            if (!hasSubData) isEmpty = true;
+          }
+        }
+
+        if (isEmpty) {
+          if (mounted) {
+            setState(() => _autoValidateMode = AutovalidateMode.always);
+            context
+                .showSnack('Please fill the required field: ${df.field.label}');
+          }
+          return;
+        }
+      }
+
+      // Track if form has any data at all
       if (v != null) {
         if (v is String && v.isNotEmpty) hasData = true;
         if (v is num || v is bool) hasData = true;
@@ -259,15 +300,33 @@ class _FarmerFormViewState extends State<FarmerFormView> {
           }
         }
       }
-      if (hasData) break;
     }
 
-    if (_vm.geoRequired && _landAreaCtrl.text.trim().isNotEmpty) {
-      hasData = true;
+    if (_vm.geoRequired) {
+      if (_landAreaCtrl.text.trim().isEmpty) {
+        if (mounted) {
+          setState(() => _autoValidateMode = AutovalidateMode.always);
+          context.showSnack('Please complete the required field: Land Area');
+        }
+        return;
+      } else {
+        hasData = true;
+      }
     }
 
-    if (!hasData && _vm.dynamicFields.isNotEmpty) {
-      context.showSnack('Please fill at least one field to submit.');
+    if (!hasData && visibleFields.isNotEmpty) {
+      if (mounted) {
+        setState(() => _autoValidateMode = AutovalidateMode.always);
+        context.showSnack('Please fill at least one field to submit.');
+      }
+      return;
+    }
+
+    if (!isFormValid) {
+      if (mounted) {
+        setState(() => _autoValidateMode = AutovalidateMode.always);
+        context.showSnack('Please fix the errors in the form.');
+      }
       return;
     }
 
@@ -317,6 +376,7 @@ class _FarmerFormViewState extends State<FarmerFormView> {
                         )
                       : Form(
                           key: _formKey,
+                          autovalidateMode: _autoValidateMode,
                           child: ListView(
                             padding: const EdgeInsets.all(16),
                             children: [
@@ -676,9 +736,33 @@ class _PopupFormSheetState extends State<_PopupFormSheet> {
         df.previewUrl = null;
         continue;
       }
+
+      dynamic v;
       if (_textCtrl.containsKey(df.field.key)) {
         final text = _textCtrl[df.field.key]!.text.trim();
-        df.value = text.isNotEmpty ? text : null;
+        v = text.isNotEmpty ? text : null;
+        df.value = v;
+      } else {
+        v = df.value;
+      }
+
+      if (df.field.required) {
+        bool isEmpty = false;
+        if (v == null) {
+          isEmpty = true;
+        } else if (v is String && v.isEmpty) {
+          isEmpty = true;
+        } else if (v is List && v.isEmpty) {
+          isEmpty = true;
+        }
+
+        if (isEmpty) {
+          if (mounted) {
+            context
+                .showSnack('Please fill the required field: ${df.field.label}');
+          }
+          return;
+        }
       }
     }
     widget.onSaved(_fields);
