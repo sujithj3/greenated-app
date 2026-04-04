@@ -586,7 +586,7 @@ class DynamicFieldBuilder extends StatelessWidget {
             : null);
 
     return FormField<dynamic>(
-      key: ValueKey('camera_${field.key}'),
+      key: ValueKey('camera_${field.key}_${imageUrl != null ? 1 : 0}'),
       initialValue: value,
       validator: (v) {
         final val = value;
