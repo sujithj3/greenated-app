@@ -32,9 +32,11 @@ class EditFarmerDetailsView extends StatefulWidget {
 }
 
 class _EditFarmerDetailsViewState extends State<EditFarmerDetailsView> {
+  final _formKey = GlobalKey<FormState>();
   late final EditFarmerDetailsViewModel _vm;
   final Map<String, TextEditingController> _textCtrl = {};
   bool _isInit = false;
+  AutovalidateMode _autoValidateMode = AutovalidateMode.disabled;
 
   @override
   void initState() {
@@ -173,9 +175,65 @@ class _EditFarmerDetailsViewState extends State<EditFarmerDetailsView> {
   // ── Save ──────────────────────────────────────────────────────────────────
 
   Future<void> _save() async {
+    // 1. Trigger widget-level validation to show inline error text for on-screen fields
+    final isFormValid = _formKey.currentState?.validate() ?? true;
+
     final textValues = Map.fromEntries(
       _textCtrl.entries.map((e) => MapEntry(e.key, e.value.text)),
     );
+
+    // 2. Strict manual validation for all visible fields (including off-screen ones)
+    final visibleFields =
+        _vm.fields.where((df) => _vm.isFieldVisible(df)).toList();
+    for (final df in visibleFields) {
+      if (df.field.required) {
+        dynamic v;
+        if (textValues.containsKey(df.field.key)) {
+          v = textValues[df.field.key]!.trim();
+          if ((v as String).isEmpty) v = null;
+        } else {
+          v = df.value;
+        }
+
+        bool isEmpty = false;
+        if (v == null) {
+          isEmpty = true;
+        } else if (v is String && v.isEmpty) {
+          isEmpty = true;
+        } else if (v is List) {
+          if (v.isEmpty) {
+            isEmpty = true;
+          } else if (df.field.isPopupForm && v is List<DynamicFieldModel>) {
+            bool hasSubData = false;
+            for (final subDf in v) {
+              if (subDf.value != null &&
+                  subDf.value.toString().trim().isNotEmpty) {
+                hasSubData = true;
+                break;
+              }
+            }
+            if (!hasSubData) isEmpty = true;
+          }
+        }
+
+        if (isEmpty) {
+          if (mounted) {
+            setState(() => _autoValidateMode = AutovalidateMode.always);
+            context
+                .showSnack('Please fill the required field: ${df.field.label}');
+          }
+          return;
+        }
+      }
+    }
+
+    if (!isFormValid) {
+      if (mounted) {
+        setState(() => _autoValidateMode = AutovalidateMode.always);
+        context.showSnack('Please fix the errors in the form.');
+      }
+      return;
+    }
 
     try {
       final success = await _vm.save(
@@ -288,18 +346,23 @@ class _EditFarmerDetailsViewState extends State<EditFarmerDetailsView> {
     final visibleFields =
         _vm.fields.where((df) => _vm.isFieldVisible(df)).toList();
 
-    return Column(
-      children: [
-        Expanded(
-          child: ListView.separated(
-            padding: const EdgeInsets.all(16),
-            itemCount: visibleFields.length,
-            separatorBuilder: (_, __) => const SizedBox(height: 12),
-            itemBuilder: (context, index) => _buildField(visibleFields[index]),
+    return Form(
+      key: _formKey,
+      autovalidateMode: _autoValidateMode,
+      child: Column(
+        children: [
+          Expanded(
+            child: ListView.separated(
+              padding: const EdgeInsets.all(16),
+              itemCount: visibleFields.length,
+              separatorBuilder: (_, __) => const SizedBox(height: 12),
+              itemBuilder: (context, index) =>
+                  _buildField(visibleFields[index]),
+            ),
           ),
-        ),
-        _buildSubmitButton(isBlocked),
-      ],
+          _buildSubmitButton(isBlocked),
+        ],
+      ),
     );
   }
 
@@ -456,9 +519,33 @@ class _EditPopupFormSheetState extends State<_EditPopupFormSheet> {
         df.previewUrl = null;
         continue;
       }
+
+      dynamic v;
       if (_textCtrl.containsKey(df.field.key)) {
         final text = _textCtrl[df.field.key]!.text.trim();
-        df.value = text.isNotEmpty ? text : null;
+        v = text.isNotEmpty ? text : null;
+        df.value = v;
+      } else {
+        v = df.value;
+      }
+
+      if (df.field.required) {
+        bool isEmpty = false;
+        if (v == null) {
+          isEmpty = true;
+        } else if (v is String && v.isEmpty) {
+          isEmpty = true;
+        } else if (v is List && v.isEmpty) {
+          isEmpty = true;
+        }
+
+        if (isEmpty) {
+          if (mounted) {
+            context
+                .showSnack('Please fill the required field: ${df.field.label}');
+          }
+          return;
+        }
       }
     }
     widget.onSaved(_fields);
