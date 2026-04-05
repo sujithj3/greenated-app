@@ -509,38 +509,31 @@ class _EditPopupFormSheetState extends State<_EditPopupFormSheet> {
   void _save() {
     final isFormValid = _popupFormKey.currentState?.validate() ?? true;
 
+    // Sync text controller values into field models before validation
     for (final df in _fields) {
       if (!_isSubFieldVisible(df)) {
         df.value = null;
         df.previewUrl = null;
         continue;
       }
-
-      dynamic v;
       if (_textCtrl.containsKey(df.field.key)) {
         final text = _textCtrl[df.field.key]!.text.trim();
-        v = text.isNotEmpty ? text : null;
-        df.value = v;
-      } else {
-        v = df.value;
+        df.value = text.isNotEmpty ? text : null;
       }
+    }
 
-      if (df.field.required) {
-        bool isEmpty = false;
-        if (v == null) {
-          isEmpty = true;
-        } else if (v is String && v.isEmpty) {
-          isEmpty = true;
-        } else if (v is List && v.isEmpty) {
-          isEmpty = true;
-        }
+    // Recursive validation including nested popup children
+    final textValues = Map.fromEntries(
+      _textCtrl.entries.map((e) => MapEntry(e.key, e.value.text)),
+    );
+    final validationResult = validateFields(_fields, textValues: textValues);
 
-        if (isEmpty) {
-          setState(() => _autoValidateMode = AutovalidateMode.always);
-          _showLocalSnack('Please fill the required field: ${df.field.label}');
-          return;
-        }
-      }
+    if (!validationResult.isValid) {
+      setState(() => _autoValidateMode = AutovalidateMode.always);
+      _showLocalSnack(
+        'Please fill the required field: ${validationResult.firstInvalidLabel}',
+      );
+      return;
     }
 
     if (!isFormValid) {
@@ -684,6 +677,8 @@ class _EditPopupFormSheetState extends State<_EditPopupFormSheet> {
       value: _textCtrl.containsKey(f.key) ? _textCtrl[f.key]!.text : df.value,
       textController: _textCtrl[f.key],
       accentColor: AppColors.primary,
+      hasError: df.hasError,
+      errorMessage: df.errorMessage,
       onChanged: (val) {
         if (!_textCtrl.containsKey(f.key)) {
           _onSubFieldChanged(df, val);
@@ -745,7 +740,10 @@ class _EditPopupFormSheetState extends State<_EditPopupFormSheet> {
       builder: (_) => _EditPopupFormSheet(
         parentField: df.field,
         initialFields: currentValues,
-        onSaved: (result) => setState(() => df.value = result),
+        onSaved: (result) {
+          setState(() => df.value = result);
+          df.clearError();
+        },
         viewModel: widget.viewModel,
       ),
     );
