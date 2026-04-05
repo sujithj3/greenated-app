@@ -676,6 +676,8 @@ class _PopupFormSheet extends StatefulWidget {
 }
 
 class _PopupFormSheetState extends State<_PopupFormSheet> {
+  final _popupFormKey = GlobalKey<FormState>();
+  AutovalidateMode _autoValidateMode = AutovalidateMode.disabled;
   final Map<String, TextEditingController> _textCtrl = {};
   late List<DynamicFieldModel> _fields;
 
@@ -729,7 +731,20 @@ class _PopupFormSheetState extends State<_PopupFormSheet> {
     }
   }
 
+  void _showLocalSnack(String msg, {bool success = false}) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+      ..clearSnackBars()
+      ..showSnackBar(SnackBar(
+        content: Text(msg),
+        backgroundColor: success ? AppColors.primary : AppColors.error,
+        behavior: SnackBarBehavior.floating,
+      ));
+  }
+
   void _save() {
+    final isFormValid = _popupFormKey.currentState?.validate() ?? true;
+
     for (final df in _fields) {
       if (!_isSubFieldVisible(df)) {
         df.value = null;
@@ -757,14 +772,19 @@ class _PopupFormSheetState extends State<_PopupFormSheet> {
         }
 
         if (isEmpty) {
-          if (mounted) {
-            context
-                .showSnack('Please fill the required field: ${df.field.label}');
-          }
+          setState(() => _autoValidateMode = AutovalidateMode.always);
+          _showLocalSnack('Please fill the required field: ${df.field.label}');
           return;
         }
       }
     }
+
+    if (!isFormValid) {
+      setState(() => _autoValidateMode = AutovalidateMode.always);
+      _showLocalSnack('Please fix the errors in the form.');
+      return;
+    }
+
     widget.onSaved(_fields);
     Navigator.pop(context);
   }
@@ -778,74 +798,80 @@ class _PopupFormSheetState extends State<_PopupFormSheet> {
         initialChildSize: 0.75,
         maxChildSize: 0.92,
         minChildSize: 0.4,
-        builder: (_, ctrl) => Container(
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-          ),
-          child: Column(
-            children: [
-              Container(
-                margin: const EdgeInsets.only(top: 12),
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: AppColors.divider,
-                  borderRadius: BorderRadius.circular(2),
+        builder: (_, ctrl) => ClipRRect(
+          borderRadius:
+              const BorderRadius.vertical(top: Radius.circular(24)),
+          child: Scaffold(
+            backgroundColor: Colors.white,
+            body: Column(
+              children: [
+                Container(
+                  margin: const EdgeInsets.only(top: 12),
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: AppColors.divider,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
                 ),
-              ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 16, 8, 8),
-                child: Row(
-                  children: [
-                    Icon(Icons.tune, color: color, size: 20),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        widget.parentField.label,
-                        style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w700,
-                            color: color),
-                      ),
-                    ),
-                    IconButton(
-                      onPressed: () => Navigator.pop(context),
-                      icon:
-                          const Icon(Icons.close, color: AppColors.textMedium),
-                    ),
-                  ],
-                ),
-              ),
-              const Divider(height: 1),
-              Expanded(
-                child: SingleChildScrollView(
-                  controller: ctrl,
-                  padding: const EdgeInsets.all(20),
-                  child: Column(
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 16, 8, 8),
+                  child: Row(
                     children: [
-                      ..._fields
-                          .where((df) => _isSubFieldVisible(df))
-                          .map((df) => Padding(
-                                padding: const EdgeInsets.only(bottom: 14),
-                                child: _buildSubField(df, color),
-                              )),
-                      const SizedBox(height: 8),
-                      SizedBox(
-                        width: double.infinity,
-                        child: ElevatedButton.icon(
-                          onPressed: _save,
-                          icon: const Icon(Icons.check),
-                          label: const Text('Done'),
-                          style:
-                              ElevatedButton.styleFrom(backgroundColor: color),
+                      Icon(Icons.tune, color: color, size: 20),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          widget.parentField.label,
+                          style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w700,
+                              color: color),
                         ),
+                      ),
+                      IconButton(
+                        onPressed: () => Navigator.pop(context),
+                        icon: const Icon(
+                            Icons.close, color: AppColors.textMedium),
                       ),
                     ],
                   ),
                 ),
-              ),
-            ],
+                const Divider(height: 1),
+                Expanded(
+                  child: Form(
+                    key: _popupFormKey,
+                    autovalidateMode: _autoValidateMode,
+                    child: SingleChildScrollView(
+                      controller: ctrl,
+                      padding: const EdgeInsets.all(20),
+                      child: Column(
+                        children: [
+                          ..._fields
+                              .where((df) => _isSubFieldVisible(df))
+                              .map((df) => Padding(
+                                    padding:
+                                        const EdgeInsets.only(bottom: 14),
+                                    child: _buildSubField(df, color),
+                                  )),
+                          const SizedBox(height: 8),
+                          SizedBox(
+                            width: double.infinity,
+                            child: ElevatedButton.icon(
+                              onPressed: _save,
+                              icon: const Icon(Icons.check),
+                              label: const Text('Done'),
+                              style: ElevatedButton.styleFrom(
+                                  backgroundColor: color),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -866,9 +892,9 @@ class _PopupFormSheetState extends State<_PopupFormSheet> {
         df.value = result.imagePath;
         df.previewUrl = result.previewUrl;
       });
-      context.showSnack('Photo uploaded successfully', success: true);
+      _showLocalSnack('Photo uploaded successfully', success: true);
     } else {
-      context.showSnack('Photo upload failed. Please try again.');
+      _showLocalSnack('Photo upload failed. Please try again.');
     }
   }
 
