@@ -8,6 +8,7 @@ import '../../services/auth_service.dart';
 import '../../services/image_upload_service.dart';
 import '../../services/registration_form_service.dart';
 import '../../utils/app_colors.dart';
+import '../../utils/form_validator.dart';
 import '../../utils/snack_bar_helper.dart';
 import '../../view_models/farmer/edit_farmer_details_view_model.dart';
 import '../../widgets/dynamic_field_builder.dart';
@@ -146,7 +147,12 @@ class _EditFarmerDetailsViewState extends State<EditFarmerDetailsView> {
       builder: (_) => _EditPopupFormSheet(
         parentField: df.field,
         initialFields: currentValues,
-        onSaved: (result) => _vm.updateFieldValue(df.field.key, result),
+        onSaved: (result) {
+          _vm.updateFieldValue(df.field.key, result);
+          // Clear parent error after popup is saved
+          df.clearError();
+          if (mounted) setState(() {});
+        },
         viewModel: _vm,
       ),
     );
@@ -183,49 +189,22 @@ class _EditFarmerDetailsViewState extends State<EditFarmerDetailsView> {
       _textCtrl.entries.map((e) => MapEntry(e.key, e.value.text)),
     );
 
-    // 2. Strict manual validation for all visible fields (including off-screen ones)
+    // 2. Recursive validation for all visible fields including popup children
     final visibleFields =
         _vm.fields.where((df) => _vm.isFieldVisible(df)).toList();
-    for (final df in visibleFields) {
-      if (df.field.required) {
-        dynamic v;
-        if (textValues.containsKey(df.field.key)) {
-          v = textValues[df.field.key]!.trim();
-          if ((v as String).isEmpty) v = null;
-        } else {
-          v = df.value;
-        }
+    final validationResult = validateFields(
+      visibleFields,
+      textValues: textValues,
+    );
 
-        bool isEmpty = false;
-        if (v == null) {
-          isEmpty = true;
-        } else if (v is String && v.isEmpty) {
-          isEmpty = true;
-        } else if (v is List) {
-          if (v.isEmpty) {
-            isEmpty = true;
-          } else if (df.field.isPopupForm && v is List<DynamicFieldModel>) {
-            bool hasSubData = false;
-            for (final subDf in v) {
-              if (subDf.value != null &&
-                  subDf.value.toString().trim().isNotEmpty) {
-                hasSubData = true;
-                break;
-              }
-            }
-            if (!hasSubData) isEmpty = true;
-          }
-        }
-
-        if (isEmpty) {
-          if (mounted) {
-            setState(() => _autoValidateMode = AutovalidateMode.always);
-            context
-                .showSnack('Please fill the required field: ${df.field.label}');
-          }
-          return;
-        }
+    if (!validationResult.isValid) {
+      if (mounted) {
+        setState(() => _autoValidateMode = AutovalidateMode.always);
+        context.showSnack(
+          'Please fill the required field: ${validationResult.firstInvalidLabel}',
+        );
       }
+      return;
     }
 
     if (!isFormValid) {
@@ -386,6 +365,8 @@ class _EditFarmerDetailsViewState extends State<EditFarmerDetailsView> {
       value: _textCtrl.containsKey(f.key) ? _textCtrl[f.key]!.text : df.value,
       textController: _textCtrl[f.key],
       accentColor: AppColors.primary,
+      hasError: df.hasError,
+      errorMessage: df.errorMessage,
       onChanged: (val) {
         _vm.updateFieldValue(f.key, val);
       },
@@ -459,6 +440,8 @@ class _EditPopupFormSheet extends StatefulWidget {
 }
 
 class _EditPopupFormSheetState extends State<_EditPopupFormSheet> {
+  final _popupFormKey = GlobalKey<FormState>();
+  AutovalidateMode _autoValidateMode = AutovalidateMode.disabled;
   final Map<String, TextEditingController> _textCtrl = {};
   late List<DynamicFieldModel> _fields;
 
@@ -512,42 +495,53 @@ class _EditPopupFormSheetState extends State<_EditPopupFormSheet> {
     }
   }
 
+  void _showLocalSnack(String msg, {bool success = false}) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+      ..clearSnackBars()
+      ..showSnackBar(SnackBar(
+        content: Text(msg),
+        backgroundColor: success ? AppColors.primary : AppColors.error,
+        behavior: SnackBarBehavior.floating,
+      ));
+  }
+
   void _save() {
+    final isFormValid = _popupFormKey.currentState?.validate() ?? true;
+
+    // Sync text controller values into field models before validation
     for (final df in _fields) {
       if (!_isSubFieldVisible(df)) {
         df.value = null;
         df.previewUrl = null;
         continue;
       }
-
-      dynamic v;
       if (_textCtrl.containsKey(df.field.key)) {
         final text = _textCtrl[df.field.key]!.text.trim();
-        v = text.isNotEmpty ? text : null;
-        df.value = v;
-      } else {
-        v = df.value;
-      }
-
-      if (df.field.required) {
-        bool isEmpty = false;
-        if (v == null) {
-          isEmpty = true;
-        } else if (v is String && v.isEmpty) {
-          isEmpty = true;
-        } else if (v is List && v.isEmpty) {
-          isEmpty = true;
-        }
-
-        if (isEmpty) {
-          if (mounted) {
-            context
-                .showSnack('Please fill the required field: ${df.field.label}');
-          }
-          return;
-        }
+        df.value = text.isNotEmpty ? text : null;
       }
     }
+
+    // Recursive validation including nested popup children
+    final textValues = Map.fromEntries(
+      _textCtrl.entries.map((e) => MapEntry(e.key, e.value.text)),
+    );
+    final validationResult = validateFields(_fields, textValues: textValues);
+
+    if (!validationResult.isValid) {
+      setState(() => _autoValidateMode = AutovalidateMode.always);
+      _showLocalSnack(
+        'Please fill the required field: ${validationResult.firstInvalidLabel}',
+      );
+      return;
+    }
+
+    if (!isFormValid) {
+      setState(() => _autoValidateMode = AutovalidateMode.always);
+      _showLocalSnack('Please fix the errors in the form.');
+      return;
+    }
+
     widget.onSaved(_fields);
     Navigator.pop(context);
   }
@@ -560,73 +554,77 @@ class _EditPopupFormSheetState extends State<_EditPopupFormSheet> {
         initialChildSize: 0.75,
         maxChildSize: 0.92,
         minChildSize: 0.4,
-        builder: (_, ctrl) => Container(
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-          ),
-          child: Column(
-            children: [
-              Container(
-                margin: const EdgeInsets.only(top: 12),
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: AppColors.divider,
-                  borderRadius: BorderRadius.circular(2),
+        builder: (_, ctrl) => ClipRRect(
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+          child: Scaffold(
+            backgroundColor: Colors.white,
+            body: Column(
+              children: [
+                Container(
+                  margin: const EdgeInsets.only(top: 12),
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: AppColors.divider,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
                 ),
-              ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 16, 8, 8),
-                child: Row(
-                  children: [
-                    const Icon(Icons.edit_outlined,
-                        color: AppColors.primary, size: 20),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        widget.parentField.label,
-                        style: const TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w700,
-                            color: AppColors.primary),
-                      ),
-                    ),
-                    IconButton(
-                      onPressed: () => Navigator.pop(context),
-                      icon:
-                          const Icon(Icons.close, color: AppColors.textMedium),
-                    ),
-                  ],
-                ),
-              ),
-              const Divider(height: 1),
-              Expanded(
-                child: SingleChildScrollView(
-                  controller: ctrl,
-                  padding: const EdgeInsets.all(20),
-                  child: Column(
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 16, 8, 8),
+                  child: Row(
                     children: [
-                      ..._fields
-                          .where((df) => _isSubFieldVisible(df))
-                          .map((df) => Padding(
-                                padding: const EdgeInsets.only(bottom: 14),
-                                child: _buildSubField(df),
-                              )),
-                      const SizedBox(height: 8),
-                      SizedBox(
-                        width: double.infinity,
-                        child: ElevatedButton.icon(
-                          onPressed: _save,
-                          icon: const Icon(Icons.check),
-                          label: const Text('Done'),
+                      const Icon(Icons.edit_outlined,
+                          color: AppColors.primary, size: 20),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          widget.parentField.label,
+                          style: const TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.primary),
                         ),
+                      ),
+                      IconButton(
+                        onPressed: () => Navigator.pop(context),
+                        icon: const Icon(Icons.close,
+                            color: AppColors.textMedium),
                       ),
                     ],
                   ),
                 ),
-              ),
-            ],
+                const Divider(height: 1),
+                Expanded(
+                  child: Form(
+                    key: _popupFormKey,
+                    autovalidateMode: _autoValidateMode,
+                    child: SingleChildScrollView(
+                      controller: ctrl,
+                      padding: const EdgeInsets.all(20),
+                      child: Column(
+                        children: [
+                          ..._fields
+                              .where((df) => _isSubFieldVisible(df))
+                              .map((df) => Padding(
+                                    padding: const EdgeInsets.only(bottom: 14),
+                                    child: _buildSubField(df),
+                                  )),
+                          const SizedBox(height: 8),
+                          SizedBox(
+                            width: double.infinity,
+                            child: ElevatedButton.icon(
+                              onPressed: _save,
+                              icon: const Icon(Icons.check),
+                              label: const Text('Done'),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -647,9 +645,9 @@ class _EditPopupFormSheetState extends State<_EditPopupFormSheet> {
         df.value = result.imagePath;
         df.previewUrl = result.previewUrl;
       });
-      context.showSnack('Photo uploaded successfully', success: true);
+      _showLocalSnack('Photo uploaded successfully', success: true);
     } else {
-      context.showSnack('Photo upload failed. Please try again.');
+      _showLocalSnack('Photo upload failed. Please try again.');
     }
   }
 
@@ -679,6 +677,8 @@ class _EditPopupFormSheetState extends State<_EditPopupFormSheet> {
       value: _textCtrl.containsKey(f.key) ? _textCtrl[f.key]!.text : df.value,
       textController: _textCtrl[f.key],
       accentColor: AppColors.primary,
+      hasError: df.hasError,
+      errorMessage: df.errorMessage,
       onChanged: (val) {
         if (!_textCtrl.containsKey(f.key)) {
           _onSubFieldChanged(df, val);
@@ -740,7 +740,10 @@ class _EditPopupFormSheetState extends State<_EditPopupFormSheet> {
       builder: (_) => _EditPopupFormSheet(
         parentField: df.field,
         initialFields: currentValues,
-        onSaved: (result) => setState(() => df.value = result),
+        onSaved: (result) {
+          setState(() => df.value = result);
+          df.clearError();
+        },
         viewModel: widget.viewModel,
       ),
     );

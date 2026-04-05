@@ -29,6 +29,8 @@ class DynamicFieldBuilder extends StatelessWidget {
     this.onRetryOptions,
     this.isViewMode = false,
     this.previewUrl,
+    this.hasError = false,
+    this.errorMessage,
   });
 
   final ApiField field;
@@ -75,6 +77,12 @@ class DynamicFieldBuilder extends StatelessWidget {
   /// Presigned S3 URL for displaying a camera-field image.
   /// Takes priority over [value] when resolving the image URL for display.
   final String? previewUrl;
+
+  /// Whether this field has a validation error (used for POPUP_FORM fields).
+  final bool hasError;
+
+  /// Error message to display below the field (used for POPUP_FORM fields).
+  final String? errorMessage;
 
   Color get _accent => accentColor ?? AppColors.primary;
 
@@ -929,25 +937,61 @@ class DynamicFieldBuilder extends StatelessWidget {
       );
     }
 
-    return OutlinedButton.icon(
-      onPressed: onPopupFormPressed,
-      icon: Icon(
-        filled > 0 ? Icons.check_circle_outline : Icons.add_circle_outline,
-        color: filled > 0 ? _accent : AppColors.textMedium,
-      ),
-      label: Text(
-        filled > 0 ? '${field.label}  ($filled / $total filled)' : field.label,
-        style: TextStyle(
-          color: filled > 0 ? _accent : AppColors.textMedium,
+    final borderColor = hasError
+        ? AppColors.error
+        : filled > 0
+            ? _accent
+            : AppColors.light;
+    final borderWidth = hasError || filled > 0 ? 1.5 : 1.0;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        OutlinedButton.icon(
+          onPressed: onPopupFormPressed,
+          icon: Icon(
+            hasError
+                ? Icons.error_outline
+                : filled > 0
+                    ? Icons.check_circle_outline
+                    : Icons.add_circle_outline,
+            color: hasError
+                ? AppColors.error
+                : filled > 0
+                    ? _accent
+                    : AppColors.textMedium,
+          ),
+          label: Text(
+            filled > 0
+                ? '${field.label}  ($filled / $total filled)'
+                : field.label,
+            style: TextStyle(
+              color: hasError
+                  ? AppColors.error
+                  : filled > 0
+                      ? _accent
+                      : AppColors.textMedium,
+            ),
+          ),
+          style: OutlinedButton.styleFrom(
+            minimumSize: const Size(double.infinity, 48),
+            side: BorderSide(color: borderColor, width: borderWidth),
+          ),
         ),
-      ),
-      style: OutlinedButton.styleFrom(
-        minimumSize: const Size(double.infinity, 48),
-        side: BorderSide(
-          color: filled > 0 ? _accent : AppColors.light,
-          width: filled > 0 ? 1.5 : 1,
-        ),
-      ),
+        if (hasError && errorMessage != null) ...[
+          const SizedBox(height: 6),
+          Padding(
+            padding: const EdgeInsets.only(left: 12),
+            child: Text(
+              errorMessage!,
+              style: const TextStyle(
+                color: AppColors.error,
+                fontSize: 12,
+              ),
+            ),
+          ),
+        ],
+      ],
     );
   }
 
