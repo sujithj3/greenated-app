@@ -9,6 +9,7 @@ import '../../services/form_config_service.dart';
 import '../../services/image_upload_service.dart';
 import '../../services/registration_form_service.dart';
 import '../../utils/app_colors.dart';
+import '../../utils/form_validator.dart';
 import '../../utils/snack_bar_helper.dart';
 import '../../core/network/api_client.dart';
 import '../../view_models/farmer/farmer_form_view_model.dart';
@@ -211,7 +212,12 @@ class _FarmerFormViewState extends State<FarmerFormView> {
         parentField: df.field,
         catColor: catColor,
         initialFields: currentValues,
-        onSaved: (result) => _vm.updateDynamicFieldValue(df.field.key, result),
+        onSaved: (result) {
+          _vm.updateDynamicFieldValue(df.field.key, result);
+          // Clear parent error after popup is saved
+          df.clearError();
+          if (mounted) setState(() {});
+        },
         viewModel: _vm,
       ),
     );
@@ -236,11 +242,26 @@ class _FarmerFormViewState extends State<FarmerFormView> {
       _dynTextCtrl.entries.map((e) => MapEntry(e.key, e.value.text)),
     );
 
-    // 2. Strict manual validation for all visible fields (including off-screen ones)
+    // 2. Recursive validation for all visible fields including popup children
     final visibleFields =
         _vm.dynamicFields.where((df) => _vm.isFieldVisible(df)).toList();
-    bool hasData = false;
+    final validationResult = validateFields(
+      visibleFields,
+      textValues: textValues,
+    );
 
+    if (!validationResult.isValid) {
+      if (mounted) {
+        setState(() => _autoValidateMode = AutovalidateMode.always);
+        context.showSnack(
+          'Please fill the required field: ${validationResult.firstInvalidLabel}',
+        );
+      }
+      return;
+    }
+
+    // 3. Check that any data exists at all
+    bool hasData = false;
     for (final df in visibleFields) {
       dynamic v;
       if (textValues.containsKey(df.field.key)) {
@@ -249,41 +270,6 @@ class _FarmerFormViewState extends State<FarmerFormView> {
       } else {
         v = df.value;
       }
-
-      // Check required validation
-      if (df.field.required) {
-        bool isEmpty = false;
-        if (v == null) {
-          isEmpty = true;
-        } else if (v is String && v.isEmpty) {
-          isEmpty = true;
-        } else if (v is List) {
-          if (v.isEmpty) {
-            isEmpty = true;
-          } else if (df.field.isPopupForm && v is List<DynamicFieldModel>) {
-            bool hasSubData = false;
-            for (final subDf in v) {
-              if (subDf.value != null &&
-                  subDf.value.toString().trim().isNotEmpty) {
-                hasSubData = true;
-                break;
-              }
-            }
-            if (!hasSubData) isEmpty = true;
-          }
-        }
-
-        if (isEmpty) {
-          if (mounted) {
-            setState(() => _autoValidateMode = AutovalidateMode.always);
-            context
-                .showSnack('Please fill the required field: ${df.field.label}');
-          }
-          return;
-        }
-      }
-
-      // Track if form has any data at all
       if (v != null) {
         if (v is String && v.isNotEmpty) hasData = true;
         if (v is num || v is bool) hasData = true;
@@ -510,6 +496,8 @@ class _FarmerFormViewState extends State<FarmerFormView> {
       value: df.value,
       textController: _dynTextCtrl[f.key],
       accentColor: catColor,
+      hasError: df.hasError,
+      errorMessage: df.errorMessage,
       onChanged: (val) => _vm.updateDynamicFieldValue(f.key, val),
       onPopupFormPressed:
           f.isPopupForm ? () => _openPopupFormSheet(df, catColor) : null,
@@ -799,8 +787,7 @@ class _PopupFormSheetState extends State<_PopupFormSheet> {
         maxChildSize: 0.92,
         minChildSize: 0.4,
         builder: (_, ctrl) => ClipRRect(
-          borderRadius:
-              const BorderRadius.vertical(top: Radius.circular(24)),
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
           child: Scaffold(
             backgroundColor: Colors.white,
             body: Column(
@@ -831,8 +818,8 @@ class _PopupFormSheetState extends State<_PopupFormSheet> {
                       ),
                       IconButton(
                         onPressed: () => Navigator.pop(context),
-                        icon: const Icon(
-                            Icons.close, color: AppColors.textMedium),
+                        icon: const Icon(Icons.close,
+                            color: AppColors.textMedium),
                       ),
                     ],
                   ),
@@ -850,8 +837,7 @@ class _PopupFormSheetState extends State<_PopupFormSheet> {
                           ..._fields
                               .where((df) => _isSubFieldVisible(df))
                               .map((df) => Padding(
-                                    padding:
-                                        const EdgeInsets.only(bottom: 14),
+                                    padding: const EdgeInsets.only(bottom: 14),
                                     child: _buildSubField(df, color),
                                   )),
                           const SizedBox(height: 8),

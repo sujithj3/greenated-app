@@ -279,6 +279,21 @@ class DynamicFieldModel {
   bool isLoadingOptions;
   String? optionsError;
 
+  /// Validation error state – set by the recursive validator, read by the UI.
+  /// Display-only — excluded from toJson / copyWith.
+  bool hasError = false;
+  String? errorMessage;
+
+  void setError(String msg) {
+    hasError = true;
+    errorMessage = msg;
+  }
+
+  void clearError() {
+    hasError = false;
+    errorMessage = null;
+  }
+
   int _fetchGeneration = 0;
   int get fetchGeneration => _fetchGeneration;
   void incrementFetchGeneration() => _fetchGeneration++;
@@ -441,7 +456,8 @@ String formatDateForDisplay(String value) {
 ///
 /// A field is visible when it has no visibility condition, or when its parent's
 /// current value is contained in the field's showWhen list.
-bool shouldShowField(DynamicFieldModel field, List<DynamicFieldModel> allFields) {
+bool shouldShowField(
+    DynamicFieldModel field, List<DynamicFieldModel> allFields) {
   final apiField = field.field;
   if (!apiField.hasVisibilityCondition) return true;
 

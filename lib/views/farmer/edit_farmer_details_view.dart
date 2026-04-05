@@ -8,6 +8,7 @@ import '../../services/auth_service.dart';
 import '../../services/image_upload_service.dart';
 import '../../services/registration_form_service.dart';
 import '../../utils/app_colors.dart';
+import '../../utils/form_validator.dart';
 import '../../utils/snack_bar_helper.dart';
 import '../../view_models/farmer/edit_farmer_details_view_model.dart';
 import '../../widgets/dynamic_field_builder.dart';
@@ -146,7 +147,12 @@ class _EditFarmerDetailsViewState extends State<EditFarmerDetailsView> {
       builder: (_) => _EditPopupFormSheet(
         parentField: df.field,
         initialFields: currentValues,
-        onSaved: (result) => _vm.updateFieldValue(df.field.key, result),
+        onSaved: (result) {
+          _vm.updateFieldValue(df.field.key, result);
+          // Clear parent error after popup is saved
+          df.clearError();
+          if (mounted) setState(() {});
+        },
         viewModel: _vm,
       ),
     );
@@ -183,49 +189,22 @@ class _EditFarmerDetailsViewState extends State<EditFarmerDetailsView> {
       _textCtrl.entries.map((e) => MapEntry(e.key, e.value.text)),
     );
 
-    // 2. Strict manual validation for all visible fields (including off-screen ones)
+    // 2. Recursive validation for all visible fields including popup children
     final visibleFields =
         _vm.fields.where((df) => _vm.isFieldVisible(df)).toList();
-    for (final df in visibleFields) {
-      if (df.field.required) {
-        dynamic v;
-        if (textValues.containsKey(df.field.key)) {
-          v = textValues[df.field.key]!.trim();
-          if ((v as String).isEmpty) v = null;
-        } else {
-          v = df.value;
-        }
+    final validationResult = validateFields(
+      visibleFields,
+      textValues: textValues,
+    );
 
-        bool isEmpty = false;
-        if (v == null) {
-          isEmpty = true;
-        } else if (v is String && v.isEmpty) {
-          isEmpty = true;
-        } else if (v is List) {
-          if (v.isEmpty) {
-            isEmpty = true;
-          } else if (df.field.isPopupForm && v is List<DynamicFieldModel>) {
-            bool hasSubData = false;
-            for (final subDf in v) {
-              if (subDf.value != null &&
-                  subDf.value.toString().trim().isNotEmpty) {
-                hasSubData = true;
-                break;
-              }
-            }
-            if (!hasSubData) isEmpty = true;
-          }
-        }
-
-        if (isEmpty) {
-          if (mounted) {
-            setState(() => _autoValidateMode = AutovalidateMode.always);
-            context
-                .showSnack('Please fill the required field: ${df.field.label}');
-          }
-          return;
-        }
+    if (!validationResult.isValid) {
+      if (mounted) {
+        setState(() => _autoValidateMode = AutovalidateMode.always);
+        context.showSnack(
+          'Please fill the required field: ${validationResult.firstInvalidLabel}',
+        );
       }
+      return;
     }
 
     if (!isFormValid) {
@@ -386,6 +365,8 @@ class _EditFarmerDetailsViewState extends State<EditFarmerDetailsView> {
       value: _textCtrl.containsKey(f.key) ? _textCtrl[f.key]!.text : df.value,
       textController: _textCtrl[f.key],
       accentColor: AppColors.primary,
+      hasError: df.hasError,
+      errorMessage: df.errorMessage,
       onChanged: (val) {
         _vm.updateFieldValue(f.key, val);
       },
@@ -581,8 +562,7 @@ class _EditPopupFormSheetState extends State<_EditPopupFormSheet> {
         maxChildSize: 0.92,
         minChildSize: 0.4,
         builder: (_, ctrl) => ClipRRect(
-          borderRadius:
-              const BorderRadius.vertical(top: Radius.circular(24)),
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
           child: Scaffold(
             backgroundColor: Colors.white,
             body: Column(
@@ -614,8 +594,8 @@ class _EditPopupFormSheetState extends State<_EditPopupFormSheet> {
                       ),
                       IconButton(
                         onPressed: () => Navigator.pop(context),
-                        icon: const Icon(
-                            Icons.close, color: AppColors.textMedium),
+                        icon: const Icon(Icons.close,
+                            color: AppColors.textMedium),
                       ),
                     ],
                   ),
@@ -633,8 +613,7 @@ class _EditPopupFormSheetState extends State<_EditPopupFormSheet> {
                           ..._fields
                               .where((df) => _isSubFieldVisible(df))
                               .map((df) => Padding(
-                                    padding:
-                                        const EdgeInsets.only(bottom: 14),
+                                    padding: const EdgeInsets.only(bottom: 14),
                                     child: _buildSubField(df),
                                   )),
                           const SizedBox(height: 8),
