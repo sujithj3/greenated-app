@@ -14,6 +14,7 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import '../../utils/app_colors.dart';
 import '../../utils/snack_bar_helper.dart';
 import '../../view_models/tools/land_measurement_view_model.dart';
+import '../../widgets/custom_map_pin.dart';
 
 class LandMeasurementView extends StatefulWidget {
   const LandMeasurementView({super.key});
@@ -39,6 +40,7 @@ class _LandMeasurementViewState extends State<LandMeasurementView> {
   void initState() {
     super.initState();
     _vm = LandMeasurementViewModel();
+    _vm.loadIcons(); // Pre-warm custom marker icon cache
   }
 
   bool _isInit = false;
@@ -154,7 +156,24 @@ class _LandMeasurementViewState extends State<LandMeasurementView> {
 
   // ─── Map interactions ─────────────────────────────────────────────────────
 
-  void _onTap(LatLng position) => _vm.addPoint(position);
+  void _onTap(LatLng position) {
+    if (_vm.activeIndex != null) {
+      if (_vm.isTapOnActivePoint(position)) {
+        return; // Ignore the native tap event if it was actually on the active marker
+      }
+      _vm.setActiveIndex(null); // Hide the custom pin by deselecting
+    } else {
+      _vm.addPoint(position);
+    }
+  }
+
+  /// Delete vertex with snackbar feedback.
+  void _onVertexDelete(int index) {
+    final removed = _vm.removePoint(index);
+    if (removed && mounted) {
+      context.showSnack('Point ${index + 1} deleted');
+    }
+  }
 
   void _done() {
     if (!_vm.canComplete) {
@@ -163,6 +182,8 @@ class _LandMeasurementViewState extends State<LandMeasurementView> {
     }
     Navigator.pop(context, _vm.getResult());
   }
+
+  // ─── Build ────────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
@@ -186,146 +207,95 @@ class _LandMeasurementViewState extends State<LandMeasurementView> {
           ),
           body: Stack(
             children: [
-              GoogleMap(
-                onMapCreated: (ctrl) => _mapController = ctrl,
-                initialCameraPosition: points.isNotEmpty
-                    ? CameraPosition(target: points.first, zoom: 18)
-                    : _defaultCamera,
-                mapType: _mapType,
-                myLocationEnabled: true,
-                myLocationButtonEnabled: false,
-                onTap: _viewOnly ? null : _onTap,
-                markers: _vm.buildMarkers(),
-                polylines: _vm.buildPolylines(),
-                polygons: _vm.buildPolygon(),
-                zoomControlsEnabled: false,
+              // ── Google Map ──────────────────────────────────────────────
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  // Keep map size in sync for projection math
+                  _vm.updateMapSize(Size(constraints.maxWidth, constraints.maxHeight));
+                  
+                  return Listener(
+                    onPointerDown: (event) {
+                      if (!_viewOnly) {
+                        _vm.handlePointerDown(event.localPosition);
+                      }
+                    },
+                    onPointerMove: (event) {
+                      if (!_viewOnly && _vm.isManualDragging) {
+                        _vm.handlePointerMove(event.localPosition);
+                      }
+                    },
+                    onPointerUp: (event) {
+                      if (!_viewOnly) {
+                        _vm.handlePointerUp();
+                      }
+                    },
+                    child: GoogleMap(
+                      onMapCreated: (ctrl) {
+                        _mapController = ctrl;
+                        // Initialize VM camera state
+                        final initialPos = points.isNotEmpty
+                            ? CameraPosition(target: points.first, zoom: 18)
+                            : _defaultCamera;
+                        _vm.updateCamera(initialPos);
+                      },
+                      initialCameraPosition: points.isNotEmpty
+                          ? CameraPosition(target: points.first, zoom: 18)
+                          : _defaultCamera,
+                      mapType: _mapType,
+                      myLocationEnabled: true,
+                      myLocationButtonEnabled: false,
+                      onTap: _viewOnly ? null : _onTap,
+                      onCameraMove: (pos) => _vm.updateCamera(pos),
+                      markers: _vm.buildMarkers(viewOnly: _viewOnly),
+                      polylines: _vm.buildPolylines(),
+                      polygons: _vm.buildPolygon(),
+                      zoomControlsEnabled: false,
+                      scrollGesturesEnabled: !_vm.isManualDragging,
+                      rotateGesturesEnabled: !_vm.isManualDragging,
+                      tiltGesturesEnabled: !_vm.isManualDragging,
+                      zoomGesturesEnabled: !_vm.isManualDragging,
+                    ),
+                  );
+                },
               ),
+
+              // ── Active Point Drag Handler (Custom Map Pin) ──────────────
+              if (!_viewOnly)
+                ValueListenableBuilder<CameraPosition>(
+                  valueListenable: _vm.cameraNotifier,
+                  builder: (context, camera, child) {
+                    if (_vm.activeIndex == null || _vm.activePointScreenPos == null) {
+                      return const SizedBox.shrink();
+                    }
+                    return Positioned(
+                      left: _vm.activePointScreenPos!.dx - 24, // center horizontally (new width 48 / 2 = 24)
+                      top: _vm.activePointScreenPos!.dy, // point at top, so start at dy
+                      child: const IgnorePointer(
+                        child: CustomMapPin(
+                          width: 48,
+                          height: 64,
+                          iconSize: 20,
+                          isUpsideDown: true,
+                          pinColor: Colors.red, // Solid red as requested
+                        ),
+                      ),
+                    );
+                  },
+                ),
 
               // ── Top Info Panel ────────────────────────────────────────
               Positioned(
                 top: 12,
                 left: 12,
                 right: 12,
-                child: Card(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 16, vertical: 12),
-                    child: Row(
-                      children: [
-                        const Icon(Icons.info_outline,
-                            color: AppColors.primary, size: 20),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                _viewOnly
-                                    ? (points.isEmpty
-                                        ? 'No boundary points recorded'
-                                        : points.length < 3
-                                            ? '${points.length} point(s) recorded'
-                                            : 'Area: ${_vm.areaInAcres.toStringAsFixed(4)} Acres')
-                                    : (points.isEmpty
-                                        ? 'Tap on the map to mark land boundary points'
-                                        : points.length < 3
-                                            ? 'Add ${3 - points.length} more point(s) to form polygon'
-                                            : 'Area: ${_vm.areaInAcres.toStringAsFixed(4)} Acres'),
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.w600,
-                                  color: AppColors.dark,
-                                ),
-                              ),
-                              if (points.isNotEmpty)
-                                Text(
-                                  '${points.length} point(s) marked',
-                                  style: const TextStyle(
-                                      fontSize: 12,
-                                      color: AppColors.textMedium),
-                                ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
+                child: _buildInfoPanel(points),
               ),
 
               // ── Bottom Controls ───────────────────────────────────────
               Positioned(
                 bottom: 16,
                 right: 16,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    FloatingActionButton.small(
-                      heroTag: 'maptype',
-                      onPressed: () => setState(() {
-                        _mapType = _mapType == MapType.hybrid
-                            ? MapType.normal
-                            : MapType.hybrid;
-                      }),
-                      backgroundColor: Colors.white,
-                      child: Icon(
-                        _mapType == MapType.hybrid
-                            ? Icons.map
-                            : Icons.satellite_alt,
-                        color: AppColors.primary,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    FloatingActionButton.small(
-                      heroTag: 'locate',
-                      onPressed: _vm.isLocating ? null : _goToMyLocation,
-                      backgroundColor: Colors.white,
-                      child: _vm.isLocating
-                          ? const SizedBox(
-                              width: 18,
-                              height: 18,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : const Icon(Icons.my_location,
-                              color: AppColors.primary),
-                    ),
-                    const SizedBox(height: 8),
-                    if (!_viewOnly) ...[
-                      FloatingActionButton.small(
-                        heroTag: 'undo',
-                        onPressed:
-                            points.isEmpty ? null : _vm.undoLastPoint,
-                        backgroundColor: points.isEmpty
-                            ? Colors.grey.shade300
-                            : Colors.white,
-                        child: Icon(Icons.undo,
-                            color: points.isEmpty
-                                ? Colors.grey
-                                : AppColors.warning),
-                      ),
-                      const SizedBox(height: 8),
-                      FloatingActionButton.small(
-                        heroTag: 'clear',
-                        onPressed: points.isEmpty
-                            ? null
-                            : () {
-                                _vm.clearAll();
-                                final args = ModalRoute.of(context)
-                                    ?.settings.arguments as Map?;
-                                if (args != null && args['onClear'] != null) {
-                                  args['onClear']();
-                                }
-                              },
-                        backgroundColor: points.isEmpty
-                            ? Colors.grey.shade300
-                            : Colors.white,
-                        child: Icon(Icons.delete_outline,
-                            color: points.isEmpty
-                                ? Colors.grey
-                                : AppColors.error),
-                      ),
-                    ],
-                  ],
-                ),
+                child: _buildControlButtons(points),
               ),
 
               // ── Done FAB (bottom-left) ────────────────────────────────
@@ -349,6 +319,164 @@ class _LandMeasurementViewState extends State<LandMeasurementView> {
           ),
         );
       },
+    );
+  }
+
+  // ─── Info Panel ───────────────────────────────────────────────────────────
+
+  Widget _buildInfoPanel(List<LatLng> points) {
+    String primary;
+    String? secondary;
+
+    if (_viewOnly) {
+      if (points.isEmpty) {
+        primary = 'No boundary points recorded';
+      } else if (points.length < 3) {
+        primary = '${points.length} point(s) recorded';
+      } else {
+        primary = 'Area: ${_vm.areaInAcres.toStringAsFixed(4)} Acres';
+      }
+    } else {
+      if (points.isEmpty) {
+        primary = 'Tap on the map to start drawing';
+      } else if (points.length < 3) {
+        primary = 'Add ${3 - points.length} more point(s) to form polygon';
+      } else {
+        primary = 'Area: ${_vm.areaInAcres.toStringAsFixed(4)} Acres';
+        secondary = 'Drag points to adjust • Drag gray dots to add vertices';
+      }
+    }
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        child: Row(
+          children: [
+            const Icon(Icons.info_outline, color: AppColors.primary, size: 20),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    primary,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.dark,
+                    ),
+                  ),
+                  if (points.isNotEmpty)
+                    Text(
+                      '${points.length} point(s) marked',
+                      style: const TextStyle(
+                          fontSize: 12, color: AppColors.textMedium),
+                    ),
+                  if (secondary != null)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 2),
+                      child: Text(
+                        secondary,
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: AppColors.medium,
+                          fontStyle: FontStyle.italic,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ─── Control Buttons ──────────────────────────────────────────────────────
+
+  Widget _buildControlButtons(List<LatLng> points) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        // Map type toggle
+        FloatingActionButton.small(
+          heroTag: 'maptype',
+          onPressed: () => setState(() {
+            _mapType =
+                _mapType == MapType.hybrid ? MapType.normal : MapType.hybrid;
+          }),
+          backgroundColor: Colors.white,
+          child: Icon(
+            _mapType == MapType.hybrid ? Icons.map : Icons.satellite_alt,
+            color: AppColors.primary,
+          ),
+        ),
+        const SizedBox(height: 8),
+
+        // My location
+        FloatingActionButton.small(
+          heroTag: 'locate',
+          onPressed: _vm.isLocating ? null : _goToMyLocation,
+          backgroundColor: Colors.white,
+          child: _vm.isLocating
+              ? const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Icon(Icons.my_location, color: AppColors.primary),
+        ),
+
+        if (!_viewOnly) ...[
+          const SizedBox(height: 8),
+
+          // Undo
+          FloatingActionButton.small(
+            heroTag: 'undo',
+            onPressed: _vm.canUndo ? _vm.undo : null,
+            backgroundColor:
+                _vm.canUndo ? Colors.white : Colors.grey.shade300,
+            child: Icon(
+              Icons.undo,
+              color: _vm.canUndo ? AppColors.warning : Colors.grey,
+            ),
+          ),
+          const SizedBox(height: 8),
+
+          // Redo
+          FloatingActionButton.small(
+            heroTag: 'redo',
+            onPressed: _vm.canRedo ? _vm.redo : null,
+            backgroundColor:
+                _vm.canRedo ? Colors.white : Colors.grey.shade300,
+            child: Icon(
+              Icons.redo,
+              color: _vm.canRedo ? AppColors.warning : Colors.grey,
+            ),
+          ),
+          const SizedBox(height: 8),
+
+          // Clear all
+          FloatingActionButton.small(
+            heroTag: 'clear',
+            onPressed: points.isEmpty
+                ? null
+                : () {
+                    _vm.clearAll();
+                    final args =
+                        ModalRoute.of(context)?.settings.arguments as Map?;
+                    if (args != null && args['onClear'] != null) {
+                      args['onClear']();
+                    }
+                  },
+            backgroundColor:
+                points.isEmpty ? Colors.grey.shade300 : Colors.white,
+            child: Icon(Icons.delete_outline,
+                color: points.isEmpty ? Colors.grey : AppColors.error),
+          ),
+        ],
+      ],
     );
   }
 }
