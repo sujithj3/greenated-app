@@ -1,4 +1,5 @@
 import 'dart:ui' as ui;
+import 'package:flutter/services.dart' show rootBundle;
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 /// Generates custom circular marker icons for the polygon editor using
@@ -14,6 +15,7 @@ class PolygonMarkerIcons {
   static BitmapDescriptor? _vertexActive;
   static BitmapDescriptor? _vertexFirst;
   static BitmapDescriptor? _midpoint;
+  static BitmapDescriptor? _customPin;
 
   /// Normal vertex: filled green circle with white border.
   static Future<BitmapDescriptor> vertex() async {
@@ -57,9 +59,14 @@ class PolygonMarkerIcons {
     );
   }
 
+  /// Upside-down custom drag pin
+  static Future<BitmapDescriptor> customPin() async {
+    return _customPin ??= await _drawCustomPin();
+  }
+
   /// Pre-warm all icon caches. Call once during [initState].
   static Future<void> preload() async {
-    await Future.wait([vertex(), vertexActive(), vertexFirst(), midpoint()]);
+    await Future.wait([vertex(), vertexActive(), vertexFirst(), midpoint(), customPin()]);
   }
 
   // ── Private drawing helpers ───────────────────────────────────────────────
@@ -169,6 +176,81 @@ class PolygonMarkerIcons {
     final image = await recorder
         .endRecording()
         .toImage(pxSize.ceil(), pxSize.ceil());
+    final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
+    image.dispose();
+
+    return BitmapDescriptor.bytes(
+      bytes!.buffer.asUint8List(),
+      imagePixelRatio: dpr,
+    );
+  }
+
+  /// Draws the upside-down teardrop pin with the arrow icon
+  static Future<BitmapDescriptor> _drawCustomPin() async {
+    final double dpr = ui.PlatformDispatcher.instance.views.first.devicePixelRatio;
+    const double width = 48.0;
+    const double height = 64.0;
+    const double iconSize = 20.0;
+    
+    final double pxWidth = width * dpr;
+    final double pxHeight = height * dpr;
+    final double pxIconSize = iconSize * dpr;
+
+    final recorder = ui.PictureRecorder();
+    final canvas = ui.Canvas(recorder);
+
+    // 1. Draw the flipped teardrop shape
+    canvas.save();
+    canvas.translate(pxWidth / 2, pxHeight / 2);
+    canvas.scale(1.0, -1.0); // flip Y
+    canvas.translate(-pxWidth / 2, -pxHeight / 2);
+
+    final path = ui.Path();
+    path.moveTo(pxWidth / 2, pxHeight);
+    path.quadraticBezierTo(0, pxHeight * 0.7, 0, pxWidth / 2);
+    path.arcToPoint(
+      ui.Offset(pxWidth, pxWidth / 2),
+      radius: ui.Radius.circular(pxWidth / 2),
+      clockwise: true,
+    );
+    path.quadraticBezierTo(pxWidth, pxHeight * 0.7, pxWidth / 2, pxHeight);
+
+    canvas.drawPath(
+      path,
+      ui.Paint()
+        ..color = const ui.Color(0x99F44336) // Colors.red.withOpacity(0.6)
+        ..style = ui.PaintingStyle.fill
+        ..isAntiAlias = true,
+    );
+    canvas.restore();
+
+    // 2. Load and draw the arrow icon
+    try {
+      final data = await rootBundle.load('assets/images/four-way-arrow.png');
+      final codec = await ui.instantiateImageCodec(data.buffer.asUint8List(), targetWidth: pxIconSize.toInt());
+      final frame = await codec.getNextFrame();
+      
+      // Calculate visual center for the icon
+      // Flipped shape: tip is at y=0, circle center is at y = height - width/2
+      final double circleCenterY = height - (width / 2);
+      final double visualCenterY = circleCenterY + 4; // Shift down slightly
+      
+      final double pxVisualCenterY = visualCenterY * dpr;
+      final ui.Offset iconOffset = ui.Offset((pxWidth - pxIconSize) / 2, pxVisualCenterY - (pxIconSize / 2));
+      
+      canvas.drawImage(
+        frame.image,
+        iconOffset,
+        ui.Paint()
+          ..colorFilter = const ui.ColorFilter.mode(ui.Color(0xFFFFFFFF), ui.BlendMode.srcIn)
+          ..isAntiAlias = true,
+      );
+      frame.image.dispose();
+    } catch (e) {
+      // Ignore if icon fails to load
+    }
+
+    final image = await recorder.endRecording().toImage(pxWidth.ceil(), pxHeight.ceil());
     final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
     image.dispose();
 

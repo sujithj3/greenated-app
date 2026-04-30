@@ -14,7 +14,6 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import '../../utils/app_colors.dart';
 import '../../utils/snack_bar_helper.dart';
 import '../../view_models/tools/land_measurement_view_model.dart';
-import '../../widgets/custom_map_pin.dart';
 
 class LandMeasurementView extends StatefulWidget {
   const LandMeasurementView({super.key});
@@ -258,30 +257,6 @@ class _LandMeasurementViewState extends State<LandMeasurementView> {
                   );
                 },
               ),
-
-              // ── Active Point Drag Handler (Custom Map Pin) ──────────────
-              if (!_viewOnly)
-                ValueListenableBuilder<CameraPosition>(
-                  valueListenable: _vm.cameraNotifier,
-                  builder: (context, camera, child) {
-                    if (_vm.activeIndex == null || _vm.activePointScreenPos == null) {
-                      return const SizedBox.shrink();
-                    }
-                    return Positioned(
-                      left: _vm.activePointScreenPos!.dx - 24, // center horizontally (new width 48 / 2 = 24)
-                      top: _vm.activePointScreenPos!.dy, // point at top, so start at dy
-                      child: const IgnorePointer(
-                        child: CustomMapPin(
-                          width: 48,
-                          height: 64,
-                          iconSize: 20,
-                          isUpsideDown: true,
-                          pinColor: Colors.red, // Solid red as requested
-                        ),
-                      ),
-                    );
-                  },
-                ),
 
               // ── Top Info Panel ────────────────────────────────────────
               Positioned(

@@ -44,6 +44,7 @@ class LandMeasurementViewModel extends ChangeNotifier {
   BitmapDescriptor? _iconVertexActive;
   BitmapDescriptor? _iconVertexFirst;
   BitmapDescriptor? _iconMidpoint;
+  BitmapDescriptor? _iconCustomPin;
 
   bool _iconsReady = false;
 
@@ -98,6 +99,7 @@ class LandMeasurementViewModel extends ChangeNotifier {
     _iconVertexActive = await PolygonMarkerIcons.vertexActive();
     _iconVertexFirst = await PolygonMarkerIcons.vertexFirst();
     _iconMidpoint = await PolygonMarkerIcons.midpoint();
+    _iconCustomPin = await PolygonMarkerIcons.customPin();
     _iconsReady = true;
     notifyListeners();
   }
@@ -444,20 +446,17 @@ class LandMeasurementViewModel extends ChangeNotifier {
       final isActive = i == _activeIndex;
       final isFirst = i == 0;
 
-      if (isActive && !viewOnly) {
-        // Skip adding the native marker for the active point so we can show 
-        // the CustomMapPin as an overlay drag handler instead.
-        continue;
-      }
-
       BitmapDescriptor icon;
+      Offset anchor = const Offset(0.5, 0.5);
+
       if (!_iconsReady) {
         // Fallback while icons load
         icon = BitmapDescriptor.defaultMarkerWithHue(
           isFirst ? BitmapDescriptor.hueGreen : BitmapDescriptor.hueOrange,
         );
-      } else if (isActive) {
-        icon = _iconVertexActive!;
+      } else if (isActive && !viewOnly) {
+        icon = _iconCustomPin!;
+        anchor = const Offset(0.5, 0.0); // Upside-down pin anchor is top-center
       } else if (isFirst) {
         icon = _iconVertexFirst!;
       } else {
@@ -469,7 +468,7 @@ class LandMeasurementViewModel extends ChangeNotifier {
         markerId: MarkerId('vertex_$index'),
         position: _points[index],
         icon: icon,
-        anchor: const Offset(0.5, 0.5),
+        anchor: anchor,
         draggable: false, // We handle dragging manually for immediate response
         zIndexInt: isActive ? 3 : 2,
         onTap: () => setActiveIndex(index),
