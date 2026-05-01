@@ -21,11 +21,11 @@ class LandMeasurementViewModel extends ChangeNotifier {
 
   /// Immediate dragging state
   int? _draggingVertexIndex;
-  int? _draggingMidpointIndex;
   bool _isManualDragging = false;
   Offset? _dragOffset;
 
-  final ValueNotifier<CameraPosition> cameraNotifier = ValueNotifier(const CameraPosition(target: LatLng(0, 0), zoom: 0));
+  final ValueNotifier<CameraPosition> cameraNotifier =
+      ValueNotifier(const CameraPosition(target: LatLng(0, 0), zoom: 0));
   Size _mapSize = Size.zero;
 
   /// Index of the vertex currently being dragged (null when idle).
@@ -41,12 +41,12 @@ class LandMeasurementViewModel extends ChangeNotifier {
   // ── Cached marker icons ───────────────────────────────────────────────────
 
   BitmapDescriptor? _iconVertex;
-  BitmapDescriptor? _iconVertexActive;
   BitmapDescriptor? _iconVertexFirst;
   BitmapDescriptor? _iconMidpoint;
   BitmapDescriptor? _iconCustomPin;
 
   bool _iconsReady = false;
+  static const Color _referencePolygonGreen = Color(0xFF00FF2A);
 
   // ── Public getters ────────────────────────────────────────────────────────
 
@@ -60,7 +60,9 @@ class LandMeasurementViewModel extends ChangeNotifier {
   bool get isManualDragging => _isManualDragging;
 
   Offset? get activePointScreenPos {
-    if (_activeIndex == null || _activeIndex! < 0 || _activeIndex! >= _points.length) {
+    if (_activeIndex == null ||
+        _activeIndex! < 0 ||
+        _activeIndex! >= _points.length) {
       return null;
     }
     return _latLngToScreen(_points[_activeIndex!]);
@@ -96,7 +98,6 @@ class LandMeasurementViewModel extends ChangeNotifier {
   Future<void> loadIcons() async {
     await PolygonMarkerIcons.preload();
     _iconVertex = await PolygonMarkerIcons.vertex();
-    _iconVertexActive = await PolygonMarkerIcons.vertexActive();
     _iconVertexFirst = await PolygonMarkerIcons.vertexFirst();
     _iconMidpoint = await PolygonMarkerIcons.midpoint();
     _iconCustomPin = await PolygonMarkerIcons.customPin();
@@ -162,7 +163,8 @@ class LandMeasurementViewModel extends ChangeNotifier {
     // Adjust active index
     if (_activeIndex != null) {
       if (_activeIndex == index) {
-        _activeIndex = _points.isEmpty ? null : index.clamp(0, _points.length - 1);
+        _activeIndex =
+            _points.isEmpty ? null : index.clamp(0, _points.length - 1);
       } else if (_activeIndex! > index) {
         _activeIndex = _activeIndex! - 1;
       }
@@ -189,7 +191,7 @@ class LandMeasurementViewModel extends ChangeNotifier {
     // 1. Check vertices first (higher priority)
     for (int i = 0; i < _points.length; i++) {
       final screenPos = _latLngToScreen(_points[i]);
-      
+
       bool isHit = false;
       if (i == _activeIndex) {
         // Active point uses CustomMapPin bounds (width 48, height 64, hanging down from tip)
@@ -253,7 +255,6 @@ class LandMeasurementViewModel extends ChangeNotifier {
     if (_isManualDragging) {
       _isManualDragging = false;
       _draggingVertexIndex = null;
-      _draggingMidpointIndex = null;
       _dragOffset = null;
       _recalculate();
       notifyListeners();
@@ -381,9 +382,8 @@ class LandMeasurementViewModel extends ChangeNotifier {
   Map<String, dynamic> getResult() {
     return {
       'area': _areaInAcres,
-      'coordinates': _points
-          .map((p) => {'lat': p.latitude, 'lng': p.longitude})
-          .toList(),
+      'coordinates':
+          _points.map((p) => {'lat': p.latitude, 'lng': p.longitude}).toList(),
     };
   }
 
@@ -451,9 +451,7 @@ class LandMeasurementViewModel extends ChangeNotifier {
 
       if (!_iconsReady) {
         // Fallback while icons load
-        icon = BitmapDescriptor.defaultMarkerWithHue(
-          isFirst ? BitmapDescriptor.hueGreen : BitmapDescriptor.hueOrange,
-        );
+        icon = BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen);
       } else if (isActive && !viewOnly) {
         icon = _iconCustomPin!;
         anchor = const Offset(0.5, 0.0); // Upside-down pin anchor is top-center
@@ -479,14 +477,13 @@ class LandMeasurementViewModel extends ChangeNotifier {
     if (!viewOnly && _points.length >= 2) {
       final mids = midpoints;
       for (int i = 0; i < mids.length; i++) {
-        final insertIndex = i + 1;
-
         markers.add(Marker(
           markerId: MarkerId('mid_$i'),
           position: mids[i],
           icon: _iconsReady
               ? _iconMidpoint!
-              : BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueAzure),
+              : BitmapDescriptor.defaultMarkerWithHue(
+                  BitmapDescriptor.hueAzure),
           anchor: const Offset(0.5, 0.5),
           draggable: false, // Handled manually
           zIndexInt: 1,
@@ -506,7 +503,7 @@ class LandMeasurementViewModel extends ChangeNotifier {
       Polyline(
         polylineId: const PolylineId('boundary'),
         points: path,
-        color: const Color(0xFF8BC34A),
+        color: _referencePolygonGreen,
         width: 3,
       ),
     };
@@ -518,9 +515,9 @@ class LandMeasurementViewModel extends ChangeNotifier {
       Polygon(
         polygonId: const PolygonId('land'),
         points: _points,
-        fillColor: const Color(0xFF2E7D32).withValues(alpha: 0.25),
-        strokeColor: const Color(0xFF2E7D32),
-        strokeWidth: 2,
+        fillColor: _referencePolygonGreen.withValues(alpha: 0.35),
+        strokeColor: _referencePolygonGreen,
+        strokeWidth: 3,
       ),
     };
   }

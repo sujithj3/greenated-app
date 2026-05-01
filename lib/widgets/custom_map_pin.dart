@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 
-/// A modern, reusable custom map pin marker widget.
-/// 
-/// It draws a teardrop/pin shape programmatically using [CustomPainter] 
-/// with smooth Bezier curves and places an icon inside the top circular area.
+/// A reusable custom map pin marker widget.
+///
+/// It draws a soft teardrop/pin shape programmatically using [CustomPainter]
+/// with smooth Bezier curves and places an icon inside the circular area.
 class CustomMapPin extends StatelessWidget {
+  static const Color referencePinColor = Color(0xFFE95B4F);
+
   final double width;
   final double height;
   final Color pinColor;
@@ -16,7 +18,7 @@ class CustomMapPin extends StatelessWidget {
     super.key,
     this.width = 72,
     this.height = 96,
-    this.pinColor = Colors.red,
+    this.pinColor = referencePinColor,
     this.iconAsset = 'assets/images/four-way-arrow.png',
     this.iconSize = 40,
     this.isUpsideDown = false,
@@ -24,11 +26,10 @@ class CustomMapPin extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Calculate the visual center of the top circle
-    final double circleCenterY = isUpsideDown ? height - (width / 2) : width / 2;
-    
-    // Shift slightly towards the circle center for better visual balance
-    final double visualCenterY = isUpsideDown ? circleCenterY + 4 : circleCenterY - 4;
+    final double circleCenterY =
+        isUpsideDown ? height - (width / 2) : width / 2;
+    final double visualCenterY =
+        isUpsideDown ? circleCenterY + 4 : circleCenterY - 4;
 
     Widget paintWidget = CustomPaint(
       size: Size(width, height),
@@ -51,8 +52,6 @@ class CustomMapPin extends StatelessWidget {
         alignment: Alignment.topCenter,
         children: [
           paintWidget,
-          
-          // The icon, positioned inside the circle
           Positioned(
             top: visualCenterY - (iconSize / 2),
             child: Image.asset(
@@ -80,33 +79,30 @@ class _MapPinPainter extends CustomPainter {
       ..style = PaintingStyle.fill
       ..isAntiAlias = true;
 
-    final path = Path();
-    
-    // Start at the bottom pointed tip
-    path.moveTo(size.width / 2, size.height);
-    
-    // Left smooth curve from bottom tip to the left edge of the top circle
-    path.quadraticBezierTo(
-      0, 
-      size.height * 0.7, 
-      0, 
-      size.width / 2,
-    );
-    
-    // Top semi-circle
-    path.arcToPoint(
-      Offset(size.width, size.width / 2),
-      radius: Radius.circular(size.width / 2),
-      clockwise: true,
-    );
-    
-    // Right smooth curve from the right edge back down to the bottom tip
-    path.quadraticBezierTo(
-      size.width, 
-      size.height * 0.7, 
-      size.width / 2, 
-      size.height,
-    );
+    final path = Path()
+      ..moveTo(size.width / 2, size.height)
+      ..cubicTo(
+        size.width * 0.18,
+        size.height * 0.78,
+        0,
+        size.height * 0.56,
+        0,
+        size.width / 2,
+      )
+      ..arcToPoint(
+        Offset(size.width, size.width / 2),
+        radius: Radius.circular(size.width / 2),
+        clockwise: true,
+      )
+      ..cubicTo(
+        size.width,
+        size.height * 0.56,
+        size.width * 0.82,
+        size.height * 0.78,
+        size.width / 2,
+        size.height,
+      )
+      ..close();
 
     canvas.drawPath(path, paint);
   }

@@ -131,7 +131,8 @@ class _LandMeasurementViewState extends State<LandMeasurementView> {
       _moveCameraToPosition(position, zoom: 18);
     } on TimeoutException {
       if (fallbackPosition == null && mounted) {
-        context.showSnack('Timed out while fetching location. Please try again.');
+        context
+            .showSnack('Timed out while fetching location. Please try again.');
       }
     } catch (e) {
       if (fallbackPosition == null && mounted) {
@@ -163,14 +164,6 @@ class _LandMeasurementViewState extends State<LandMeasurementView> {
       _vm.setActiveIndex(null); // Hide the custom pin by deselecting
     } else {
       _vm.addPoint(position);
-    }
-  }
-
-  /// Delete vertex with snackbar feedback.
-  void _onVertexDelete(int index) {
-    final removed = _vm.removePoint(index);
-    if (removed && mounted) {
-      context.showSnack('Point ${index + 1} deleted');
     }
   }
 
@@ -210,8 +203,9 @@ class _LandMeasurementViewState extends State<LandMeasurementView> {
               LayoutBuilder(
                 builder: (context, constraints) {
                   // Keep map size in sync for projection math
-                  _vm.updateMapSize(Size(constraints.maxWidth, constraints.maxHeight));
-                  
+                  _vm.updateMapSize(
+                      Size(constraints.maxWidth, constraints.maxHeight));
+
                   return Listener(
                     onPointerDown: (event) {
                       if (!_viewOnly) {
@@ -410,8 +404,7 @@ class _LandMeasurementViewState extends State<LandMeasurementView> {
           FloatingActionButton.small(
             heroTag: 'undo',
             onPressed: _vm.canUndo ? _vm.undo : null,
-            backgroundColor:
-                _vm.canUndo ? Colors.white : Colors.grey.shade300,
+            backgroundColor: _vm.canUndo ? Colors.white : Colors.grey.shade300,
             child: Icon(
               Icons.undo,
               color: _vm.canUndo ? AppColors.warning : Colors.grey,
@@ -423,8 +416,7 @@ class _LandMeasurementViewState extends State<LandMeasurementView> {
           FloatingActionButton.small(
             heroTag: 'redo',
             onPressed: _vm.canRedo ? _vm.redo : null,
-            backgroundColor:
-                _vm.canRedo ? Colors.white : Colors.grey.shade300,
+            backgroundColor: _vm.canRedo ? Colors.white : Colors.grey.shade300,
             child: Icon(
               Icons.redo,
               color: _vm.canRedo ? AppColors.warning : Colors.grey,
