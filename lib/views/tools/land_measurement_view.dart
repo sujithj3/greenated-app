@@ -8,6 +8,7 @@
 //   GMSServices.provideAPIKey("YOUR_GOOGLE_MAPS_API_KEY")
 
 import 'dart:async';
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
@@ -253,6 +254,21 @@ class _LandMeasurementViewState extends State<LandMeasurementView> {
                           tiltGesturesEnabled: !_vm.isManualDragging,
                           zoomGesturesEnabled: !_vm.isManualDragging,
                         ),
+                        if (!_vm.isManualDragging)
+                          Positioned.fill(
+                            child: IgnorePointer(
+                              child: ValueListenableBuilder<CameraPosition>(
+                                valueListenable: _vm.cameraNotifier,
+                                builder: (context, _, __) {
+                                  return CustomPaint(
+                                    painter: _LandDistanceLabelPainter(
+                                      edges: _vm.edgeMeasurements,
+                                    ),
+                                  );
+                                },
+                              ),
+                            ),
+                          ),
                         if (_vm.isManualDragging)
                           Positioned.fill(
                             child: IgnorePointer(
@@ -269,6 +285,11 @@ class _LandMeasurementViewState extends State<LandMeasurementView> {
                                           midpoints:
                                               _vm.midpointScreenPositions,
                                           activeIndex: _vm.activeIndex,
+                                        ),
+                                      ),
+                                      CustomPaint(
+                                        painter: _LandDistanceLabelPainter(
+                                          edges: _vm.edgeMeasurements,
                                         ),
                                       ),
                                       if (activePoint != null)
@@ -296,10 +317,13 @@ class _LandMeasurementViewState extends State<LandMeasurementView> {
 
               // ── Top Info Panel ────────────────────────────────────────
               Positioned(
-                top: 12,
-                left: 12,
-                right: 12,
-                child: _buildInfoPanel(points),
+                top: _vm.canComplete ? 0 : 12,
+                left: _vm.canComplete ? 0 : 12,
+                right: _vm.canComplete ? 0 : 12,
+                child: ValueListenableBuilder<int>(
+                  valueListenable: _vm.dragOverlayNotifier,
+                  builder: (context, _, __) => _buildInfoPanel(points),
+                ),
               ),
 
               // ── Bottom Controls ───────────────────────────────────────
@@ -338,6 +362,43 @@ class _LandMeasurementViewState extends State<LandMeasurementView> {
   Widget _buildInfoPanel(List<LatLng> points) {
     String primary;
     String? secondary;
+
+    if (points.length >= 3) {
+      return Container(
+        color: Colors.black.withValues(alpha: 0.55),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(
+                'Area ${_vm.areaInHectares.toStringAsFixed(2)} ha',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Text(
+                'Perimeter ${_formatPerimeter(_vm.perimeterInMeters)}',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.right,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
 
     if (_viewOnly) {
       if (points.isEmpty) {
@@ -402,6 +463,13 @@ class _LandMeasurementViewState extends State<LandMeasurementView> {
         ),
       ),
     );
+  }
+
+  String _formatPerimeter(double meters) {
+    if (meters >= 1000) {
+      return '${(meters / 1000).toStringAsFixed(2)} km';
+    }
+    return '${meters.toStringAsFixed(2)} m';
   }
 
   // ─── Control Buttons ──────────────────────────────────────────────────────
@@ -487,6 +555,111 @@ class _LandMeasurementViewState extends State<LandMeasurementView> {
         ],
       ],
     );
+  }
+}
+
+class _LandDistanceLabelPainter extends CustomPainter {
+  const _LandDistanceLabelPainter({
+    required this.edges,
+  });
+
+  final List<EdgeMeasurement> edges;
+
+  static const Color _labelFill = Color(0x8F000000);
+  static const double _horizontalPadding = 7;
+  static const double _verticalPadding = 3;
+  static const double _midpointHandleRadius = 6.5;
+  static const double _labelCircleGap = 1.5;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    for (final edge in edges) {
+      final label = _formatDistance(edge.distanceInMeters);
+      final textPainter = TextPainter(
+        text: TextSpan(
+          text: label,
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 15,
+            fontWeight: FontWeight.w500,
+            height: 1.0,
+          ),
+        ),
+        maxLines: 1,
+        textDirection: TextDirection.ltr,
+      )..layout();
+
+      final labelWidth = textPainter.width + (_horizontalPadding * 2);
+      final labelHeight = textPainter.height + (_verticalPadding * 2);
+      final labelRect = RRect.fromRectAndRadius(
+        Rect.fromCenter(
+          center: Offset.zero,
+          width: labelWidth,
+          height: labelHeight,
+        ),
+        const Radius.circular(3),
+      );
+
+      double angle = edge.screenAngle;
+      if (angle > math.pi / 2 || angle < -math.pi / 2) {
+        angle += math.pi;
+      }
+
+      final labelCenter = _labelCenterForEdge(
+        edge: edge,
+        labelSize: Size(labelWidth, labelHeight),
+      );
+
+      canvas
+        ..save()
+        ..translate(labelCenter.dx, labelCenter.dy)
+        ..rotate(angle)
+        ..drawRRect(
+          labelRect,
+          Paint()
+            ..color = _labelFill
+            ..style = PaintingStyle.fill
+            ..isAntiAlias = true,
+        );
+
+      textPainter.paint(
+        canvas,
+        Offset(
+          -textPainter.width / 2,
+          -textPainter.height / 2,
+        ),
+      );
+      canvas.restore();
+    }
+  }
+
+  static String _formatDistance(double meters) {
+    if (meters >= 1000) {
+      return '${(meters / 1000).toStringAsFixed(2)} km';
+    }
+    return '${meters.toStringAsFixed(2)} m';
+  }
+
+  Offset _labelCenterForEdge({
+    required EdgeMeasurement edge,
+    required Size labelSize,
+  }) {
+    final normal = Offset(
+      -math.sin(edge.screenAngle),
+      math.cos(edge.screenAngle),
+    );
+    final inwardDirection = edge.edgeCenter;
+    final normalPointsInward = inwardDirection != Offset.zero &&
+        (normal.dx * inwardDirection.dx + normal.dy * inwardDirection.dy) > 0;
+    final pointsOutside = normalPointsInward ? -normal : normal;
+    final clearance =
+        _midpointHandleRadius + (labelSize.height / 2) + _labelCircleGap;
+    return edge.screenMidpoint + pointsOutside * clearance;
+  }
+
+  @override
+  bool shouldRepaint(covariant _LandDistanceLabelPainter oldDelegate) {
+    return oldDelegate.edges != edges;
   }
 }
 

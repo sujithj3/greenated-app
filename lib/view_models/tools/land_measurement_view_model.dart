@@ -56,6 +56,7 @@ class LandMeasurementViewModel extends ChangeNotifier {
 
   List<LatLng> get points => List.unmodifiable(_points);
   double get areaInAcres => _areaInAcres;
+  double get areaInHectares => _areaInAcres * 0.40468564224;
   bool get isLocating => _isLocating;
   bool get canComplete => _points.length >= 3;
   int? get activeIndex => _activeIndex;
@@ -63,11 +64,53 @@ class LandMeasurementViewModel extends ChangeNotifier {
   bool get canRedo => _redoStack.isNotEmpty;
   bool get isManualDragging => _isManualDragging;
 
+  double get perimeterInMeters {
+    if (_points.length < 2) return 0;
+    final n = _points.length;
+    final wrap = n >= 3;
+    final count = wrap ? n : n - 1;
+    double total = 0;
+    for (int i = 0; i < count; i++) {
+      total += _distanceBetween(_points[i], _points[(i + 1) % n]);
+    }
+    return total;
+  }
+
   List<Offset> get pointScreenPositions =>
       _points.map(_latLngToScreen).toList(growable: false);
 
   List<Offset> get midpointScreenPositions =>
       midpoints.map(_latLngToScreen).toList(growable: false);
+
+  List<EdgeMeasurement> get edgeMeasurements {
+    if (_points.length < 2 || _mapSize == Size.zero) return const [];
+
+    final n = _points.length;
+    final wrap = n >= 3;
+    final count = wrap ? n : n - 1;
+    final edges = <EdgeMeasurement>[];
+    for (int i = 0; i < count; i++) {
+      final start = _points[i];
+      final end = _points[(i + 1) % n];
+      final startScreen = _latLngToScreen(start);
+      final endScreen = _latLngToScreen(end);
+      edges.add(
+        EdgeMeasurement(
+          distanceInMeters: _distanceBetween(start, end),
+          screenMidpoint: Offset(
+            (startScreen.dx + endScreen.dx) / 2,
+            (startScreen.dy + endScreen.dy) / 2,
+          ),
+          screenAngle: math.atan2(
+            endScreen.dy - startScreen.dy,
+            endScreen.dx - startScreen.dx,
+          ),
+          edgeCenter: _edgeCenterInScreenSpace(startScreen, endScreen),
+        ),
+      );
+    }
+    return edges;
+  }
 
   Offset? get activePointScreenPos {
     if (_activeIndex == null ||
@@ -241,6 +284,7 @@ class LandMeasurementViewModel extends ChangeNotifier {
         _draggingVertexIndex = insertIndex;
         _isManualDragging = true;
         _activeIndex = insertIndex;
+        _recalculate();
         notifyListeners();
         return true;
       }
@@ -287,6 +331,7 @@ class LandMeasurementViewModel extends ChangeNotifier {
     final targetScreenPos = localPos - (_dragOffset ?? Offset.zero);
     _points[_draggingVertexIndex!] = _screenToLatLng(targetScreenPos);
     _activeIndex = _draggingVertexIndex;
+    _recalculate();
     if (updateOverlay) {
       dragOverlayNotifier.value++;
     }
@@ -356,6 +401,24 @@ class LandMeasurementViewModel extends ChangeNotifier {
     final x = (latLng.longitude + 180) / 360;
     final y = (0.5 - math.log((1 + sinLat) / (1 - sinLat)) / (4 * math.pi));
     return Offset(x, y);
+  }
+
+  Offset _edgeCenterInScreenSpace(Offset start, Offset end) {
+    if (_points.length < 3) return Offset.zero;
+
+    final centroid = pointScreenPositions.fold<Offset>(
+          Offset.zero,
+          (sum, point) => sum + point,
+        ) /
+        _points.length.toDouble();
+    final midpoint = Offset(
+      (start.dx + end.dx) / 2,
+      (start.dy + end.dy) / 2,
+    );
+    final inwardVector = centroid - midpoint;
+    final distance = inwardVector.distance;
+    if (distance == 0) return Offset.zero;
+    return inwardVector / distance;
   }
 
   /// Set initial points (e.g. when viewing a saved polygon).
@@ -473,6 +536,27 @@ class LandMeasurementViewModel extends ChangeNotifier {
     return areaM2 * 0.000247105;
   }
 
+  double _distanceBetween(LatLng a, LatLng b) {
+    const double earthRadius = 6371008.8;
+    final double lat1 = a.latitude * math.pi / 180;
+    final double lat2 = b.latitude * math.pi / 180;
+    final double deltaLat = (b.latitude - a.latitude) * math.pi / 180;
+    final double deltaLng = (b.longitude - a.longitude) * math.pi / 180;
+
+    final double haversine = math.sin(deltaLat / 2) * math.sin(deltaLat / 2) +
+        math.cos(lat1) *
+            math.cos(lat2) *
+            math.sin(deltaLng / 2) *
+            math.sin(deltaLng / 2);
+    final double normalizedHaversine = haversine.clamp(0, 1).toDouble();
+    final double centralAngle = 2 *
+        math.atan2(
+          math.sqrt(normalizedHaversine),
+          math.sqrt(1 - normalizedHaversine),
+        );
+    return earthRadius * centralAngle;
+  }
+
   // ── Marker / Polygon / Polyline builders ──────────────────────────────────
 
   /// Builds the complete marker set: vertex markers + midpoint markers.
@@ -557,10 +641,25 @@ class LandMeasurementViewModel extends ChangeNotifier {
       Polygon(
         polygonId: const PolygonId('land'),
         points: _points,
-        fillColor: _referencePolygonGreen.withValues(alpha: 0.35),
+        fillColor: _referencePolygonGreen.withValues(alpha: 0.50),
         strokeColor: _referencePolygonGreen,
         strokeWidth: 3,
       ),
     };
   }
+}
+
+@immutable
+class EdgeMeasurement {
+  const EdgeMeasurement({
+    required this.distanceInMeters,
+    required this.screenMidpoint,
+    required this.screenAngle,
+    required this.edgeCenter,
+  });
+
+  final double distanceInMeters;
+  final Offset screenMidpoint;
+  final double screenAngle;
+  final Offset edgeCenter;
 }
