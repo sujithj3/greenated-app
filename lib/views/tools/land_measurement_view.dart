@@ -540,15 +540,15 @@ class _LandDragOverlayPainter extends CustomPainter {
       if (i == activeIndex) continue;
       final point = points[i];
       canvas
-        ..drawCircle(point, 13, handleFillPaint)
-        ..drawCircle(point, 13, handleBorderPaint);
+        ..drawCircle(point, 9.5, handleFillPaint)
+        ..drawCircle(point, 9.5, handleBorderPaint);
     }
 
     handleBorderPaint.strokeWidth = 1.5;
     for (final midpoint in midpoints) {
       canvas
-        ..drawCircle(midpoint, 9, handleFillPaint)
-        ..drawCircle(midpoint, 9, handleBorderPaint);
+        ..drawCircle(midpoint, 6.5, handleFillPaint)
+        ..drawCircle(midpoint, 6.5, handleBorderPaint);
     }
   }
 

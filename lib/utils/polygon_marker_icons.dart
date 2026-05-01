@@ -20,7 +20,7 @@ class PolygonMarkerIcons {
   /// Polygon vertex: large pale circle with a subtle gray outline.
   static Future<BitmapDescriptor> vertex() async {
     return _vertex ??= await _circle(
-      size: 26,
+      size: 19,
       fill: const ui.Color(0xE6F2F4F0),
       border: const ui.Color(0xB8D4DAD2),
       borderWidth: 1.75,
@@ -30,7 +30,7 @@ class PolygonMarkerIcons {
   /// Active fallback marker, kept visually aligned with normal vertices.
   static Future<BitmapDescriptor> vertexActive() async {
     return _vertexActive ??= await _circle(
-      size: 26,
+      size: 19,
       fill: const ui.Color(0xE6F2F4F0),
       border: const ui.Color(0xB8D4DAD2),
       borderWidth: 1.75,
@@ -40,7 +40,7 @@ class PolygonMarkerIcons {
   /// First vertex marker matches other vertices in the reference style.
   static Future<BitmapDescriptor> vertexFirst() async {
     return _vertexFirst ??= await _circle(
-      size: 26,
+      size: 19,
       fill: const ui.Color(0xE6F2F4F0),
       border: const ui.Color(0xB8D4DAD2),
       borderWidth: 1.75,
@@ -50,7 +50,7 @@ class PolygonMarkerIcons {
   /// Midpoint handle: smaller pale circle with a subtle gray outline.
   static Future<BitmapDescriptor> midpoint() async {
     return _midpoint ??= await _circle(
-      size: 18,
+      size: 13,
       fill: const ui.Color(0xE6F2F4F0),
       border: const ui.Color(0xB8D4DAD2),
       borderWidth: 1.5,
