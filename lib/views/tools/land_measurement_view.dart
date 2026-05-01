@@ -268,6 +268,7 @@ class _LandMeasurementViewState extends State<LandMeasurementView> {
                                           points: _vm.pointScreenPositions,
                                           midpoints:
                                               _vm.midpointScreenPositions,
+                                          activeIndex: _vm.activeIndex,
                                         ),
                                       ),
                                       if (activePoint != null)
@@ -493,10 +494,12 @@ class _LandDragOverlayPainter extends CustomPainter {
   const _LandDragOverlayPainter({
     required this.points,
     required this.midpoints,
+    required this.activeIndex,
   });
 
   final List<Offset> points;
   final List<Offset> midpoints;
+  final int? activeIndex;
 
   static const Color _polygonGreen = Color(0xFF00FF2A);
   static const Color _handleFill = Color(0xE6F2F4F0);
@@ -533,7 +536,9 @@ class _LandDragOverlayPainter extends CustomPainter {
       ..strokeWidth = 1.75
       ..isAntiAlias = true;
 
-    for (final point in points) {
+    for (int i = 0; i < points.length; i++) {
+      if (i == activeIndex) continue;
+      final point = points[i];
       canvas
         ..drawCircle(point, 13, handleFillPaint)
         ..drawCircle(point, 13, handleBorderPaint);
@@ -549,6 +554,8 @@ class _LandDragOverlayPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _LandDragOverlayPainter oldDelegate) {
-    return oldDelegate.points != points || oldDelegate.midpoints != midpoints;
+    return oldDelegate.points != points ||
+        oldDelegate.midpoints != midpoints ||
+        oldDelegate.activeIndex != activeIndex;
   }
 }
