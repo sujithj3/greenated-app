@@ -18,7 +18,7 @@ class CustomMapPin extends StatelessWidget {
     this.height = 96,
     this.pinColor = Colors.red,
     this.iconAsset = 'assets/images/four-way-arrow.png',
-    this.iconSize = 28,
+    this.iconSize = 40,
     this.isUpsideDown = false,
   });
 
@@ -33,7 +33,7 @@ class CustomMapPin extends StatelessWidget {
     Widget paintWidget = CustomPaint(
       size: Size(width, height),
       painter: _MapPinPainter(
-        color: pinColor.withValues(alpha: 0.6),
+        color: pinColor.withValues(alpha: 0.45),
       ),
     );
 

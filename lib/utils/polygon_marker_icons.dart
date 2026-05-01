@@ -190,7 +190,7 @@ class PolygonMarkerIcons {
     final double dpr = ui.PlatformDispatcher.instance.views.first.devicePixelRatio;
     const double width = 48.0;
     const double height = 64.0;
-    const double iconSize = 20.0;
+    const double iconSize = 40.0;
     
     final double pxWidth = width * dpr;
     final double pxHeight = height * dpr;
@@ -218,7 +218,7 @@ class PolygonMarkerIcons {
     canvas.drawPath(
       path,
       ui.Paint()
-        ..color = const ui.Color(0x99F44336) // Colors.red.withOpacity(0.6)
+        ..color = const ui.Color(0x73F44336) // Colors.red.withOpacity(0.45)
         ..style = ui.PaintingStyle.fill
         ..isAntiAlias = true,
     );
