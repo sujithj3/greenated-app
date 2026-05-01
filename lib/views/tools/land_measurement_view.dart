@@ -366,7 +366,7 @@ class _LandMeasurementViewState extends State<LandMeasurementView> {
     if (points.length >= 3) {
       return Container(
         color: Colors.black.withValues(alpha: 0.55),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
         child: Row(
           children: [
             Expanded(
@@ -376,7 +376,7 @@ class _LandMeasurementViewState extends State<LandMeasurementView> {
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
                   color: Colors.white,
-                  fontSize: 18,
+                  fontSize: 14,
                   fontWeight: FontWeight.w500,
                 ),
               ),
@@ -390,7 +390,7 @@ class _LandMeasurementViewState extends State<LandMeasurementView> {
                 textAlign: TextAlign.right,
                 style: const TextStyle(
                   color: Colors.white,
-                  fontSize: 18,
+                  fontSize: 14,
                   fontWeight: FontWeight.w500,
                 ),
               ),
