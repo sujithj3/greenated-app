@@ -14,6 +14,7 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import '../../utils/app_colors.dart';
 import '../../utils/snack_bar_helper.dart';
 import '../../view_models/tools/land_measurement_view_model.dart';
+import '../../widgets/custom_map_pin.dart';
 
 class LandMeasurementView extends StatefulWidget {
   const LandMeasurementView({super.key});
@@ -64,6 +65,7 @@ class _LandMeasurementViewState extends State<LandMeasurementView> {
   @override
   void dispose() {
     _mapController?.dispose();
+    _vm.dispose();
     super.dispose();
   }
 
@@ -222,31 +224,70 @@ class _LandMeasurementViewState extends State<LandMeasurementView> {
                         _vm.handlePointerUp();
                       }
                     },
-                    child: GoogleMap(
-                      onMapCreated: (ctrl) {
-                        _mapController = ctrl;
-                        // Initialize VM camera state
-                        final initialPos = points.isNotEmpty
-                            ? CameraPosition(target: points.first, zoom: 18)
-                            : _defaultCamera;
-                        _vm.updateCamera(initialPos);
-                      },
-                      initialCameraPosition: points.isNotEmpty
-                          ? CameraPosition(target: points.first, zoom: 18)
-                          : _defaultCamera,
-                      mapType: _mapType,
-                      myLocationEnabled: true,
-                      myLocationButtonEnabled: false,
-                      onTap: _viewOnly ? null : _onTap,
-                      onCameraMove: (pos) => _vm.updateCamera(pos),
-                      markers: _vm.buildMarkers(viewOnly: _viewOnly),
-                      polylines: _vm.buildPolylines(),
-                      polygons: _vm.buildPolygon(),
-                      zoomControlsEnabled: false,
-                      scrollGesturesEnabled: !_vm.isManualDragging,
-                      rotateGesturesEnabled: !_vm.isManualDragging,
-                      tiltGesturesEnabled: !_vm.isManualDragging,
-                      zoomGesturesEnabled: !_vm.isManualDragging,
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        GoogleMap(
+                          onMapCreated: (ctrl) {
+                            _mapController = ctrl;
+                            // Initialize VM camera state
+                            final initialPos = points.isNotEmpty
+                                ? CameraPosition(target: points.first, zoom: 18)
+                                : _defaultCamera;
+                            _vm.updateCamera(initialPos);
+                          },
+                          initialCameraPosition: points.isNotEmpty
+                              ? CameraPosition(target: points.first, zoom: 18)
+                              : _defaultCamera,
+                          mapType: _mapType,
+                          myLocationEnabled: true,
+                          myLocationButtonEnabled: false,
+                          onTap: _viewOnly ? null : _onTap,
+                          onCameraMove: (pos) => _vm.updateCamera(pos),
+                          markers: _vm.buildMarkers(viewOnly: _viewOnly),
+                          polylines: _vm.buildPolylines(),
+                          polygons: _vm.buildPolygon(),
+                          zoomControlsEnabled: false,
+                          scrollGesturesEnabled: !_vm.isManualDragging,
+                          rotateGesturesEnabled: !_vm.isManualDragging,
+                          tiltGesturesEnabled: !_vm.isManualDragging,
+                          zoomGesturesEnabled: !_vm.isManualDragging,
+                        ),
+                        if (_vm.isManualDragging)
+                          Positioned.fill(
+                            child: IgnorePointer(
+                              child: ValueListenableBuilder<int>(
+                                valueListenable: _vm.dragOverlayNotifier,
+                                builder: (context, _, __) {
+                                  final activePoint = _vm.activePointScreenPos;
+                                  return Stack(
+                                    fit: StackFit.expand,
+                                    children: [
+                                      CustomPaint(
+                                        painter: _LandDragOverlayPainter(
+                                          points: _vm.pointScreenPositions,
+                                          midpoints:
+                                              _vm.midpointScreenPositions,
+                                        ),
+                                      ),
+                                      if (activePoint != null)
+                                        Positioned(
+                                          left: activePoint.dx - 24,
+                                          top: activePoint.dy,
+                                          child: const CustomMapPin(
+                                            width: 48,
+                                            height: 64,
+                                            iconSize: 36,
+                                            isUpsideDown: true,
+                                          ),
+                                        ),
+                                    ],
+                                  );
+                                },
+                              ),
+                            ),
+                          ),
+                      ],
                     ),
                   );
                 },
@@ -445,5 +486,69 @@ class _LandMeasurementViewState extends State<LandMeasurementView> {
         ],
       ],
     );
+  }
+}
+
+class _LandDragOverlayPainter extends CustomPainter {
+  const _LandDragOverlayPainter({
+    required this.points,
+    required this.midpoints,
+  });
+
+  final List<Offset> points;
+  final List<Offset> midpoints;
+
+  static const Color _polygonGreen = Color(0xFF00FF2A);
+  static const Color _handleFill = Color(0xE6F2F4F0);
+  static const Color _handleBorder = Color(0xB8D4DAD2);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (points.length >= 2) {
+      final path = Path()..moveTo(points.first.dx, points.first.dy);
+      for (final point in points.skip(1)) {
+        path.lineTo(point.dx, point.dy);
+      }
+      if (points.length >= 3) path.close();
+
+      canvas.drawPath(
+        path,
+        Paint()
+          ..color = _polygonGreen
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 3
+          ..strokeCap = StrokeCap.round
+          ..strokeJoin = StrokeJoin.round
+          ..isAntiAlias = true,
+      );
+    }
+
+    final handleFillPaint = Paint()
+      ..color = _handleFill
+      ..style = PaintingStyle.fill
+      ..isAntiAlias = true;
+    final handleBorderPaint = Paint()
+      ..color = _handleBorder
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.75
+      ..isAntiAlias = true;
+
+    for (final point in points) {
+      canvas
+        ..drawCircle(point, 13, handleFillPaint)
+        ..drawCircle(point, 13, handleBorderPaint);
+    }
+
+    handleBorderPaint.strokeWidth = 1.5;
+    for (final midpoint in midpoints) {
+      canvas
+        ..drawCircle(midpoint, 9, handleFillPaint)
+        ..drawCircle(midpoint, 9, handleBorderPaint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _LandDragOverlayPainter oldDelegate) {
+    return oldDelegate.points != points || oldDelegate.midpoints != midpoints;
   }
 }

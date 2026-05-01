@@ -2,6 +2,7 @@ import 'dart:math' as math;
 import 'dart:ui' show Offset, Size;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/painting.dart' show Color;
+import 'package:flutter/scheduler.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 import '../../utils/polygon_marker_icons.dart';
@@ -23,9 +24,12 @@ class LandMeasurementViewModel extends ChangeNotifier {
   int? _draggingVertexIndex;
   bool _isManualDragging = false;
   Offset? _dragOffset;
+  Offset? _pendingDragLocalPos;
+  bool _dragFrameScheduled = false;
 
   final ValueNotifier<CameraPosition> cameraNotifier =
       ValueNotifier(const CameraPosition(target: LatLng(0, 0), zoom: 0));
+  final ValueNotifier<int> dragOverlayNotifier = ValueNotifier(0);
   Size _mapSize = Size.zero;
 
   /// Index of the vertex currently being dragged (null when idle).
@@ -58,6 +62,12 @@ class LandMeasurementViewModel extends ChangeNotifier {
   bool get canUndo => _undoStack.isNotEmpty;
   bool get canRedo => _redoStack.isNotEmpty;
   bool get isManualDragging => _isManualDragging;
+
+  List<Offset> get pointScreenPositions =>
+      _points.map(_latLngToScreen).toList(growable: false);
+
+  List<Offset> get midpointScreenPositions =>
+      midpoints.map(_latLngToScreen).toList(growable: false);
 
   Offset? get activePointScreenPos {
     if (_activeIndex == null ||
@@ -231,7 +241,6 @@ class LandMeasurementViewModel extends ChangeNotifier {
         _draggingVertexIndex = insertIndex;
         _isManualDragging = true;
         _activeIndex = insertIndex;
-        _recalculate();
         notifyListeners();
         return true;
       }
@@ -243,22 +252,51 @@ class LandMeasurementViewModel extends ChangeNotifier {
   void handlePointerMove(Offset localPos) {
     if (!_isManualDragging || _draggingVertexIndex == null) return;
 
-    final targetScreenPos = localPos - (_dragOffset ?? Offset.zero);
-    final newLatLng = _screenToLatLng(targetScreenPos);
-    _points[_draggingVertexIndex!] = newLatLng;
-    _activeIndex = _draggingVertexIndex;
-    _recalculate();
-    notifyListeners();
+    _pendingDragLocalPos = localPos;
+    if (_dragFrameScheduled) return;
+
+    _dragFrameScheduled = true;
+    SchedulerBinding.instance.scheduleFrameCallback((_) {
+      _dragFrameScheduled = false;
+      _applyPendingDragPosition();
+    });
   }
 
   void handlePointerUp() {
     if (_isManualDragging) {
+      _applyPendingDragPosition(updateOverlay: false);
       _isManualDragging = false;
       _draggingVertexIndex = null;
       _dragOffset = null;
+      _pendingDragLocalPos = null;
       _recalculate();
       notifyListeners();
     }
+  }
+
+  void _applyPendingDragPosition({bool updateOverlay = true}) {
+    if (!_isManualDragging || _draggingVertexIndex == null) {
+      _pendingDragLocalPos = null;
+      return;
+    }
+
+    final localPos = _pendingDragLocalPos;
+    if (localPos == null) return;
+
+    _pendingDragLocalPos = null;
+    final targetScreenPos = localPos - (_dragOffset ?? Offset.zero);
+    _points[_draggingVertexIndex!] = _screenToLatLng(targetScreenPos);
+    _activeIndex = _draggingVertexIndex;
+    if (updateOverlay) {
+      dragOverlayNotifier.value++;
+    }
+  }
+
+  @override
+  void dispose() {
+    cameraNotifier.dispose();
+    dragOverlayNotifier.dispose();
+    super.dispose();
   }
 
   // ── Projection Math ───────────────────────────────────────────────────────
@@ -439,6 +477,8 @@ class LandMeasurementViewModel extends ChangeNotifier {
 
   /// Builds the complete marker set: vertex markers + midpoint markers.
   Set<Marker> buildMarkers({bool viewOnly = false}) {
+    if (_isManualDragging) return {};
+
     final markers = <Marker>{};
 
     // ── Vertex markers ──────────────────────────────────────────────────────
@@ -495,6 +535,7 @@ class LandMeasurementViewModel extends ChangeNotifier {
   }
 
   Set<Polyline> buildPolylines() {
+    if (_isManualDragging) return {};
     if (_points.length < 2) return {};
     final List<LatLng> path = [..._points];
     if (_points.length >= 3) path.add(_points.first);
@@ -510,6 +551,7 @@ class LandMeasurementViewModel extends ChangeNotifier {
   }
 
   Set<Polygon> buildPolygon() {
+    if (_isManualDragging) return {};
     if (_points.length < 3) return {};
     return {
       Polygon(

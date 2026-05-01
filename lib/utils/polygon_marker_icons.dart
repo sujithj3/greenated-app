@@ -20,37 +20,37 @@ class PolygonMarkerIcons {
   /// Polygon vertex: large pale circle with a subtle gray outline.
   static Future<BitmapDescriptor> vertex() async {
     return _vertex ??= await _circle(
-      size: 34,
+      size: 26,
       fill: const ui.Color(0xE6F2F4F0),
       border: const ui.Color(0xB8D4DAD2),
-      borderWidth: 2,
+      borderWidth: 1.75,
     );
   }
 
   /// Active fallback marker, kept visually aligned with normal vertices.
   static Future<BitmapDescriptor> vertexActive() async {
     return _vertexActive ??= await _circle(
-      size: 34,
+      size: 26,
       fill: const ui.Color(0xE6F2F4F0),
       border: const ui.Color(0xB8D4DAD2),
-      borderWidth: 2,
+      borderWidth: 1.75,
     );
   }
 
   /// First vertex marker matches other vertices in the reference style.
   static Future<BitmapDescriptor> vertexFirst() async {
     return _vertexFirst ??= await _circle(
-      size: 34,
+      size: 26,
       fill: const ui.Color(0xE6F2F4F0),
       border: const ui.Color(0xB8D4DAD2),
-      borderWidth: 2,
+      borderWidth: 1.75,
     );
   }
 
   /// Midpoint handle: smaller pale circle with a subtle gray outline.
   static Future<BitmapDescriptor> midpoint() async {
     return _midpoint ??= await _circle(
-      size: 22,
+      size: 18,
       fill: const ui.Color(0xE6F2F4F0),
       border: const ui.Color(0xB8D4DAD2),
       borderWidth: 1.5,
