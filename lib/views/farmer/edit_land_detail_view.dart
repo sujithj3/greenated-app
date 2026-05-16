@@ -9,7 +9,7 @@ import '../../services/registration_form_service.dart';
 import '../../utils/app_colors.dart';
 import '../../utils/field_fill_state.dart';
 import '../../utils/snack_bar_helper.dart';
-import '../../view_models/farmer/edit_farmer_details_view_model.dart';
+import '../../view_models/farmer/add_land_detail_view_model.dart';
 import '../../widgets/dynamic_field_builder.dart';
 import '../../widgets/land_details_widgets.dart';
 import 'edit_farmer_details_view.dart';
@@ -31,22 +31,22 @@ class EditLandDetailView extends StatefulWidget {
 class _EditLandDetailViewState extends State<EditLandDetailView> {
   final _formKey = GlobalKey<FormState>();
   final Map<String, TextEditingController> _textCtrl = {};
-  late final EditFarmerDetailsViewModel _vm;
+  late final AddLandDetailViewModel _vm;
   bool _isInit = false;
   final AutovalidateMode _autoValidateMode = AutovalidateMode.disabled;
 
   @override
   void initState() {
     super.initState();
-    _vm = EditFarmerDetailsViewModel(
+    _vm = AddLandDetailViewModel(
       service: context.read<RegistrationFormService>(),
       authService: context.read<AuthService>(),
       apiClient: context.read<ApiClient>(),
       imageUploadService: context.read<ImageUploadService>(),
     );
     _vm.addListener(_onVmChanged);
-    _vm.useLocalFields(
-      widget.land.fields.map((field) => field.copyWith()).toList(),
+    _vm.useExistingLand(
+      land: widget.land,
       name: widget.title,
     );
   }

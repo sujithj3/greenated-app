@@ -10,6 +10,8 @@ import '../../services/registration_form_service.dart';
 import '../../utils/app_colors.dart';
 import '../../utils/form_validator.dart';
 import '../../utils/snack_bar_helper.dart';
+import '../../view_models/farmer/add_land_detail_view_model.dart';
+import '../../view_models/farmer/dynamic_field_form_view_model.dart';
 import '../../view_models/farmer/edit_farmer_details_view_model.dart';
 import '../../widgets/dynamic_field_builder.dart';
 import '../../widgets/land_details_widgets.dart';
@@ -37,6 +39,7 @@ class EditFarmerDetailsView extends StatefulWidget {
 class _EditFarmerDetailsViewState extends State<EditFarmerDetailsView> {
   final _formKey = GlobalKey<FormState>();
   late final EditFarmerDetailsViewModel _vm;
+  late final AddLandDetailViewModel _landVm;
   final Map<String, TextEditingController> _textCtrl = {};
   bool _isInit = false;
   final AutovalidateMode _autoValidateMode = AutovalidateMode.disabled;
@@ -45,6 +48,12 @@ class _EditFarmerDetailsViewState extends State<EditFarmerDetailsView> {
   void initState() {
     super.initState();
     _vm = EditFarmerDetailsViewModel(
+      service: context.read<RegistrationFormService>(),
+      authService: context.read<AuthService>(),
+      apiClient: context.read<ApiClient>(),
+      imageUploadService: context.read<ImageUploadService>(),
+    );
+    _landVm = AddLandDetailViewModel(
       service: context.read<RegistrationFormService>(),
       authService: context.read<AuthService>(),
       apiClient: context.read<ApiClient>(),
@@ -59,6 +68,7 @@ class _EditFarmerDetailsViewState extends State<EditFarmerDetailsView> {
     _isInit = true;
 
     _vm.addListener(_onVmChanged);
+    _landVm.addListener(_onVmChanged);
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (mounted) {
         await _vm.loadEditForm(
@@ -113,10 +123,12 @@ class _EditFarmerDetailsViewState extends State<EditFarmerDetailsView> {
   @override
   void dispose() {
     _vm.removeListener(_onVmChanged);
+    _landVm.removeListener(_onVmChanged);
     for (final c in _textCtrl.values) {
       c.dispose();
     }
     _vm.dispose();
+    _landVm.dispose();
     super.dispose();
   }
 
@@ -182,12 +194,12 @@ class _EditFarmerDetailsViewState extends State<EditFarmerDetailsView> {
 
   Future<void> _openAddLandDetailForm() async {
     final landFormData =
-        await _vm.loadLandForm(subcategoryId: widget.subcategoryId);
+        await _landVm.loadLandForm(subcategoryId: widget.subcategoryId);
     if (!mounted) return;
 
     if (landFormData == null) {
       context.showSnack(
-        _vm.landFormError ?? 'Unable to load land form. Please try again.',
+        _landVm.landFormError ?? 'Unable to load land form. Please try again.',
       );
       return;
     }
@@ -219,7 +231,7 @@ class _EditFarmerDetailsViewState extends State<EditFarmerDetailsView> {
         final isUploading =
             _vm.fields.any((df) => _vm.isFieldUploading(df.field.key));
         final showOverlay = _vm.isSaving ||
-            _vm.isLoadingLandForm ||
+            _landVm.isLoadingLandForm ||
             _vm.fields.any((df) => df.isLoadingOptions);
         final isBlocked = showOverlay || isUploading;
 
@@ -464,7 +476,7 @@ class EditPopupFormSheet extends StatefulWidget {
   final ApiField parentField;
   final List<DynamicFieldModel> initialFields;
   final void Function(List<DynamicFieldModel> updated) onSaved;
-  final EditFarmerDetailsViewModel viewModel;
+  final DynamicFieldFormViewModel viewModel;
 
   const EditPopupFormSheet({
     super.key,

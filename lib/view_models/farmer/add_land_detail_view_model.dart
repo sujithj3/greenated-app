@@ -1,5 +1,7 @@
 import 'dart:convert';
+
 import 'package:flutter/foundation.dart';
+
 import '../../core/network/api_client.dart';
 import '../../core/network/api_method.dart';
 import '../../core/network/api_request.dart';
@@ -10,17 +12,8 @@ import '../../services/image_upload_service.dart'
 import '../../services/registration_form_service.dart';
 import 'dynamic_field_form_view_model.dart';
 
-/// ViewModel for the Edit Farmer Details flow.
-///
-/// Maintains independent state from the create and detail view models.
-/// Fetches prefilled form data via the `form-edit` GET endpoint and
-/// exposes it for rendering in [EditFarmerDetailsView].
-///
-/// Dependent-dropdown fetching (e.g. state → district) is supported but
-/// only triggers on **user-initiated** field changes — NOT on initial load,
-/// because the API already returns the correct pre-resolved options.
-class EditFarmerDetailsViewModel extends DynamicFieldFormViewModel {
-  EditFarmerDetailsViewModel({
+class AddLandDetailViewModel extends DynamicFieldFormViewModel {
+  AddLandDetailViewModel({
     required RegistrationFormService service,
     required AuthService authService,
     required ApiClient apiClient,
@@ -35,109 +28,120 @@ class EditFarmerDetailsViewModel extends DynamicFieldFormViewModel {
   final ApiClient _apiClient;
   final ImageUploadService _imageUploadService;
 
-  // ── State ────────────────────────────────────────────────────────────────
-  bool isLoading = false;
   bool isSaving = false;
-  String? error;
+  bool isLoadingLandForm = false;
+  String? landFormError;
   String formName = '';
+  int? farmerId;
+  int? subcategoryId;
   List<DynamicFieldModel> fields = [];
-  List<LandDetail> landDetails = [];
 
-  /// Guards dependency handling: stays `false` until the initial load
-  /// completes, so prefilled values don't trigger cascading API calls.
-  bool _userInteractionEnabled = false;
-
-  /// Tracks per-field upload state for camera fields (key → isUploading).
   final Map<String, bool> _uploadingFields = {};
-
-  /// Whether a specific camera field is currently uploading.
-  @override
-  bool isFieldUploading(String key) => _uploadingFields[key] ?? false;
 
   int? get currentUserId => _authService.userId;
 
-  /// Whether a specific dependent dropdown field is currently loading.
-  bool isFieldLoadingOptions(String key) {
-    final idx = fields.indexWhere((df) => df.field.key == key);
-    return idx != -1 && fields[idx].isLoadingOptions;
-  }
+  bool isFieldVisible(DynamicFieldModel df) => shouldShowField(df, fields);
 
-  /// Fetches the edit form data for a given farmer.
-  ///
-  /// Calls the GET `form-edit` endpoint with [subcategoryId], [farmerId],
-  /// and the authenticated user's ID.
-  Future<void> loadEditForm({
-    required int subcategoryId,
-    required int farmerId,
-  }) async {
-    final userId = _authService.userId;
-    if (userId == null) {
-      error = 'User not authenticated.';
-      notifyListeners();
-      return;
-    }
+  @override
+  bool isFieldUploading(String key) => _uploadingFields[key] ?? false;
 
-    _userInteractionEnabled = false;
-    isLoading = true;
-    error = null;
+  Future<LandFormData?> loadLandForm({required int subcategoryId}) async {
+    isLoadingLandForm = true;
+    landFormError = null;
     notifyListeners();
 
     try {
-      final result =
-          await _service.fetchFormEdit(subcategoryId, farmerId, userId);
-      formName = result.formName;
-      fields = result.fields;
-      landDetails = result.landDetails;
+      final landFormData = await _service.fetchLandForm(subcategoryId);
+      if (landFormData.firstUsableForm == null) {
+        landFormError = 'No land form fields available.';
+        return null;
+      }
+      return landFormData;
     } catch (e) {
-      error = e.toString();
-      fields = [];
-      landDetails = [];
+      landFormError = e.toString();
+      return null;
     } finally {
-      isLoading = false;
-      // Enable dependency handling AFTER the initial load finishes.
-      _userInteractionEnabled = true;
+      isLoadingLandForm = false;
       notifyListeners();
     }
   }
 
-  /// Whether a field should be visible based on its showWhen condition.
-  bool isFieldVisible(DynamicFieldModel df) => shouldShowField(df, fields);
-
-  void useLocalFields(List<DynamicFieldModel> localFields, {String? name}) {
-    _userInteractionEnabled = true;
-    isLoading = false;
+  void useLandForm({
+    required LandFormData landFormData,
+    required int? farmerId,
+  }) {
+    final form = landFormData.firstUsableForm;
+    this.farmerId = farmerId;
+    subcategoryId = landFormData.subcategoryId;
+    formName = form?.formName ?? '';
+    fields = (form?.fields ?? const <ApiField>[])
+        .map((field) => DynamicFieldModel.fromApiField(field))
+        .toList();
+    isLoadingLandForm = false;
+    landFormError = null;
     isSaving = false;
-    error = null;
-    formName = name ?? formName;
-    fields = localFields;
-    landDetails = [];
     notifyListeners();
   }
 
-  /// Updates a dynamic field value by key.
-  ///
-  /// When called after the initial load (i.e. user-initiated), it triggers
-  /// dependent dropdown fetching for any child fields with a `dataSource`.
+  void useExistingLand({
+    required LandDetail land,
+    required String name,
+  }) {
+    farmerId = null;
+    subcategoryId = null;
+    formName = name;
+    fields = land.fields.map((field) => field.copyWith()).toList();
+    isSaving = false;
+    notifyListeners();
+  }
+
   void updateFieldValue(String key, dynamic value) {
     final idx = fields.indexWhere((df) => df.field.key == key);
-    if (idx != -1) {
-      fields[idx].value = value;
-      notifyListeners();
+    if (idx == -1) return;
+    fields[idx].value = value;
+    notifyListeners();
+    _handleDependencyChange(key);
+  }
 
-      // Only fire dependency handling on user-initiated changes.
-      if (_userInteractionEnabled) {
-        _handleDependencyChange(key);
-      }
+  void applyCurrentValues(Map<String, String> textValues) {
+    _applyCurrentValues(fields, textValues);
+    notifyListeners();
+  }
+
+  Future<bool> submitLandRegistration({
+    required Map<String, String> textValues,
+  }) async {
+    final landFarmerId = farmerId;
+    if (landFarmerId == null || landFarmerId <= 0) {
+      throw StateError('Farmer details not found. Please try again.');
+    }
+
+    applyCurrentValues(textValues);
+
+    isSaving = true;
+    notifyListeners();
+
+    final payload = _buildSubmitPayload();
+    final prettyJson = const JsonEncoder.withIndent('  ').convert(payload);
+    debugPrint('=== SUBMITTING ADD LAND REGISTRATION ===');
+    debugPrint(prettyJson);
+    debugPrint('========================================');
+
+    try {
+      await _service.submitLandRegistration(landFarmerId, payload);
+      debugPrint(
+          '=== ADD LAND REGISTRATION RESULT === action=register_land success=true');
+      return true;
+    } finally {
+      isSaving = false;
+      notifyListeners();
     }
   }
 
-  // ── Camera upload ─────────────────────────────────────────────────────────
-
-  /// Uploads a captured image for a camera-type dynamic field.
-  ///
-  /// Returns the [ImageUploadResult] on success, or null on failure.
   Future<ImageUploadResult?> uploadCameraImage(
-      String fieldKey, String localFilePath) async {
+    String fieldKey,
+    String localFilePath,
+  ) async {
     _uploadingFields[fieldKey] = true;
     notifyListeners();
 
@@ -159,7 +163,6 @@ class EditFarmerDetailsViewModel extends DynamicFieldFormViewModel {
     }
   }
 
-  /// Clears the uploaded image for a camera-type dynamic field.
   void clearCameraImage(String fieldKey) {
     final idx = fields.indexWhere((df) => df.field.key == fieldKey);
     if (idx != -1) {
@@ -169,12 +172,11 @@ class EditFarmerDetailsViewModel extends DynamicFieldFormViewModel {
     }
   }
 
-  /// Uploads an image and tracks uploading state without updating [fields].
-  /// Used by popup forms whose subfields live in a local copy, not in [fields].
-  /// The caller is responsible for applying the result to their own field model.
   @override
   Future<ImageUploadResult?> uploadImageOnly(
-      String fieldKey, String localFilePath) async {
+    String fieldKey,
+    String localFilePath,
+  ) async {
     _uploadingFields[fieldKey] = true;
     notifyListeners();
     try {
@@ -188,68 +190,6 @@ class EditFarmerDetailsViewModel extends DynamicFieldFormViewModel {
     }
   }
 
-  // ── Save (POST edit) ──────────────────────────────────────────────────────
-
-  /// Submits the edited registration.
-  ///
-  /// [textValues] is a map of key → current text for text/number/date fields,
-  /// passed from the View's TextEditingControllers.
-  /// [subcategoryId] and [farmerId] identify the farmer being updated.
-  ///
-  /// Returns true on success, throws on API error.
-  Future<bool> save({
-    required Map<String, String> textValues,
-    required int subcategoryId,
-    required int farmerId,
-  }) async {
-    // Apply text values from controllers into fields; null out hidden fields
-    for (final df in fields) {
-      if (!isFieldVisible(df)) {
-        df.value = null;
-        df.previewUrl = null;
-        continue;
-      }
-      if (textValues.containsKey(df.field.key)) {
-        final text = textValues[df.field.key]!.trim();
-        df.value = text.isNotEmpty ? text : null;
-      }
-    }
-
-    isSaving = true;
-    notifyListeners();
-
-    final List<dynamic> serializedFields =
-        fields.map((e) => e.toJson()).toList();
-
-    final editPayload = <String, dynamic>{
-      'registrationData': <String, dynamic>{
-        'subcategoryId': subcategoryId,
-        'farmerId': farmerId,
-        'registrationDate': DateTime.now().toIso8601String(),
-        'status': 'Active',
-        'userId': _authService.userId,
-        'fields': serializedFields,
-      },
-    };
-
-    final prettyJson = const JsonEncoder.withIndent('  ').convert(editPayload);
-    debugPrint('=== SUBMITTING EDIT REGISTRATION ===');
-    debugPrint(prettyJson);
-    debugPrint('====================================');
-
-    try {
-      await _service.submitEditForm(
-          subcategoryId, farmerId, _authService.userId!, editPayload);
-      debugPrint(
-          '=== EDIT REGISTRATION RESULT === action=update_farmer success=true');
-      return true;
-    } finally {
-      isSaving = false;
-      notifyListeners();
-    }
-  }
-
-  /// Retry a failed dependent-options fetch for [fieldKey].
   Future<void> retryFetchOptions(String fieldKey) async {
     final idx = fields.indexWhere((df) => df.field.key == fieldKey);
     if (idx == -1) return;
@@ -258,11 +198,86 @@ class EditFarmerDetailsViewModel extends DynamicFieldFormViewModel {
     await _handleDependencyChange(df.field.dependsOn!);
   }
 
-  // ── Dependency handling (ported from FarmerFormViewModel) ────────────────
+  void _applyCurrentValues(
+    List<DynamicFieldModel> fieldList,
+    Map<String, String> textValues,
+  ) {
+    for (final df in fieldList) {
+      if (!shouldShowField(df, fieldList)) {
+        df.value = null;
+        df.previewUrl = null;
+        continue;
+      }
 
-  /// Resolves template params using values from [fieldList] (defaults to [fields]).
-  Map<String, dynamic> _resolveParams(Map<String, String> templates,
-      [List<DynamicFieldModel>? fieldList]) {
+      if (textValues.containsKey(df.field.key)) {
+        final text = textValues[df.field.key]!.trim();
+        df.value = text.isNotEmpty ? text : null;
+      }
+
+      final value = df.value;
+      if (value is List<DynamicFieldModel>) {
+        _applyCurrentValues(value, const {});
+      }
+    }
+  }
+
+  Map<String, dynamic> _buildSubmitPayload() {
+    return <String, dynamic>{
+      'registrationData': <String, dynamic>{
+        'subcategoryId': subcategoryId,
+        'registrationDate': DateTime.now().toIso8601String(),
+        'status': 'Active',
+        'userId': currentUserId,
+        'fields': fields.map(_fieldToSubmitJson).toList(),
+      },
+    };
+  }
+
+  Map<String, dynamic> _fieldToSubmitJson(DynamicFieldModel field) {
+    final json = field.toJson();
+    _normalizeDataSourceEndpoint(json);
+
+    if (field.value is List<DynamicFieldModel>) {
+      json['options'] = json['options'] ?? <Map<String, dynamic>>[];
+      json['fields'] = (field.value as List<DynamicFieldModel>)
+          .map(_fieldToSubmitJson)
+          .toList();
+      return json;
+    }
+
+    json['value'] = _normalizeSubmitValue(field);
+    return json;
+  }
+
+  dynamic _normalizeSubmitValue(DynamicFieldModel field) {
+    final value = field.value;
+    if (field.field.fieldStyle == FieldStyle.dropdown && value is String) {
+      return int.tryParse(value) ?? value;
+    }
+    if (field.field.fieldStyle == FieldStyle.number && value is String) {
+      return num.tryParse(value) ?? value;
+    }
+    if (field.field.fieldStyle == FieldStyle.mapPolygon) {
+      return value ?? <Map<String, dynamic>>[];
+    }
+    return value;
+  }
+
+  void _normalizeDataSourceEndpoint(Map<String, dynamic> fieldJson) {
+    final dataSource = fieldJson['dataSource'];
+    if (dataSource is! Map) return;
+
+    final endpoint = dataSource['endpoint']?.toString();
+    if (endpoint == null || endpoint.isEmpty || endpoint.startsWith('/')) {
+      return;
+    }
+    dataSource['endpoint'] = '/$endpoint';
+  }
+
+  Map<String, dynamic> _resolveParams(
+    Map<String, String> templates, [
+    List<DynamicFieldModel>? fieldList,
+  ]) {
     final source = fieldList ?? fields;
     final resolved = <String, dynamic>{};
     for (final entry in templates.entries) {
@@ -284,7 +299,6 @@ class EditFarmerDetailsViewModel extends DynamicFieldFormViewModel {
     return resolved;
   }
 
-  /// Resets all dependents of [parentKey] within [fieldList] (defaults to [fields]).
   void _resetDependents(String parentKey,
       [List<DynamicFieldModel>? fieldList]) {
     final source = fieldList ?? fields;
@@ -337,12 +351,11 @@ class EditFarmerDetailsViewModel extends DynamicFieldFormViewModel {
     }
   }
 
-  /// Resolves dependent dropdown options for subfields within a popup form.
-  /// [changedKey] is the key of the field whose value changed.
-  /// [fieldList] is the popup's local copy of [DynamicFieldModel] list.
   @override
   Future<void> handleSubfieldDependencyChange(
-      String changedKey, List<DynamicFieldModel> fieldList) async {
+    String changedKey,
+    List<DynamicFieldModel> fieldList,
+  ) async {
     _resetDependents(changedKey, fieldList);
     notifyListeners();
 
@@ -378,10 +391,11 @@ class EditFarmerDetailsViewModel extends DynamicFieldFormViewModel {
     }
   }
 
-  /// Retries dependent option fetching for a subfield inside a popup form.
   @override
   Future<void> retrySubfieldOptions(
-      String fieldKey, List<DynamicFieldModel> fieldList) async {
+    String fieldKey,
+    List<DynamicFieldModel> fieldList,
+  ) async {
     final idx = fieldList.indexWhere((df) => df.field.key == fieldKey);
     if (idx == -1) return;
     final df = fieldList[idx];

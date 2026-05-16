@@ -10,7 +10,7 @@ import '../../utils/app_colors.dart';
 import '../../utils/field_fill_state.dart';
 import '../../utils/form_validator.dart';
 import '../../utils/snack_bar_helper.dart';
-import '../../view_models/farmer/edit_farmer_details_view_model.dart';
+import '../../view_models/farmer/add_land_detail_view_model.dart';
 import '../../widgets/dynamic_field_builder.dart';
 import '../../widgets/land_details_widgets.dart';
 import 'edit_farmer_details_view.dart';
@@ -32,28 +32,23 @@ class AddLandDetailForm extends StatefulWidget {
 class _AddLandDetailFormState extends State<AddLandDetailForm> {
   final _formKey = GlobalKey<FormState>();
   final Map<String, TextEditingController> _textCtrl = {};
-  late final EditFarmerDetailsViewModel _vm;
+  late final AddLandDetailViewModel _vm;
   bool _isInit = false;
   final AutovalidateMode _autoValidateMode = AutovalidateMode.disabled;
-
-  ApiForm? get _form => widget.landFormData.firstUsableForm;
 
   @override
   void initState() {
     super.initState();
-    _vm = EditFarmerDetailsViewModel(
+    _vm = AddLandDetailViewModel(
       service: context.read<RegistrationFormService>(),
       authService: context.read<AuthService>(),
       apiClient: context.read<ApiClient>(),
       imageUploadService: context.read<ImageUploadService>(),
     );
     _vm.addListener(_onVmChanged);
-    final form = _form;
-    _vm.useLocalFields(
-      (form?.fields ?? const <ApiField>[])
-          .map((field) => DynamicFieldModel.fromApiField(field))
-          .toList(),
-      name: form?.formName,
+    _vm.useLandForm(
+      landFormData: widget.landFormData,
+      farmerId: widget.farmerId,
     );
   }
 
@@ -175,7 +170,7 @@ class _AddLandDetailFormState extends State<AddLandDetailForm> {
       _textCtrl.entries.map((e) => MapEntry(e.key, e.value.text)),
     );
 
-    _applyCurrentValues(_vm.fields, textValues);
+    _vm.applyCurrentValues(textValues);
 
     final visibleFields =
         _vm.fields.where((df) => _vm.isFieldVisible(df)).toList();
@@ -199,19 +194,8 @@ class _AddLandDetailFormState extends State<AddLandDetailForm> {
       return;
     }
 
-    Map<String, dynamic> payload;
     try {
-      payload = _buildSubmitPayload();
-    } catch (_) {
-      if (mounted) context.showSnack('Something went wrong. Please try again.');
-      return;
-    }
-
-    try {
-      final success = await _vm.submitLandRegistration(
-        farmerId: farmerId,
-        payload: payload,
-      );
+      final success = await _vm.submitLandRegistration(textValues: textValues);
       if (success && mounted) {
         Navigator.pop(context, true);
       }
@@ -223,83 +207,6 @@ class _AddLandDetailFormState extends State<AddLandDetailForm> {
         );
       }
     }
-  }
-
-  void _applyCurrentValues(
-    List<DynamicFieldModel> fields,
-    Map<String, String> textValues,
-  ) {
-    for (final df in fields) {
-      if (!shouldShowField(df, fields)) {
-        df.value = null;
-        df.previewUrl = null;
-        _textCtrl[df.field.key]?.clear();
-        continue;
-      }
-
-      if (textValues.containsKey(df.field.key)) {
-        final text = textValues[df.field.key]!.trim();
-        df.value = text.isNotEmpty ? text : null;
-      }
-
-      final value = df.value;
-      if (value is List<DynamicFieldModel>) {
-        _applyCurrentValues(value, const {});
-      }
-    }
-  }
-
-  Map<String, dynamic> _buildSubmitPayload() {
-    return <String, dynamic>{
-      'registrationData': <String, dynamic>{
-        'subcategoryId': widget.landFormData.subcategoryId,
-        'registrationDate': DateTime.now().toIso8601String(),
-        'status': 'Active',
-        'userId': _vm.currentUserId,
-        'fields': _vm.fields.map(_fieldToSubmitJson).toList(),
-      },
-    };
-  }
-
-  Map<String, dynamic> _fieldToSubmitJson(DynamicFieldModel field) {
-    final json = field.toJson();
-    _normalizeDataSourceEndpoint(json);
-
-    if (field.value is List<DynamicFieldModel>) {
-      json['options'] = json['options'] ?? <Map<String, dynamic>>[];
-      json['fields'] = (field.value as List<DynamicFieldModel>)
-          .map(_fieldToSubmitJson)
-          .toList();
-      return json;
-    }
-
-    json['value'] = _normalizeSubmitValue(field);
-    return json;
-  }
-
-  dynamic _normalizeSubmitValue(DynamicFieldModel field) {
-    final value = field.value;
-    if (field.field.fieldStyle == FieldStyle.dropdown && value is String) {
-      return int.tryParse(value) ?? value;
-    }
-    if (field.field.fieldStyle == FieldStyle.number && value is String) {
-      return num.tryParse(value) ?? value;
-    }
-    if (field.field.fieldStyle == FieldStyle.mapPolygon) {
-      return value ?? <Map<String, dynamic>>[];
-    }
-    return value;
-  }
-
-  void _normalizeDataSourceEndpoint(Map<String, dynamic> fieldJson) {
-    final dataSource = fieldJson['dataSource'];
-    if (dataSource is! Map) return;
-
-    final endpoint = dataSource['endpoint']?.toString();
-    if (endpoint == null || endpoint.isEmpty || endpoint.startsWith('/')) {
-      return;
-    }
-    dataSource['endpoint'] = '/$endpoint';
   }
 
   String _cleanErrorMessage(Object error) {
