@@ -3,9 +3,17 @@ import '../models/api/api_models.dart';
 
 /// Holds the data returned by [RegistrationFormService.fetchFormDetail].
 class FormDetailResult {
-  const FormDetailResult({required this.formName, required this.fields});
+  const FormDetailResult({
+    required this.formName,
+    required this.fields,
+    this.farmerDetails,
+    this.landDetails = const [],
+  });
+
   final String formName;
   final List<DynamicFieldModel> fields;
+  final FarmerDetails? farmerDetails;
+  final List<LandDetail> landDetails;
 }
 
 class RegistrationFormService {
@@ -122,14 +130,7 @@ class RegistrationFormService {
       return const FormDetailResult(formName: '', fields: []);
     }
     final formData = _normalizeJsonKeys(Map<String, dynamic>.from(formJson));
-    final formName = formData['formName']?.toString() ?? '';
-    final rawFields = formData['fields'] as List<dynamic>? ?? const [];
-    final fields = rawFields
-        .whereType<Map>()
-        .map((f) => DynamicFieldModel.fromJson(Map<String, dynamic>.from(f)))
-        .toList();
-
-    return FormDetailResult(formName: formName, fields: fields);
+    return _parseFormDetailResult(formData);
   }
 
   /// Fetches a submitted form with pre-filled values for editing.
@@ -174,14 +175,7 @@ class RegistrationFormService {
       return const FormDetailResult(formName: '', fields: []);
     }
     final formData = _normalizeJsonKeys(Map<String, dynamic>.from(formJson));
-    final formName = formData['formName']?.toString() ?? '';
-    final rawFields = formData['fields'] as List<dynamic>? ?? const [];
-    final fields = rawFields
-        .whereType<Map>()
-        .map((f) => DynamicFieldModel.fromJson(Map<String, dynamic>.from(f)))
-        .toList();
-
-    return FormDetailResult(formName: formName, fields: fields);
+    return _parseFormDetailResult(formData);
   }
 
   Future<ApiForm?> fetchRegistrationForm(int subcategoryId) async {
@@ -219,6 +213,38 @@ class RegistrationFormService {
     }
     return ApiForm.fromJson(Map<String, dynamic>.from(formJson));
   }
+}
+
+FormDetailResult _parseFormDetailResult(Map<String, dynamic> formData) {
+  final formName = formData['formName']?.toString() ?? '';
+  final oldRawFields = formData['fields'] as List<dynamic>? ?? const [];
+  final oldFields = oldRawFields
+      .whereType<Map>()
+      .map((field) =>
+          DynamicFieldModel.fromJson(Map<String, dynamic>.from(field)))
+      .toList();
+
+  final farmerDetails = formData['farmerDetails'] is Map
+      ? FarmerDetails.fromJson(
+          Map<String, dynamic>.from(formData['farmerDetails'] as Map),
+        )
+      : null;
+  final farmerFields = farmerDetails?.fields.isNotEmpty == true
+      ? farmerDetails!.fields
+      : oldFields;
+
+  final rawLandDetails = formData['landDetails'] as List<dynamic>? ?? const [];
+  final landDetails = rawLandDetails
+      .whereType<Map>()
+      .map((land) => LandDetail.fromJson(Map<String, dynamic>.from(land)))
+      .toList();
+
+  return FormDetailResult(
+    formName: formName,
+    fields: farmerFields,
+    farmerDetails: farmerDetails,
+    landDetails: landDetails,
+  );
 }
 
 Map<String, dynamic> _normalizeJsonKeys(Map<String, dynamic> json) {

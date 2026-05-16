@@ -374,6 +374,65 @@ class DynamicFieldModel {
   }
 }
 
+class FarmerDetails {
+  const FarmerDetails({
+    this.farmerId,
+    this.farmerCode,
+    this.fields = const [],
+  });
+
+  final int? farmerId;
+  final String? farmerCode;
+  final List<DynamicFieldModel> fields;
+
+  factory FarmerDetails.fromJson(Map<String, dynamic> json) {
+    final data = _normalizeJsonKeys(json);
+    final rawFields = data['fields'] as List<dynamic>? ?? const [];
+    return FarmerDetails(
+      farmerId: data['farmerId'] == null ? null : _asInt(data['farmerId']),
+      farmerCode: _asNullableString(data['farmerCode']),
+      fields: rawFields
+          .whereType<Map>()
+          .map((field) =>
+              DynamicFieldModel.fromJson(Map<String, dynamic>.from(field)))
+          .toList(),
+    );
+  }
+}
+
+class LandDetail {
+  const LandDetail({
+    this.submissionId,
+    this.landId,
+    this.landCode,
+    this.landTitle,
+    this.fields = const [],
+  });
+
+  final int? submissionId;
+  final int? landId;
+  final String? landCode;
+  final String? landTitle;
+  final List<DynamicFieldModel> fields;
+
+  factory LandDetail.fromJson(Map<String, dynamic> json) {
+    final data = _normalizeJsonKeys(json);
+    final rawFields = data['fields'] as List<dynamic>? ?? const [];
+    return LandDetail(
+      submissionId:
+          data['submissionId'] == null ? null : _asInt(data['submissionId']),
+      landId: data['landId'] == null ? null : _asInt(data['landId']),
+      landCode: _asNullableString(data['landCode']),
+      landTitle: _asNullableString(data['landTitle']),
+      fields: rawFields
+          .whereType<Map>()
+          .map((field) =>
+              DynamicFieldModel.fromJson(Map<String, dynamic>.from(field)))
+          .toList(),
+    );
+  }
+}
+
 class ApiForm {
   const ApiForm({
     required this.formId,
@@ -435,6 +494,11 @@ int _asInt(Object? value, {int fallback = 0}) {
   if (value is num) return value.toInt();
   if (value is String) return int.tryParse(value) ?? fallback;
   return fallback;
+}
+
+String? _asNullableString(Object? value) {
+  final text = value?.toString().trim();
+  return text == null || text.isEmpty ? null : text;
 }
 
 List<dynamic>? _parseShowWhen(Object? raw) {

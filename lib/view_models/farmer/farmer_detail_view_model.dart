@@ -17,6 +17,7 @@ class FarmerDetailViewModel extends ChangeNotifier {
   String? error;
   String formName = '';
   List<DynamicFieldModel> fields = [];
+  List<LandDetail> landDetails = [];
 
   Future<void> loadFormDetail(
       {required int subcategoryId, required int submissionId}) async {
@@ -36,8 +37,11 @@ class FarmerDetailViewModel extends ChangeNotifier {
           await _service.fetchFormDetail(subcategoryId, submissionId, userId);
       formName = result.formName;
       fields = result.fields;
+      landDetails = result.landDetails;
     } catch (e) {
       error = e.toString();
+      fields = [];
+      landDetails = [];
     } finally {
       isLoading = false;
       notifyListeners();
