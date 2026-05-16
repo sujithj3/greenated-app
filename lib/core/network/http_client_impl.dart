@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
 import 'api_client.dart';
@@ -51,9 +52,10 @@ class HttpClientImpl implements ApiClient {
       // ── 2. Build the URI ──────────────────────────────────────────────
       final Uri uri = Uri.parse(
         '${ApiConfig.versionedBaseUrl}${processed.path}',
-      ).replace(queryParameters: processed.queryParameters.isNotEmpty
-          ? processed.queryParameters
-          : null);
+      ).replace(
+          queryParameters: processed.queryParameters.isNotEmpty
+              ? processed.queryParameters
+              : null);
 
       // ── 3. Merge headers ──────────────────────────────────────────────
       final Map<String, String> headers = <String, String>{
@@ -66,13 +68,24 @@ class HttpClientImpl implements ApiClient {
         headers: headers,
       );
 
+      final String? encodedBody =
+          processed.body != null ? jsonEncode(processed.body) : null;
+
       // ── 4. Execute the HTTP call ──────────────────────────────────────
       final http.Response httpResponse = await _executeRequest(
         processed.method,
         uri,
         headers,
-        processed.body,
+        encodedBody,
       ).timeout(ApiConfig.receiveTimeout);
+
+      _logRawHttpExchange(
+        method: processed.method,
+        uri: uri,
+        requestHeaders: headers,
+        requestBody: encodedBody,
+        response: httpResponse,
+      );
 
       // ── 5. Parse the JSON envelope ────────────────────────────────────
       final Map<String, dynamic> json = _decodeResponseBody(httpResponse);
@@ -115,11 +128,8 @@ class HttpClientImpl implements ApiClient {
     ApiMethod method,
     Uri uri,
     Map<String, String> headers,
-    Object? body,
+    String? encodedBody,
   ) async {
-    final String? encodedBody =
-        body != null ? jsonEncode(body) : null;
-
     switch (method) {
       case ApiMethod.get:
         return _http.get(uri, headers: headers);
@@ -186,16 +196,13 @@ class HttpClientImpl implements ApiClient {
       case ApiStatusCode.badRequest:
         throw BadRequestException(msg.isNotEmpty ? msg : 'Bad request.');
       case ApiStatusCode.unauthorized:
-        throw UnauthorizedException(
-            msg.isNotEmpty ? msg : 'Session expired.');
+        throw UnauthorizedException(msg.isNotEmpty ? msg : 'Session expired.');
       case ApiStatusCode.forbidden:
         throw ForbiddenException(msg.isNotEmpty ? msg : 'Forbidden.');
       case ApiStatusCode.notFound:
-        throw NotFoundException(
-            msg.isNotEmpty ? msg : 'Resource not found.');
+        throw NotFoundException(msg.isNotEmpty ? msg : 'Resource not found.');
       case ApiStatusCode.unprocessableEntity:
-        throw ValidationException(
-            msg.isNotEmpty ? msg : 'Validation failed.');
+        throw ValidationException(msg.isNotEmpty ? msg : 'Validation failed.');
       case ApiStatusCode.tooManyRequests:
         throw RateLimitException(msg.isNotEmpty ? msg : 'Rate limited.');
       case ApiStatusCode.internalServerError:
@@ -264,6 +271,24 @@ class HttpClientImpl implements ApiClient {
           await request.send().timeout(ApiConfig.receiveTimeout);
       final response = await http.Response.fromStream(streamedResponse);
 
+      _logRawHttpExchange(
+        method: ApiMethod.post,
+        uri: uri,
+        requestHeaders: Map<String, String>.from(request.headers),
+        requestBody: const JsonEncoder.withIndent('  ').convert(
+          <String, Object>{
+            'fields': fields,
+            'files': <Map<String, Object>>[
+              <String, Object>{
+                'field': fileKey,
+                'path': filePath,
+              },
+            ],
+          },
+        ),
+        response: response,
+      );
+
       final Map<String, dynamic> json = _decodeResponseBody(response);
 
       ApiResponse<T> apiResponse = ApiResponse<T>.fromJson(
@@ -296,6 +321,56 @@ class HttpClientImpl implements ApiClient {
   void _notifyErrorInterceptors(Object error, ApiRequest request) {
     for (final ApiInterceptor interceptor in interceptors) {
       interceptor.onError(error, request);
+    }
+  }
+
+  void _logRawHttpExchange({
+    required ApiMethod method,
+    required Uri uri,
+    required Map<String, String> requestHeaders,
+    required String? requestBody,
+    required http.Response response,
+  }) {
+    if (!kDebugMode) return;
+
+    _debugPrintLong('[RAW API EXCHANGE]');
+    _debugPrintLong(
+      const JsonEncoder.withIndent('  ').convert(
+        <String, Object?>{
+          'request': <String, Object?>{
+            'method': method.value,
+            'url': uri.toString(),
+            'headers': requestHeaders,
+            'body': _decodeJsonForLogging(requestBody),
+          },
+          'response': <String, Object?>{
+            'statusCode': response.statusCode,
+            'reasonPhrase': response.reasonPhrase,
+            'headers': response.headers,
+            'body': _decodeJsonForLogging(response.body),
+          },
+        },
+      ),
+    );
+  }
+
+  Object? _decodeJsonForLogging(String? body) {
+    if (body == null || body.isEmpty) return body;
+
+    try {
+      return jsonDecode(body);
+    } on FormatException {
+      return body;
+    }
+  }
+
+  void _debugPrintLong(String message) {
+    const int chunkSize = 800;
+    for (int start = 0; start < message.length; start += chunkSize) {
+      final int end = start + chunkSize > message.length
+          ? message.length
+          : start + chunkSize;
+      debugPrint(message.substring(start, end));
     }
   }
 }

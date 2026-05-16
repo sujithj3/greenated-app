@@ -40,6 +40,7 @@ class EditFarmerDetailsViewModel extends ChangeNotifier {
   String? error;
   String formName = '';
   List<DynamicFieldModel> fields = [];
+  List<LandDetail> landDetails = [];
 
   /// Guards dependency handling: stays `false` until the initial load
   /// completes, so prefilled values don't trigger cascading API calls.
@@ -82,9 +83,11 @@ class EditFarmerDetailsViewModel extends ChangeNotifier {
           await _service.fetchFormEdit(subcategoryId, submissionId, userId);
       formName = result.formName;
       fields = result.fields;
+      landDetails = result.landDetails;
     } catch (e) {
       error = e.toString();
       fields = [];
+      landDetails = [];
     } finally {
       isLoading = false;
       // Enable dependency handling AFTER the initial load finishes.
@@ -95,6 +98,17 @@ class EditFarmerDetailsViewModel extends ChangeNotifier {
 
   /// Whether a field should be visible based on its showWhen condition.
   bool isFieldVisible(DynamicFieldModel df) => shouldShowField(df, fields);
+
+  void useLocalFields(List<DynamicFieldModel> localFields, {String? name}) {
+    _userInteractionEnabled = true;
+    isLoading = false;
+    isSaving = false;
+    error = null;
+    formName = name ?? formName;
+    fields = localFields;
+    landDetails = [];
+    notifyListeners();
+  }
 
   /// Updates a dynamic field value by key.
   ///

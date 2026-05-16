@@ -26,12 +26,15 @@ import 'views/category/subcategory_view.dart';
 import 'views/farmer/farmer_form_view.dart';
 import 'views/farmer/farmer_detail_view.dart';
 import 'views/farmer/edit_farmer_details_view.dart';
+import 'views/farmer/land_detail_view.dart';
+import 'views/farmer/edit_land_detail_view.dart';
 import 'views/tools/land_measurement_view.dart';
 import 'views/tools/camera_capture_view.dart';
 import 'repositories/registered_list_repository.dart';
 import 'view_models/registered_list_view_model.dart';
 import 'views/farmer/registered_list_view.dart';
 import 'models/flow_type.dart';
+import 'models/api/api_models.dart';
 
 /// Global key for the root ScaffoldMessenger. Ensures SnackBars render above
 /// all routes, bottom sheets, and dialogs — not behind them.
@@ -191,6 +194,20 @@ class FarmerRegistrationApp extends StatelessWidget {
               page = EditFarmerDetailsView(
                 subcategoryId: editArgs['subcategoryId'] as int? ?? 0,
                 submissionId: editArgs['submissionId'] as int? ?? 0,
+              );
+            case '/land-detail':
+              final landArgs =
+                  settings.arguments as Map<String, dynamic>? ?? {};
+              page = LandDetailView(
+                land: landArgs['land'] as LandDetail,
+                title: landArgs['title'] as String? ?? 'Land Detail',
+              );
+            case '/edit-land-detail':
+              final landArgs =
+                  settings.arguments as Map<String, dynamic>? ?? {};
+              page = EditLandDetailView(
+                land: landArgs['land'] as LandDetail,
+                title: landArgs['title'] as String? ?? 'Land Detail',
               );
             default:
               page = const SplashView();

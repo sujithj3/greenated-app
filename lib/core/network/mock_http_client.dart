@@ -72,6 +72,10 @@ class MockHttpClient implements ApiClient {
       return _mockFormDetail(request);
     }
     if (request.method.value == 'GET' &&
+        RegExp(r'^subcategories/\d+/form-edit$').hasMatch(request.path)) {
+      return _mockFormDetail(request);
+    }
+    if (request.method.value == 'GET' &&
         RegExp(r'^/farmer/.*$').hasMatch(request.path)) {
       return _mockGetFarmers();
     }

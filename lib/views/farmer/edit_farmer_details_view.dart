@@ -12,6 +12,7 @@ import '../../utils/form_validator.dart';
 import '../../utils/snack_bar_helper.dart';
 import '../../view_models/farmer/edit_farmer_details_view_model.dart';
 import '../../widgets/dynamic_field_builder.dart';
+import '../../widgets/land_details_widgets.dart';
 import '../../widgets/shimmer_loading.dart';
 
 /// Edit view for a previously submitted farmer registration.
@@ -38,7 +39,7 @@ class _EditFarmerDetailsViewState extends State<EditFarmerDetailsView> {
   late final EditFarmerDetailsViewModel _vm;
   final Map<String, TextEditingController> _textCtrl = {};
   bool _isInit = false;
-  AutovalidateMode _autoValidateMode = AutovalidateMode.disabled;
+  final AutovalidateMode _autoValidateMode = AutovalidateMode.disabled;
 
   @override
   void initState() {
@@ -144,7 +145,7 @@ class _EditFarmerDetailsViewState extends State<EditFarmerDetailsView> {
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (_) => _EditPopupFormSheet(
+      builder: (_) => EditPopupFormSheet(
         parentField: df.field,
         initialFields: currentValues,
         onSaved: (result) {
@@ -176,57 +177,6 @@ class _EditFarmerDetailsViewState extends State<EditFarmerDetailsView> {
       debugPrint('Raw result: $result');
       debugPrint('Cleaned coordinates (to be saved in value): $coordinates');
       _vm.updateFieldValue(df.field.key, coordinates);
-    }
-  }
-
-  // ── Save ──────────────────────────────────────────────────────────────────
-
-  Future<void> _save() async {
-    // 1. Trigger widget-level validation to show inline error text for on-screen fields
-    final isFormValid = _formKey.currentState?.validate() ?? true;
-
-    final textValues = Map.fromEntries(
-      _textCtrl.entries.map((e) => MapEntry(e.key, e.value.text)),
-    );
-
-    // 2. Recursive validation for all visible fields including popup children
-    final visibleFields =
-        _vm.fields.where((df) => _vm.isFieldVisible(df)).toList();
-    final validationResult = validateFields(
-      visibleFields,
-      textValues: textValues,
-    );
-
-    if (!validationResult.isValid) {
-      if (mounted) {
-        setState(() => _autoValidateMode = AutovalidateMode.always);
-        context.showSnack(
-          'Please fill the required field: ${validationResult.firstInvalidLabel}',
-        );
-      }
-      return;
-    }
-
-    if (!isFormValid) {
-      if (mounted) {
-        setState(() => _autoValidateMode = AutovalidateMode.always);
-        context.showSnack('Please fix the errors in the form.');
-      }
-      return;
-    }
-
-    try {
-      final success = await _vm.save(
-        textValues: textValues,
-        subcategoryId: widget.subcategoryId,
-        submissionId: widget.submissionId,
-      );
-      if (success && mounted) {
-        context.showSnack('Registration updated!', success: true);
-        Navigator.pop(context, true);
-      }
-    } catch (e) {
-      if (mounted) context.showSnack('Error: ${e.toString()}');
     }
   }
 
@@ -316,7 +266,7 @@ class _EditFarmerDetailsViewState extends State<EditFarmerDetailsView> {
       );
     }
 
-    if (_vm.fields.isEmpty) {
+    if (_vm.fields.isEmpty && _vm.landDetails.isEmpty) {
       return const Center(
         child: Text('No data available',
             style: TextStyle(color: AppColors.textMedium, fontSize: 16)),
@@ -332,15 +282,46 @@ class _EditFarmerDetailsViewState extends State<EditFarmerDetailsView> {
       child: Column(
         children: [
           Expanded(
-            child: ListView.separated(
-              padding: const EdgeInsets.all(16),
-              itemCount: visibleFields.length,
-              separatorBuilder: (_, __) => const SizedBox(height: 12),
-              itemBuilder: (context, index) =>
-                  _buildField(visibleFields[index]),
+            child: Stack(
+              children: [
+                ListView(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 112),
+                  children: [
+                    ...visibleFields.map(
+                      (field) => Padding(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: _buildField(field),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    LandDetailsSection(
+                      lands: _vm.landDetails,
+                      onLandTap: (land, _, title) {
+                        Navigator.pushNamed(
+                          context,
+                          '/edit-land-detail',
+                          arguments: {
+                            'land': land,
+                            'title': title,
+                          },
+                        );
+                      },
+                    ),
+                  ],
+                ),
+                Positioned(
+                  right: 16,
+                  bottom: 24,
+                  child: AddNewLandButton(
+                    onPressed: () {
+                      // TODO: Navigate to add new land flow.
+                    },
+                  ),
+                ),
+              ],
             ),
           ),
-          _buildSubmitButton(isBlocked),
+          _buildSubmitButton(),
         ],
       ),
     );
@@ -394,41 +375,26 @@ class _EditFarmerDetailsViewState extends State<EditFarmerDetailsView> {
     );
   }
 
-  Widget _buildSubmitButton(bool isBlocked) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-      decoration: BoxDecoration(
-        color: Theme.of(context).scaffoldBackgroundColor,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.06),
-            blurRadius: 8,
-            offset: const Offset(0, -2),
-          ),
-        ],
-      ),
-      child: ElevatedButton.icon(
-        onPressed: isBlocked ? null : _save,
-        icon: const Icon(Icons.cloud_upload_outlined),
-        label: const Text('Update Registration'),
-        style: ElevatedButton.styleFrom(
-          minimumSize: const Size(double.infinity, 48),
-        ),
-      ),
+  Widget _buildSubmitButton() {
+    return const BottomUpdateButton(
+      label: 'Update Data',
+      icon: Icons.cloud_upload_outlined,
+      // TODO: Enable farmer update API once backend is ready.
+      onPressed: null,
     );
   }
 }
 
 // ─── Edit Popup Form Sheet ──────────────────────────────────────────────────
 
-class _EditPopupFormSheet extends StatefulWidget {
+class EditPopupFormSheet extends StatefulWidget {
   final ApiField parentField;
   final List<DynamicFieldModel> initialFields;
   final void Function(List<DynamicFieldModel> updated) onSaved;
   final EditFarmerDetailsViewModel viewModel;
 
-  const _EditPopupFormSheet({
+  const EditPopupFormSheet({
+    super.key,
     required this.parentField,
     required this.initialFields,
     required this.onSaved,
@@ -436,10 +402,10 @@ class _EditPopupFormSheet extends StatefulWidget {
   });
 
   @override
-  State<_EditPopupFormSheet> createState() => _EditPopupFormSheetState();
+  State<EditPopupFormSheet> createState() => _EditPopupFormSheetState();
 }
 
-class _EditPopupFormSheetState extends State<_EditPopupFormSheet> {
+class _EditPopupFormSheetState extends State<EditPopupFormSheet> {
   final _popupFormKey = GlobalKey<FormState>();
   AutovalidateMode _autoValidateMode = AutovalidateMode.disabled;
   final Map<String, TextEditingController> _textCtrl = {};
@@ -737,7 +703,7 @@ class _EditPopupFormSheetState extends State<_EditPopupFormSheet> {
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (_) => _EditPopupFormSheet(
+      builder: (_) => EditPopupFormSheet(
         parentField: df.field,
         initialFields: currentValues,
         onSaved: (result) {
