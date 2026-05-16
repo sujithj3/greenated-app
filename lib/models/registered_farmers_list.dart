@@ -1,19 +1,25 @@
-class RegisteredFarmer {
+class RegisteredFarmersList {
   final int submissionId;
+  final int farmerId;
+  final String? farmerCode;
   final String fullName;
   final String mobileNumber;
   final String formName;
 
-  RegisteredFarmer({
+  RegisteredFarmersList({
     required this.submissionId,
+    required this.farmerId,
+    this.farmerCode,
     required this.fullName,
     required this.mobileNumber,
     required this.formName,
   });
 
-  factory RegisteredFarmer.fromJson(Map<String, dynamic> json) {
-    return RegisteredFarmer(
+  factory RegisteredFarmersList.fromJson(Map<String, dynamic> json) {
+    return RegisteredFarmersList(
       submissionId: json['submissionId'] as int,
+      farmerId: json['farmerId'] as int,
+      farmerCode: json['farmerCode'] as String?,
       fullName: json['fullName'] as String? ?? 'Unknown',
       mobileNumber: json['mobileNumber'] as String? ?? 'N/A',
       formName: json['formName'] as String? ?? '',
@@ -23,6 +29,8 @@ class RegisteredFarmer {
   Map<String, dynamic> toJson() {
     return {
       'submissionId': submissionId,
+      'farmerId': farmerId,
+      'farmerCode': farmerCode,
       'fullName': fullName,
       'mobileNumber': mobileNumber,
       'formName': formName,

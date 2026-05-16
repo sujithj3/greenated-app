@@ -3,7 +3,7 @@ import 'package:provider/provider.dart';
 import '../../models/flow_type.dart';
 import '../../utils/app_colors.dart';
 import '../../view_models/registered_list_view_model.dart';
-import '../../models/registered_farmer.dart';
+import '../../models/registered_farmers_list.dart';
 import '../../widgets/shimmer_loading.dart';
 
 class RegisteredListView extends StatefulWidget {
@@ -83,7 +83,7 @@ class _RegisteredListViewState extends State<RegisteredListView> {
             return const ShimmerRegisteredList();
           }
 
-          if (viewModel.farmers.isEmpty) {
+          if (viewModel.registeredFarmers.isEmpty) {
             return RefreshIndicator(
               onRefresh: () async {
                 await viewModel.loadFirstPage(widget.subcategoryId);
@@ -127,10 +127,10 @@ class _RegisteredListViewState extends State<RegisteredListView> {
               controller: _scrollController,
               padding: const EdgeInsets.all(16),
               itemCount:
-                  viewModel.farmers.length + (viewModel.isLoadingMore ? 1 : 0),
+                  viewModel.registeredFarmers.length + (viewModel.isLoadingMore ? 1 : 0),
               separatorBuilder: (context, index) => const SizedBox(height: 12),
               itemBuilder: (context, index) {
-                if (index == viewModel.farmers.length) {
+                if (index == viewModel.registeredFarmers.length) {
                   return const Padding(
                     padding: EdgeInsets.symmetric(vertical: 16.0),
                     child: Center(
@@ -139,7 +139,7 @@ class _RegisteredListViewState extends State<RegisteredListView> {
                   );
                 }
 
-                final farmer = viewModel.farmers[index];
+                final farmer = viewModel.registeredFarmers[index];
                 return _buildFarmerCard(farmer);
               },
             ),
@@ -149,7 +149,7 @@ class _RegisteredListViewState extends State<RegisteredListView> {
     );
   }
 
-  Widget _buildFarmerCard(RegisteredFarmer farmer) {
+  Widget _buildFarmerCard(RegisteredFarmersList farmer) {
     return Card(
       elevation: 2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
