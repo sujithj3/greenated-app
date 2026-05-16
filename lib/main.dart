@@ -186,14 +186,14 @@ class FarmerRegistrationApp extends StatelessWidget {
                   settings.arguments as Map<String, dynamic>? ?? {};
               page = FarmerDetailView(
                 subcategoryId: detailArgs['subcategoryId'] as int? ?? 0,
-                submissionId: detailArgs['submissionId'] as int? ?? 0,
+                farmerId: detailArgs['farmerId'] as int? ?? 0,
               );
             case '/edit-farmer-details':
               final editArgs =
                   settings.arguments as Map<String, dynamic>? ?? {};
               page = EditFarmerDetailsView(
                 subcategoryId: editArgs['subcategoryId'] as int? ?? 0,
-                submissionId: editArgs['submissionId'] as int? ?? 0,
+                farmerId: editArgs['farmerId'] as int? ?? 0,
               );
             case '/land-detail':
               final landArgs =

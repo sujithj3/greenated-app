@@ -126,8 +126,8 @@ class _RegisteredListViewState extends State<RegisteredListView> {
               physics: const AlwaysScrollableScrollPhysics(),
               controller: _scrollController,
               padding: const EdgeInsets.all(16),
-              itemCount:
-                  viewModel.registeredFarmers.length + (viewModel.isLoadingMore ? 1 : 0),
+              itemCount: viewModel.registeredFarmers.length +
+                  (viewModel.isLoadingMore ? 1 : 0),
               separatorBuilder: (context, index) => const SizedBox(height: 12),
               itemBuilder: (context, index) {
                 if (index == viewModel.registeredFarmers.length) {
@@ -161,10 +161,10 @@ class _RegisteredListViewState extends State<RegisteredListView> {
             '/farmer-detail',
             arguments: {
               'subcategoryId': widget.subcategoryId,
-              'submissionId': farmer.submissionId,
+              'farmerId': farmer.farmerId,
             },
           );
-          if (result == true && context.mounted) {
+          if (result == true && mounted) {
             context
                 .read<RegisteredListViewModel>()
                 .loadFirstPage(widget.subcategoryId);

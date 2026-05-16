@@ -58,13 +58,13 @@ class EditFarmerDetailsViewModel extends ChangeNotifier {
     return idx != -1 && fields[idx].isLoadingOptions;
   }
 
-  /// Fetches the edit form data for a given submission.
+  /// Fetches the edit form data for a given farmer.
   ///
-  /// Calls the GET `form-edit` endpoint with [subcategoryId], [submissionId],
+  /// Calls the GET `form-edit` endpoint with [subcategoryId], [farmerId],
   /// and the authenticated user's ID.
   Future<void> loadEditForm({
     required int subcategoryId,
-    required int submissionId,
+    required int farmerId,
   }) async {
     final userId = _authService.userId;
     if (userId == null) {
@@ -80,7 +80,7 @@ class EditFarmerDetailsViewModel extends ChangeNotifier {
 
     try {
       final result =
-          await _service.fetchFormEdit(subcategoryId, submissionId, userId);
+          await _service.fetchFormEdit(subcategoryId, farmerId, userId);
       formName = result.formName;
       fields = result.fields;
       landDetails = result.landDetails;
@@ -189,13 +189,13 @@ class EditFarmerDetailsViewModel extends ChangeNotifier {
   ///
   /// [textValues] is a map of key → current text for text/number/date fields,
   /// passed from the View's TextEditingControllers.
-  /// [subcategoryId] and [submissionId] identify the submission being updated.
+  /// [subcategoryId] and [farmerId] identify the farmer being updated.
   ///
   /// Returns true on success, throws on API error.
   Future<bool> save({
     required Map<String, String> textValues,
     required int subcategoryId,
-    required int submissionId,
+    required int farmerId,
   }) async {
     // Apply text values from controllers into fields; null out hidden fields
     for (final df in fields) {
@@ -216,10 +216,10 @@ class EditFarmerDetailsViewModel extends ChangeNotifier {
     final List<dynamic> serializedFields =
         fields.map((e) => e.toJson()).toList();
 
-    final submissionPayload = <String, dynamic>{
+    final editPayload = <String, dynamic>{
       'registrationData': <String, dynamic>{
         'subcategoryId': subcategoryId,
-        'submissionId': submissionId,
+        'farmerId': farmerId,
         'registrationDate': DateTime.now().toIso8601String(),
         'status': 'Active',
         'userId': _authService.userId,
@@ -227,15 +227,14 @@ class EditFarmerDetailsViewModel extends ChangeNotifier {
       },
     };
 
-    final prettyJson =
-        const JsonEncoder.withIndent('  ').convert(submissionPayload);
+    final prettyJson = const JsonEncoder.withIndent('  ').convert(editPayload);
     debugPrint('=== SUBMITTING EDIT REGISTRATION ===');
     debugPrint(prettyJson);
     debugPrint('====================================');
 
     try {
       await _service.submitEditForm(
-          subcategoryId, submissionId, _authService.userId!, submissionPayload);
+          subcategoryId, farmerId, _authService.userId!, editPayload);
       debugPrint(
           '=== EDIT REGISTRATION RESULT === action=update_farmer success=true');
       return true;

@@ -59,14 +59,14 @@ class RegistrationFormService {
   /// [submitRegistration].
   ///
   /// Throws [ApiException] on non-success responses or network errors.
-  Future<void> submitEditForm(int subcategoryId, int submissionId, int userId,
+  Future<void> submitEditForm(int subcategoryId, int farmerId, int userId,
       Map<String, dynamic> payload) async {
     final response = await _apiClient.send<Map<String, dynamic>>(
       ApiRequest(
         method: ApiMethod.post,
         path: ApiEndpoints.formEdit(subcategoryId),
         queryParameters: {
-          'submissionId': submissionId.toString(),
+          'farmerId': farmerId.toString(),
           'userId': userId.toString(),
         },
         body: payload,
@@ -94,13 +94,13 @@ class RegistrationFormService {
   /// Returns a [FormDetailResult] with the form name and populated fields.
   /// Throws [ApiException] on non-success responses or network errors.
   Future<FormDetailResult> fetchFormDetail(
-      int subcategoryId, int submissionId, int userId) async {
+      int subcategoryId, int farmerId, int userId) async {
     final response = await _apiClient.send<Map<String, dynamic>>(
       ApiRequest(
         method: ApiMethod.get,
         path: ApiEndpoints.formDetail(subcategoryId),
         queryParameters: {
-          'submissionId': submissionId.toString(),
+          'farmerId': farmerId.toString(),
           'userId': userId.toString(),
         },
       ),
@@ -139,13 +139,13 @@ class RegistrationFormService {
   /// structure as [fetchFormDetail].
   /// Throws [ApiException] on non-success responses or network errors.
   Future<FormDetailResult> fetchFormEdit(
-      int subcategoryId, int submissionId, int userId) async {
+      int subcategoryId, int farmerId, int userId) async {
     final response = await _apiClient.send<Map<String, dynamic>>(
       ApiRequest(
         method: ApiMethod.get,
         path: ApiEndpoints.formEdit(subcategoryId),
         queryParameters: {
-          'submissionId': submissionId.toString(),
+          'farmerId': farmerId.toString(),
           'userId': userId.toString(),
         },
       ),

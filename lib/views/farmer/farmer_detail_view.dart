@@ -20,12 +20,12 @@ import '../../widgets/shimmer_loading.dart';
 
 class FarmerDetailView extends StatefulWidget {
   final int subcategoryId;
-  final int submissionId;
+  final int farmerId;
 
   const FarmerDetailView({
     super.key,
     required this.subcategoryId,
-    required this.submissionId,
+    required this.farmerId,
   });
 
   @override
@@ -57,7 +57,7 @@ class _FarmerDetailViewState extends State<FarmerDetailView> {
       if (mounted) {
         await _vm.loadFormDetail(
           subcategoryId: widget.subcategoryId,
-          submissionId: widget.submissionId,
+          farmerId: widget.farmerId,
         );
       }
     });
@@ -171,7 +171,7 @@ class _FarmerDetailViewState extends State<FarmerDetailView> {
       final packageInfo = await PackageInfo.fromPlatform();
       final appName =
           packageInfo.appName.isNotEmpty ? packageInfo.appName : 'App';
-      final docName = '${appName}_KML_FormID(${widget.submissionId})_$dateStr';
+      final docName = '${appName}_KML_FarmerID(${widget.farmerId})_$dateStr';
 
       final kmlContent = '''<?xml version="1.0" encoding="UTF-8"?>
 <kml xmlns="http://www.opengis.net/kml/2.2">
@@ -230,7 +230,7 @@ $coordLines
                     '/edit-farmer-details',
                     arguments: {
                       'subcategoryId': widget.subcategoryId,
-                      'submissionId': widget.submissionId,
+                      'farmerId': widget.farmerId,
                     },
                   );
 
@@ -291,7 +291,7 @@ $coordLines
               ElevatedButton(
                 onPressed: () => _vm.loadFormDetail(
                   subcategoryId: widget.subcategoryId,
-                  submissionId: widget.submissionId,
+                  farmerId: widget.farmerId,
                 ),
                 child: const Text('Retry'),
               ),
@@ -314,7 +314,7 @@ $coordLines
     return Stack(
       children: [
         ListView(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 112),
+          padding: const EdgeInsets.all(16),
           children: [
             ...visibleFields.map(
               (field) => Padding(
@@ -337,15 +337,6 @@ $coordLines
               },
             ),
           ],
-        ),
-        Positioned(
-          right: 16,
-          bottom: 24,
-          child: AddNewLandButton(
-            onPressed: () {
-              // TODO: Navigate to add new land flow.
-            },
-          ),
         ),
       ],
     );

@@ -22,12 +22,12 @@ import '../../widgets/shimmer_loading.dart';
 /// create and detail flows.
 class EditFarmerDetailsView extends StatefulWidget {
   final int subcategoryId;
-  final int submissionId;
+  final int farmerId;
 
   const EditFarmerDetailsView({
     super.key,
     required this.subcategoryId,
-    required this.submissionId,
+    required this.farmerId,
   });
 
   @override
@@ -63,7 +63,7 @@ class _EditFarmerDetailsViewState extends State<EditFarmerDetailsView> {
       if (mounted) {
         await _vm.loadEditForm(
           subcategoryId: widget.subcategoryId,
-          submissionId: widget.submissionId,
+          farmerId: widget.farmerId,
         );
       }
     });
@@ -256,7 +256,7 @@ class _EditFarmerDetailsViewState extends State<EditFarmerDetailsView> {
               ElevatedButton(
                 onPressed: () => _vm.loadEditForm(
                   subcategoryId: widget.subcategoryId,
-                  submissionId: widget.submissionId,
+                  farmerId: widget.farmerId,
                 ),
                 child: const Text('Retry'),
               ),
@@ -321,7 +321,7 @@ class _EditFarmerDetailsViewState extends State<EditFarmerDetailsView> {
               ],
             ),
           ),
-          _buildSubmitButton(),
+          _buildSubmitButton(isBlocked),
         ],
       ),
     );
@@ -375,12 +375,56 @@ class _EditFarmerDetailsViewState extends State<EditFarmerDetailsView> {
     );
   }
 
-  Widget _buildSubmitButton() {
-    return const BottomUpdateButton(
+  Future<void> _save() async {
+    final isFormValid = _formKey.currentState?.validate() ?? true;
+
+    final textValues = Map.fromEntries(
+      _textCtrl.entries.map((e) => MapEntry(e.key, e.value.text)),
+    );
+
+    final visibleFields =
+        _vm.fields.where((df) => _vm.isFieldVisible(df)).toList();
+    final validationResult = validateFields(
+      visibleFields,
+      textValues: textValues,
+    );
+
+    if (!validationResult.isValid) {
+      if (mounted) {
+        context.showSnack(
+          'Please fill the required field: ${validationResult.firstInvalidLabel}',
+        );
+      }
+      return;
+    }
+
+    if (!isFormValid) {
+      if (mounted) {
+        context.showSnack('Please fix the errors in the form.');
+      }
+      return;
+    }
+
+    try {
+      final success = await _vm.save(
+        textValues: textValues,
+        subcategoryId: widget.subcategoryId,
+        farmerId: widget.farmerId,
+      );
+      if (success && mounted) {
+        context.showSnack('Farmer details updated!', success: true);
+        Navigator.pop(context, true);
+      }
+    } catch (e) {
+      if (mounted) context.showSnack('Error: ${e.toString()}');
+    }
+  }
+
+  Widget _buildSubmitButton(bool isBlocked) {
+    return BottomUpdateButton(
       label: 'Update Data',
       icon: Icons.cloud_upload_outlined,
-      // TODO: Enable farmer update API once backend is ready.
-      onPressed: null,
+      onPressed: isBlocked ? null : _save,
     );
   }
 }

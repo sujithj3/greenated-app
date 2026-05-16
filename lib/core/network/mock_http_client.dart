@@ -156,9 +156,10 @@ class MockHttpClient implements ApiClient {
   }
 
   Map<String, dynamic> _mockFormDetail(ApiRequest request) {
-    final submissionId =
-        int.tryParse(request.queryParameters['submissionId'] ?? '') ?? 1;
-    final hasLands = submissionId != 0;
+    final farmerId =
+        int.tryParse(request.queryParameters['farmerId'] ?? '') ?? 1;
+    final landSubmissionId = farmerId;
+    final hasLands = farmerId != 0;
 
     return _success(
       message: 'Form detail fetched successfully.',
@@ -171,20 +172,20 @@ class MockHttpClient implements ApiClient {
             'description': 'Mock farmer detail',
             'isActive': true,
             'farmerDetails': <String, dynamic>{
-              'farmerId': 101,
-              'farmerCode': 'FRM-101',
+              'farmerId': farmerId,
+              'farmerCode': 'FRM-$farmerId',
               'fields': _mockFarmerFields(),
             },
             'landDetails': hasLands
                 ? [
                     <String, dynamic>{
-                      'submissionId': submissionId,
+                      'submissionId': landSubmissionId,
                       'landId': 201,
                       'landCode': '482017856932',
                       'fields': _mockLandFields(),
                     },
                     <String, dynamic>{
-                      'submissionId': submissionId,
+                      'submissionId': landSubmissionId,
                       'landId': 202,
                       'landCode': '971236045871',
                       'fields': _mockLandFields(),
