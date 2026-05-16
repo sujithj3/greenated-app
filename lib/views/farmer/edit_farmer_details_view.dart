@@ -180,6 +180,35 @@ class _EditFarmerDetailsViewState extends State<EditFarmerDetailsView> {
     }
   }
 
+  Future<void> _openAddLandDetailForm() async {
+    final landFormData =
+        await _vm.loadLandForm(subcategoryId: widget.subcategoryId);
+    if (!mounted) return;
+
+    if (landFormData == null) {
+      context.showSnack(
+        _vm.landFormError ?? 'Unable to load land form. Please try again.',
+      );
+      return;
+    }
+
+    final result = await Navigator.pushNamed(
+      context,
+      '/add-land-detail',
+      arguments: {
+        'farmerId': widget.farmerId,
+        'landFormData': landFormData,
+      },
+    );
+
+    if (result == true && mounted) {
+      await _vm.loadEditForm(
+        subcategoryId: widget.subcategoryId,
+        farmerId: widget.farmerId,
+      );
+    }
+  }
+
   // ── Build ─────────────────────────────────────────────────────────────────
 
   @override
@@ -189,8 +218,9 @@ class _EditFarmerDetailsViewState extends State<EditFarmerDetailsView> {
       builder: (context, _) {
         final isUploading =
             _vm.fields.any((df) => _vm.isFieldUploading(df.field.key));
-        final showOverlay =
-            _vm.isSaving || _vm.fields.any((df) => df.isLoadingOptions);
+        final showOverlay = _vm.isSaving ||
+            _vm.isLoadingLandForm ||
+            _vm.fields.any((df) => df.isLoadingOptions);
         final isBlocked = showOverlay || isUploading;
 
         return Stack(
@@ -313,9 +343,8 @@ class _EditFarmerDetailsViewState extends State<EditFarmerDetailsView> {
                   right: 16,
                   bottom: 24,
                   child: AddNewLandButton(
-                    onPressed: () {
-                      // TODO: Navigate to add new land flow.
-                    },
+                    onPressed:
+                        isBlocked ? () {} : () => _openAddLandDetailForm(),
                   ),
                 ),
               ],

@@ -67,6 +67,7 @@ class MockHttpClient implements ApiClient {
     if (key == 'POST login/verify-otp') return _mockVerifyOtp();
     if (key == 'GET /list-farmers') return _mockGetFarmers();
     if (key == 'POST /register-farmer') return _mockCreateFarmer(request);
+    if (key == 'POST register-land') return _mockRegisterLand(request);
     if (request.method.value == 'GET' &&
         RegExp(r'^subcategories/\d+/form-detail$').hasMatch(request.path)) {
       return _mockFormDetail(request);
@@ -74,6 +75,10 @@ class MockHttpClient implements ApiClient {
     if (request.method.value == 'GET' &&
         RegExp(r'^subcategories/\d+/form-edit$').hasMatch(request.path)) {
       return _mockFormDetail(request);
+    }
+    if (request.method.value == 'GET' &&
+        RegExp(r'^subcategories/\d+/land-form$').hasMatch(request.path)) {
+      return _mockLandForm(request);
     }
     if (request.method.value == 'GET' &&
         RegExp(r'^/farmer/.*$').hasMatch(request.path)) {
@@ -155,6 +160,14 @@ class MockHttpClient implements ApiClient {
     );
   }
 
+  Map<String, dynamic> _mockRegisterLand(ApiRequest request) {
+    return _success(
+      statusCode: ApiStatusCode.created,
+      message: 'Land registered successfully.',
+      data: _bodyAsMap(request.body),
+    );
+  }
+
   Map<String, dynamic> _mockFormDetail(ApiRequest request) {
     final farmerId =
         int.tryParse(request.queryParameters['farmerId'] ?? '') ?? 1;
@@ -192,6 +205,31 @@ class MockHttpClient implements ApiClient {
                     },
                   ]
                 : <Map<String, dynamic>>[],
+          },
+        ],
+      },
+    );
+  }
+
+  Map<String, dynamic> _mockLandForm(ApiRequest request) {
+    final segments = request.path.split('/');
+    final subcategoryId =
+        segments.length > 1 ? int.tryParse(segments[1]) ?? 0 : 0;
+
+    return _success(
+      message: 'Land form fetched successfully',
+      data: <String, dynamic>{
+        'subcategory_id': subcategoryId,
+        'subcategory_name': 'Agroforestry Farm',
+        'forms': [
+          <String, dynamic>{
+            'formId': 4,
+            'formName': 'Land Detail',
+            'prefixCode': null,
+            'formType': 'MAIN',
+            'description': null,
+            'isActive': true,
+            'fields': _mockLandFields(),
           },
         ],
       },

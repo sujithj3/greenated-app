@@ -26,6 +26,7 @@ import 'views/category/subcategory_view.dart';
 import 'views/farmer/farmer_form_view.dart';
 import 'views/farmer/farmer_detail_view.dart';
 import 'views/farmer/edit_farmer_details_view.dart';
+import 'views/farmer/add_land_detail_form.dart';
 import 'views/farmer/land_detail_view.dart';
 import 'views/farmer/edit_land_detail_view.dart';
 import 'views/tools/land_measurement_view.dart';
@@ -208,6 +209,13 @@ class FarmerRegistrationApp extends StatelessWidget {
               page = EditLandDetailView(
                 land: landArgs['land'] as LandDetail,
                 title: landArgs['title'] as String? ?? 'Land Detail',
+              );
+            case '/add-land-detail':
+              final addLandArgs =
+                  settings.arguments as Map<String, dynamic>? ?? {};
+              page = AddLandDetailForm(
+                landFormData: addLandArgs['landFormData'] as LandFormData,
+                farmerId: addLandArgs['farmerId'] as int?,
               );
             default:
               page = const SplashView();

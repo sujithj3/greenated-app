@@ -89,6 +89,35 @@ class RegistrationFormService {
     }
   }
 
+  Future<void> submitLandRegistration(
+      int farmerId, Map<String, dynamic> payload) async {
+    final response = await _apiClient.send<Map<String, dynamic>>(
+      ApiRequest(
+        method: ApiMethod.post,
+        path: ApiEndpoints.registerLand,
+        queryParameters: {
+          'farmerId': farmerId.toString(),
+        },
+        body: payload,
+      ),
+      decoder: (raw) {
+        if (raw is Map) {
+          return Map<String, dynamic>.from(raw);
+        }
+        return {};
+      },
+    );
+
+    if (!response.isSuccess) {
+      throw ApiException(
+        response.message.isNotEmpty
+            ? response.message
+            : 'Something went wrong. Please try again.',
+        statusCode: response.statusCode,
+      );
+    }
+  }
+
   /// Fetches a submitted form with pre-filled field values for display.
   ///
   /// Returns a [FormDetailResult] with the form name and populated fields.
@@ -212,6 +241,32 @@ class RegistrationFormService {
       return null;
     }
     return ApiForm.fromJson(Map<String, dynamic>.from(formJson));
+  }
+
+  Future<LandFormData> fetchLandForm(int subcategoryId) async {
+    final response = await _apiClient.send<LandFormData>(
+      ApiRequest(
+        method: ApiMethod.get,
+        path: ApiEndpoints.landForm(subcategoryId),
+      ),
+      decoder: (raw) {
+        if (raw is Map) {
+          return LandFormData.fromJson(Map<String, dynamic>.from(raw));
+        }
+        return null;
+      },
+    );
+
+    if (!response.isSuccess || response.data == null) {
+      throw ApiException(
+        response.message.isEmpty
+            ? 'Failed to load land form.'
+            : response.message,
+        statusCode: response.statusCode,
+      );
+    }
+
+    return response.data!;
   }
 }
 

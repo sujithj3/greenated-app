@@ -36,8 +36,10 @@ class EditFarmerDetailsViewModel extends ChangeNotifier {
 
   // ── State ────────────────────────────────────────────────────────────────
   bool isLoading = false;
+  bool isLoadingLandForm = false;
   bool isSaving = false;
   String? error;
+  String? landFormError;
   String formName = '';
   List<DynamicFieldModel> fields = [];
   List<LandDetail> landDetails = [];
@@ -51,6 +53,8 @@ class EditFarmerDetailsViewModel extends ChangeNotifier {
 
   /// Whether a specific camera field is currently uploading.
   bool isFieldUploading(String key) => _uploadingFields[key] ?? false;
+
+  int? get currentUserId => _authService.userId;
 
   /// Whether a specific dependent dropdown field is currently loading.
   bool isFieldLoadingOptions(String key) {
@@ -102,12 +106,53 @@ class EditFarmerDetailsViewModel extends ChangeNotifier {
   void useLocalFields(List<DynamicFieldModel> localFields, {String? name}) {
     _userInteractionEnabled = true;
     isLoading = false;
+    isLoadingLandForm = false;
     isSaving = false;
     error = null;
+    landFormError = null;
     formName = name ?? formName;
     fields = localFields;
     landDetails = [];
     notifyListeners();
+  }
+
+  Future<LandFormData?> loadLandForm({required int subcategoryId}) async {
+    isLoadingLandForm = true;
+    landFormError = null;
+    notifyListeners();
+
+    try {
+      final landFormData = await _service.fetchLandForm(subcategoryId);
+      if (landFormData.firstUsableForm == null) {
+        landFormError = 'No land form fields available.';
+        return null;
+      }
+      return landFormData;
+    } catch (e) {
+      landFormError = e.toString();
+      return null;
+    } finally {
+      isLoadingLandForm = false;
+      notifyListeners();
+    }
+  }
+
+  Future<bool> submitLandRegistration({
+    required int farmerId,
+    required Map<String, dynamic> payload,
+  }) async {
+    isSaving = true;
+    notifyListeners();
+
+    try {
+      await _service.submitLandRegistration(farmerId, payload);
+      debugPrint(
+          '=== ADD LAND REGISTRATION RESULT === action=register_land success=true');
+      return true;
+    } finally {
+      isSaving = false;
+      notifyListeners();
+    }
   }
 
   /// Updates a dynamic field value by key.
