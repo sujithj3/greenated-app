@@ -209,6 +209,8 @@ class FarmerRegistrationApp extends StatelessWidget {
               page = EditLandDetailView(
                 land: landArgs['land'] as LandDetail,
                 title: landArgs['title'] as String? ?? 'Land Detail',
+                subcategoryId: landArgs['subcategoryId'] as int?,
+                submissionId: landArgs['submissionId'] as int?,
               );
             case '/add-land-detail':
               final addLandArgs =

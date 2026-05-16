@@ -8,6 +8,7 @@ import '../../services/image_upload_service.dart';
 import '../../services/registration_form_service.dart';
 import '../../utils/app_colors.dart';
 import '../../utils/field_fill_state.dart';
+import '../../utils/form_validator.dart';
 import '../../utils/snack_bar_helper.dart';
 import '../../view_models/farmer/add_land_detail_view_model.dart';
 import '../../widgets/dynamic_field_builder.dart';
@@ -19,10 +20,14 @@ class EditLandDetailView extends StatefulWidget {
     super.key,
     required this.land,
     required this.title,
+    required this.subcategoryId,
+    required this.submissionId,
   });
 
   final LandDetail land;
   final String title;
+  final int? subcategoryId;
+  final int? submissionId;
 
   @override
   State<EditLandDetailView> createState() => _EditLandDetailViewState();
@@ -48,6 +53,8 @@ class _EditLandDetailViewState extends State<EditLandDetailView> {
     _vm.useExistingLand(
       land: widget.land,
       name: widget.title,
+      subcategoryId: widget.subcategoryId,
+      submissionId: widget.submissionId,
     );
   }
 
@@ -155,8 +162,74 @@ class _EditLandDetailViewState extends State<EditLandDetailView> {
     }
   }
 
-  void _onUpdateLandDetail() {
-    // TODO: Implement update land detail API once backend is ready.
+  Future<void> _onUpdateLandDetail() async {
+    final submissionId = widget.submissionId;
+    final subcategoryId = widget.subcategoryId;
+    final userId = _vm.currentUserId;
+    if (submissionId == null ||
+        submissionId <= 0 ||
+        subcategoryId == null ||
+        subcategoryId <= 0 ||
+        userId == null ||
+        userId <= 0) {
+      context.showSnack('Required details not found. Please try again.');
+      return;
+    }
+
+    if (_vm.isSaving) return;
+
+    final isFormValid = _formKey.currentState?.validate() ?? true;
+    final textValues = Map.fromEntries(
+      _textCtrl.entries.map((entry) => MapEntry(entry.key, entry.value.text)),
+    );
+
+    _vm.applyCurrentValues(textValues);
+
+    final visibleFields =
+        _vm.fields.where((df) => _vm.isFieldVisible(df)).toList();
+    final validationResult = validateFields(
+      visibleFields,
+      textValues: textValues,
+    );
+
+    if (!validationResult.isValid) {
+      if (mounted) {
+        setState(() {});
+        context.showSnack(
+          'Please fill the required field: ${validationResult.firstInvalidLabel}',
+        );
+      }
+      return;
+    }
+
+    if (!isFormValid) {
+      if (mounted) context.showSnack('Please fix the errors in the form.');
+      return;
+    }
+
+    try {
+      final success = await _vm.submitLandEdit(textValues: textValues);
+      if (success && mounted) {
+        Navigator.pop(context, true);
+      }
+    } catch (e) {
+      if (mounted) {
+        final message = _cleanErrorMessage(e);
+        context.showSnack(
+          message.isEmpty ? 'Something went wrong. Please try again.' : message,
+        );
+      }
+    }
+  }
+
+  String _cleanErrorMessage(Object error) {
+    final text = error.toString().trim();
+    if (text.isEmpty) return '';
+    return text
+        .replaceFirst(RegExp(r'^ApiException:\s*'), '')
+        .replaceFirst(RegExp(r'^Exception:\s*'), '')
+        .replaceFirst(RegExp(r'^Bad state:\s*'), '')
+        .trim();
   }
 
   @override

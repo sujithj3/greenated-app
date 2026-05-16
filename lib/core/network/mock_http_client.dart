@@ -80,6 +80,10 @@ class MockHttpClient implements ApiClient {
         RegExp(r'^subcategories/\d+/land-form$').hasMatch(request.path)) {
       return _mockLandForm(request);
     }
+    if (request.method.value == 'POST' &&
+        RegExp(r'^subcategories/\d+/formland-edit$').hasMatch(request.path)) {
+      return _mockEditLandRegistration(request);
+    }
     if (request.method.value == 'GET' &&
         RegExp(r'^/farmer/.*$').hasMatch(request.path)) {
       return _mockGetFarmers();
@@ -164,6 +168,13 @@ class MockHttpClient implements ApiClient {
     return _success(
       statusCode: ApiStatusCode.created,
       message: 'Land registered successfully.',
+      data: _bodyAsMap(request.body),
+    );
+  }
+
+  Map<String, dynamic> _mockEditLandRegistration(ApiRequest request) {
+    return _success(
+      message: 'Land updated successfully.',
       data: _bodyAsMap(request.body),
     );
   }

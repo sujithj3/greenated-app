@@ -118,6 +118,40 @@ class RegistrationFormService {
     }
   }
 
+  Future<void> submitEditLandRegistration({
+    required int subcategoryId,
+    required int submissionId,
+    required int userId,
+    required Map<String, dynamic> payload,
+  }) async {
+    final response = await _apiClient.send<Map<String, dynamic>>(
+      ApiRequest(
+        method: ApiMethod.post,
+        path: ApiEndpoints.formLandEdit(subcategoryId),
+        queryParameters: {
+          'submissionId': submissionId.toString(),
+          'userId': userId.toString(),
+        },
+        body: payload,
+      ),
+      decoder: (raw) {
+        if (raw is Map) {
+          return Map<String, dynamic>.from(raw);
+        }
+        return {};
+      },
+    );
+
+    if (!response.isSuccess) {
+      throw ApiException(
+        response.message.isNotEmpty
+            ? response.message
+            : 'Something went wrong. Please try again.',
+        statusCode: response.statusCode,
+      );
+    }
+  }
+
   /// Fetches a submitted form with pre-filled field values for display.
   ///
   /// Returns a [FormDetailResult] with the form name and populated fields.

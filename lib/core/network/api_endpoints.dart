@@ -33,6 +33,9 @@ class ApiEndpoints {
   static String landForm(int subcategoryId) =>
       'subcategories/$subcategoryId/land-form';
 
+  static String formLandEdit(int subcategoryId) =>
+      'subcategories/$subcategoryId/formland-edit';
+
   // ── Image Upload ────────────────────────────────────────────────────
   static const String imageUpload = 'image/upload';
 

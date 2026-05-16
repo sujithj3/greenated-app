@@ -338,15 +338,23 @@ class _EditFarmerDetailsViewState extends State<EditFarmerDetailsView> {
                     const SizedBox(height: 16),
                     LandDetailsSection(
                       lands: _vm.landDetails,
-                      onLandTap: (land, _, title) {
-                        Navigator.pushNamed(
+                      onLandTap: (land, _, title) async {
+                        final result = await Navigator.pushNamed(
                           context,
                           '/edit-land-detail',
                           arguments: {
                             'land': land,
                             'title': title,
+                            'subcategoryId': widget.subcategoryId,
+                            'submissionId': land.submissionId,
                           },
                         );
+                        if (result == true && mounted) {
+                          await _vm.loadEditForm(
+                            subcategoryId: widget.subcategoryId,
+                            farmerId: widget.farmerId,
+                          );
+                        }
                       },
                     ),
                   ],

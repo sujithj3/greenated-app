@@ -34,6 +34,7 @@ class AddLandDetailViewModel extends DynamicFieldFormViewModel {
   String formName = '';
   int? farmerId;
   int? subcategoryId;
+  int? submissionId;
   List<DynamicFieldModel> fields = [];
 
   final Map<String, bool> _uploadingFields = {};
@@ -86,9 +87,11 @@ class AddLandDetailViewModel extends DynamicFieldFormViewModel {
   void useExistingLand({
     required LandDetail land,
     required String name,
+    required int? subcategoryId,
+    required int? submissionId,
   }) {
-    farmerId = null;
-    subcategoryId = null;
+    this.subcategoryId = subcategoryId;
+    this.submissionId = submissionId;
     formName = name;
     fields = land.fields.map((field) => field.copyWith()).toList();
     isSaving = false;
@@ -131,6 +134,48 @@ class AddLandDetailViewModel extends DynamicFieldFormViewModel {
       await _service.submitLandRegistration(landFarmerId, payload);
       debugPrint(
           '=== ADD LAND REGISTRATION RESULT === action=register_land success=true');
+      return true;
+    } finally {
+      isSaving = false;
+      notifyListeners();
+    }
+  }
+
+  Future<bool> submitLandEdit({
+    required Map<String, String> textValues,
+  }) async {
+    final landSubmissionId = submissionId;
+    final landSubcategoryId = subcategoryId;
+    final userId = currentUserId;
+    if (landSubmissionId == null ||
+        landSubmissionId <= 0 ||
+        landSubcategoryId == null ||
+        landSubcategoryId <= 0 ||
+        userId == null ||
+        userId <= 0) {
+      throw StateError('Required details not found. Please try again.');
+    }
+
+    applyCurrentValues(textValues);
+
+    isSaving = true;
+    notifyListeners();
+
+    final payload = _buildSubmitPayload();
+    final prettyJson = const JsonEncoder.withIndent('  ').convert(payload);
+    debugPrint('=== SUBMITTING EDIT LAND REGISTRATION ===');
+    debugPrint(prettyJson);
+    debugPrint('=========================================');
+
+    try {
+      await _service.submitEditLandRegistration(
+        subcategoryId: landSubcategoryId,
+        submissionId: landSubmissionId,
+        userId: userId,
+        payload: payload,
+      );
+      debugPrint(
+          '=== EDIT LAND REGISTRATION RESULT === action=update_land success=true');
       return true;
     } finally {
       isSaving = false;
