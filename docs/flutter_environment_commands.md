@@ -1,8 +1,21 @@
 # Flutter Environment Commands
 
-This app chooses its environment at build time with `APP_ENV`.
+This app now uses two build-time switches:
 
-In `lib/main.dart`, the app reads:
+- `--flavor` selects the native Android/iOS app id and launcher name.
+- `--dart-define=APP_ENV=...` selects the Flutter `.env.<environment>` file.
+
+Always keep the flavor and `APP_ENV` value matched.
+
+## Environments
+
+| Environment | Flavor | APP_ENV | Env file | Native app id / bundle id | App name |
+| --- | --- | --- | --- | --- | --- |
+| Development | `development` | `development` | `.env.development` | `com.dev.greenated.app` | `Greenated-Debug` |
+| Staging | `staging` | `staging` | `.env.staging` | `com.staging.greenated.app` | `Greenated-Staging` |
+| Production | `production` | `production` | `.env.production` | `com.greenated.app` | `Greenated` |
+
+In `lib/main.dart`, the app still reads:
 
 ```dart
 const appEnvironment = String.fromEnvironment(
@@ -12,15 +25,6 @@ const appEnvironment = String.fromEnvironment(
 
 await dotenv.load(fileName: '.env.$appEnvironment');
 ```
-
-That means:
-
-| Command value | Env file loaded |
-| --- | --- |
-| no `APP_ENV` passed | `.env.development` |
-| `APP_ENV=development` | `.env.development` |
-| `APP_ENV=staging` | `.env.staging` |
-| `APP_ENV=production` | `.env.production` |
 
 ## Env Files
 
@@ -46,32 +50,41 @@ These files are not used by the app. They only show which variables are required
 
 ## Development Debug
 
-Plain `flutter run` defaults to development:
+Use this for normal development with hot reload:
 
 ```bash
-flutter run
+flutter run --flavor development --dart-define=APP_ENV=development
 ```
-
-This is the same as:
-
-```bash
-flutter run --dart-define=APP_ENV=development
-```
-
-Use this for normal development with hot reload.
 
 ## Staging Debug
 
 Use this when staging values are ready:
 
 ```bash
-flutter run --dart-define=APP_ENV=staging
+flutter run --flavor staging --dart-define=APP_ENV=staging
 ```
 
-This loads:
+## Android Debug APKs
+
+Use these to create installable debug APKs for each flavor:
+
+```bash
+# Development debug APK
+flutter build apk --flavor development --debug --dart-define=APP_ENV=development
+
+# Staging debug APK
+flutter build apk --flavor staging --debug --dart-define=APP_ENV=staging
+
+# Production debug APK
+flutter build apk --flavor production --debug --dart-define=APP_ENV=production
+```
+
+Outputs:
 
 ```text
-.env.staging
+build/app/outputs/flutter-apk/app-development-debug.apk
+build/app/outputs/flutter-apk/app-staging-debug.apk
+build/app/outputs/flutter-apk/app-production-debug.apk
 ```
 
 ## Production Release Run
@@ -79,13 +92,7 @@ This loads:
 Use this to run the app on a connected device in release mode with production config:
 
 ```bash
-flutter run --release --dart-define=APP_ENV=production
-```
-
-This loads:
-
-```text
-.env.production
+flutter run --flavor production --release --dart-define=APP_ENV=production
 ```
 
 ## Android APK Release
@@ -95,13 +102,13 @@ Use this to create a production APK:
 ```bash
 flutter clean
 flutter pub get
-flutter build apk --release --dart-define=APP_ENV=production
+flutter build apk --flavor production --release --dart-define=APP_ENV=production
 ```
 
 Output:
 
 ```text
-build/app/outputs/flutter-apk/app-release.apk
+build/app/outputs/flutter-apk/app-production-release.apk
 ```
 
 Android release builds require local signing config:
@@ -119,13 +126,13 @@ Use this for Play Store upload:
 ```bash
 flutter clean
 flutter pub get
-flutter build appbundle --release --dart-define=APP_ENV=production
+flutter build appbundle --flavor production --release --dart-define=APP_ENV=production
 ```
 
 Output:
 
 ```text
-build/app/outputs/bundle/release/app-release.aab
+build/app/outputs/bundle/productionRelease/app-production-release.aab
 ```
 
 ## iOS Release Build
@@ -135,10 +142,52 @@ Use this to create an iOS release build:
 ```bash
 flutter clean
 flutter pub get
-flutter build ios --release --dart-define=APP_ENV=production
+flutter build ios --flavor production --release --dart-define=APP_ENV=production
 ```
 
-iOS signing is handled through Xcode and the Apple Developer account.
+iOS signing is handled through Xcode and the Apple Developer account. The bundle ids `com.dev.greenated.app`, `com.staging.greenated.app`, and `com.greenated.app` must exist in the Apple Developer account for device, TestFlight, or App Store builds.
+
+## iOS Debug Builds
+
+Use these to create debug iOS app builds without codesigning:
+
+```bash
+# Development debug iOS app
+flutter build ios --flavor development --debug --no-codesign --dart-define=APP_ENV=development
+
+# Staging debug iOS app
+flutter build ios --flavor staging --debug --no-codesign --dart-define=APP_ENV=staging
+
+# Production debug iOS app
+flutter build ios --flavor production --debug --no-codesign --dart-define=APP_ENV=production
+```
+
+Output:
+
+```text
+build/ios/iphoneos/Runner.app
+```
+
+## iOS Debug IPAs
+
+Use these when you need signed debug IPAs for registered development devices:
+
+```bash
+# Development debug IPA
+flutter build ipa --flavor development --debug --export-method development --dart-define=APP_ENV=development
+
+# Staging debug IPA
+flutter build ipa --flavor staging --debug --export-method development --dart-define=APP_ENV=staging
+
+# Production debug IPA
+flutter build ipa --flavor production --debug --export-method development --dart-define=APP_ENV=production
+```
+
+Output:
+
+```text
+build/ios/ipa/*.ipa
+```
 
 ## iOS IPA Release
 
@@ -147,58 +196,57 @@ Use this for App Store or TestFlight distribution:
 ```bash
 flutter clean
 flutter pub get
-flutter build ipa --release --dart-define=APP_ENV=production
+flutter build ipa --flavor production --release --dart-define=APP_ENV=production
 ```
-
-## Debug vs Release
-
-Debug mode:
-
-```bash
-flutter run
-```
-
-- Used during development.
-- Supports hot reload.
-- Not optimized for production.
-
-Release mode:
-
-```bash
-flutter run --release
-flutter build apk --release
-flutter build ipa --release
-```
-
-- Used for production or final testing.
-- Optimized for performance.
-- Does not support hot reload.
-- Uses release build behavior and release signing where applicable.
 
 ## Quick Command Reference
 
 ```bash
 # Development debug
-flutter run
-
-# Development debug, explicit env
-flutter run --dart-define=APP_ENV=development
+flutter run --flavor development --dart-define=APP_ENV=development
 
 # Staging debug
-flutter run --dart-define=APP_ENV=staging
+flutter run --flavor staging --dart-define=APP_ENV=staging
+
+# Android development debug APK
+flutter build apk --flavor development --debug --dart-define=APP_ENV=development
+
+# Android staging debug APK
+flutter build apk --flavor staging --debug --dart-define=APP_ENV=staging
+
+# Android production debug APK
+flutter build apk --flavor production --debug --dart-define=APP_ENV=production
 
 # Production release run
-flutter run --release --dart-define=APP_ENV=production
+flutter run --flavor production --release --dart-define=APP_ENV=production
 
 # Android production APK
-flutter build apk --release --dart-define=APP_ENV=production
+flutter build apk --flavor production --release --dart-define=APP_ENV=production
 
 # Android production App Bundle
-flutter build appbundle --release --dart-define=APP_ENV=production
+flutter build appbundle --flavor production --release --dart-define=APP_ENV=production
 
 # iOS production build
-flutter build ios --release --dart-define=APP_ENV=production
+flutter build ios --flavor production --release --dart-define=APP_ENV=production
+
+# iOS development debug app
+flutter build ios --flavor development --debug --no-codesign --dart-define=APP_ENV=development
+
+# iOS staging debug app
+flutter build ios --flavor staging --debug --no-codesign --dart-define=APP_ENV=staging
+
+# iOS production debug app
+flutter build ios --flavor production --debug --no-codesign --dart-define=APP_ENV=production
+
+# iOS development debug IPA
+flutter build ipa --flavor development --debug --export-method development --dart-define=APP_ENV=development
+
+# iOS staging debug IPA
+flutter build ipa --flavor staging --debug --export-method development --dart-define=APP_ENV=staging
+
+# iOS production debug IPA
+flutter build ipa --flavor production --debug --export-method development --dart-define=APP_ENV=production
 
 # iOS production IPA
-flutter build ipa --release --dart-define=APP_ENV=production
+flutter build ipa --flavor production --release --dart-define=APP_ENV=production
 ```

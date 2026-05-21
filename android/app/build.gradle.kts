@@ -30,7 +30,7 @@ if (isReleaseBuild && !keystorePropertiesFile.exists()) {
 }
 
 android {
-    namespace = "com.example.greenated"
+    namespace = "com.greenated.app"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -44,14 +44,34 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.example.greenated"
+        applicationId = "com.greenated.app"
         minSdk = 31
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
 
+        manifestPlaceholders["appName"] = "Greenated"
         manifestPlaceholders["GOOGLE_MAPS_API_KEY"] =
             localProperties.getProperty("GOOGLE_MAPS_API_KEY", "")
+    }
+
+    flavorDimensions += "environment"
+    productFlavors {
+        create("development") {
+            dimension = "environment"
+            applicationId = "com.dev.greenated.app"
+            manifestPlaceholders["appName"] = "Greenated-Debug"
+        }
+        create("staging") {
+            dimension = "environment"
+            applicationId = "com.staging.greenated.app"
+            manifestPlaceholders["appName"] = "Greenated-Staging"
+        }
+        create("production") {
+            dimension = "environment"
+            applicationId = "com.greenated.app"
+            manifestPlaceholders["appName"] = "Greenated"
+        }
     }
 
     signingConfigs {
