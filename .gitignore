@@ -49,6 +49,13 @@ app.*.map.json
 
 # Environment secrets
 .env
+.env.development
+.env.staging
+.env.production
 ios/Runner/Secrets.xcconfig
+android/key.properties
+android/*.jks
+android/*.keystore
 
 .claude/
+.vscode/

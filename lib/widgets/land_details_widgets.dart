@@ -22,8 +22,8 @@ class LandDetailsSection extends StatelessWidget {
           'Land Details - (${lands.length})',
           style: const TextStyle(
             color: AppColors.textDark,
-            fontSize: 20,
-            fontWeight: FontWeight.w800,
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
           ),
         ),
         const SizedBox(height: 18),
@@ -65,16 +65,18 @@ class LandDetailCard extends StatelessWidget {
     final code =
         land.landCode?.trim().isNotEmpty == true ? land.landCode!.trim() : '-';
 
-    return Material(
-      color: AppColors.white,
-      elevation: 3,
-      shadowColor: Colors.black.withValues(alpha: 0.18),
-      borderRadius: BorderRadius.circular(14),
+    return Card(
+      elevation: 2,
+      margin: EdgeInsets.zero,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+      ),
+      clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(12),
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
           child: Row(
             children: [
               Expanded(
@@ -85,16 +87,16 @@ class LandDetailCard extends StatelessWidget {
                       title,
                       style: const TextStyle(
                         color: AppColors.textDark,
-                        fontSize: 18,
-                        fontWeight: FontWeight.w800,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 4),
                     Text(
                       code,
                       style: const TextStyle(
                         color: AppColors.textMedium,
-                        fontSize: 16,
+                        fontSize: 14,
                         fontWeight: FontWeight.w400,
                       ),
                     ),
@@ -104,7 +106,7 @@ class LandDetailCard extends StatelessWidget {
               const Icon(
                 Icons.chevron_right,
                 color: AppColors.textMedium,
-                size: 30,
+                size: 24,
               ),
             ],
           ),
