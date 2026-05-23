@@ -1,8 +1,9 @@
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
-/// Typed access to environment variables loaded from `.env`.
+/// Typed access to environment variables loaded from `.env.<environment>`.
 ///
-/// Call `await dotenv.load()` in `main()` before using these getters.
+/// Call `await dotenv.load(fileName: '.env.<environment>')` in `main()`
+/// before using these getters.
 class EnvConfig {
   EnvConfig._();
 

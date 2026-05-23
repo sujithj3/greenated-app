@@ -26,12 +26,16 @@ import 'views/category/subcategory_view.dart';
 import 'views/farmer/farmer_form_view.dart';
 import 'views/farmer/farmer_detail_view.dart';
 import 'views/farmer/edit_farmer_details_view.dart';
+import 'views/farmer/add_land_detail_form.dart';
+import 'views/farmer/land_detail_view.dart';
+import 'views/farmer/edit_land_detail_view.dart';
 import 'views/tools/land_measurement_view.dart';
 import 'views/tools/camera_capture_view.dart';
 import 'repositories/registered_list_repository.dart';
 import 'view_models/registered_list_view_model.dart';
 import 'views/farmer/registered_list_view.dart';
 import 'models/flow_type.dart';
+import 'models/api/api_models.dart';
 
 /// Global key for the root ScaffoldMessenger. Ensures SnackBars render above
 /// all routes, bottom sheets, and dialogs — not behind them.
@@ -39,7 +43,11 @@ final rootScaffoldMessengerKey = GlobalKey<ScaffoldMessengerState>();
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await dotenv.load();
+  const appEnvironment = String.fromEnvironment(
+    'APP_ENV',
+    defaultValue: 'development',
+  );
+  await dotenv.load(fileName: '.env.$appEnvironment');
 
   // Pre-initialize AuthService to ensure SharedPreferences is ready
   final authService = AuthService();
@@ -183,14 +191,37 @@ class FarmerRegistrationApp extends StatelessWidget {
                   settings.arguments as Map<String, dynamic>? ?? {};
               page = FarmerDetailView(
                 subcategoryId: detailArgs['subcategoryId'] as int? ?? 0,
-                submissionId: detailArgs['submissionId'] as int? ?? 0,
+                farmerId: detailArgs['farmerId'] as int? ?? 0,
               );
             case '/edit-farmer-details':
               final editArgs =
                   settings.arguments as Map<String, dynamic>? ?? {};
               page = EditFarmerDetailsView(
                 subcategoryId: editArgs['subcategoryId'] as int? ?? 0,
-                submissionId: editArgs['submissionId'] as int? ?? 0,
+                farmerId: editArgs['farmerId'] as int? ?? 0,
+              );
+            case '/land-detail':
+              final landArgs =
+                  settings.arguments as Map<String, dynamic>? ?? {};
+              page = LandDetailView(
+                land: landArgs['land'] as LandDetail,
+                title: landArgs['title'] as String? ?? 'Land Detail',
+              );
+            case '/edit-land-detail':
+              final landArgs =
+                  settings.arguments as Map<String, dynamic>? ?? {};
+              page = EditLandDetailView(
+                land: landArgs['land'] as LandDetail,
+                title: landArgs['title'] as String? ?? 'Land Detail',
+                subcategoryId: landArgs['subcategoryId'] as int?,
+                submissionId: landArgs['submissionId'] as int?,
+              );
+            case '/add-land-detail':
+              final addLandArgs =
+                  settings.arguments as Map<String, dynamic>? ?? {};
+              page = AddLandDetailForm(
+                landFormData: addLandArgs['landFormData'] as LandFormData,
+                farmerId: addLandArgs['farmerId'] as int?,
               );
             default:
               page = const SplashView();

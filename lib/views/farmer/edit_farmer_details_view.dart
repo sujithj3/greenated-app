@@ -10,8 +10,11 @@ import '../../services/registration_form_service.dart';
 import '../../utils/app_colors.dart';
 import '../../utils/form_validator.dart';
 import '../../utils/snack_bar_helper.dart';
+import '../../view_models/farmer/add_land_detail_view_model.dart';
+import '../../view_models/farmer/dynamic_field_form_view_model.dart';
 import '../../view_models/farmer/edit_farmer_details_view_model.dart';
 import '../../widgets/dynamic_field_builder.dart';
+import '../../widgets/land_details_widgets.dart';
 import '../../widgets/shimmer_loading.dart';
 
 /// Edit view for a previously submitted farmer registration.
@@ -21,12 +24,12 @@ import '../../widgets/shimmer_loading.dart';
 /// create and detail flows.
 class EditFarmerDetailsView extends StatefulWidget {
   final int subcategoryId;
-  final int submissionId;
+  final int farmerId;
 
   const EditFarmerDetailsView({
     super.key,
     required this.subcategoryId,
-    required this.submissionId,
+    required this.farmerId,
   });
 
   @override
@@ -36,14 +39,21 @@ class EditFarmerDetailsView extends StatefulWidget {
 class _EditFarmerDetailsViewState extends State<EditFarmerDetailsView> {
   final _formKey = GlobalKey<FormState>();
   late final EditFarmerDetailsViewModel _vm;
+  late final AddLandDetailViewModel _landVm;
   final Map<String, TextEditingController> _textCtrl = {};
   bool _isInit = false;
-  AutovalidateMode _autoValidateMode = AutovalidateMode.disabled;
+  final AutovalidateMode _autoValidateMode = AutovalidateMode.disabled;
 
   @override
   void initState() {
     super.initState();
     _vm = EditFarmerDetailsViewModel(
+      service: context.read<RegistrationFormService>(),
+      authService: context.read<AuthService>(),
+      apiClient: context.read<ApiClient>(),
+      imageUploadService: context.read<ImageUploadService>(),
+    );
+    _landVm = AddLandDetailViewModel(
       service: context.read<RegistrationFormService>(),
       authService: context.read<AuthService>(),
       apiClient: context.read<ApiClient>(),
@@ -58,11 +68,12 @@ class _EditFarmerDetailsViewState extends State<EditFarmerDetailsView> {
     _isInit = true;
 
     _vm.addListener(_onVmChanged);
+    _landVm.addListener(_onVmChanged);
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (mounted) {
         await _vm.loadEditForm(
           subcategoryId: widget.subcategoryId,
-          submissionId: widget.submissionId,
+          farmerId: widget.farmerId,
         );
       }
     });
@@ -112,10 +123,12 @@ class _EditFarmerDetailsViewState extends State<EditFarmerDetailsView> {
   @override
   void dispose() {
     _vm.removeListener(_onVmChanged);
+    _landVm.removeListener(_onVmChanged);
     for (final c in _textCtrl.values) {
       c.dispose();
     }
     _vm.dispose();
+    _landVm.dispose();
     super.dispose();
   }
 
@@ -144,7 +157,7 @@ class _EditFarmerDetailsViewState extends State<EditFarmerDetailsView> {
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (_) => _EditPopupFormSheet(
+      builder: (_) => EditPopupFormSheet(
         parentField: df.field,
         initialFields: currentValues,
         onSaved: (result) {
@@ -179,54 +192,32 @@ class _EditFarmerDetailsViewState extends State<EditFarmerDetailsView> {
     }
   }
 
-  // ── Save ──────────────────────────────────────────────────────────────────
+  Future<void> _openAddLandDetailForm() async {
+    final landFormData =
+        await _landVm.loadLandForm(subcategoryId: widget.subcategoryId);
+    if (!mounted) return;
 
-  Future<void> _save() async {
-    // 1. Trigger widget-level validation to show inline error text for on-screen fields
-    final isFormValid = _formKey.currentState?.validate() ?? true;
-
-    final textValues = Map.fromEntries(
-      _textCtrl.entries.map((e) => MapEntry(e.key, e.value.text)),
-    );
-
-    // 2. Recursive validation for all visible fields including popup children
-    final visibleFields =
-        _vm.fields.where((df) => _vm.isFieldVisible(df)).toList();
-    final validationResult = validateFields(
-      visibleFields,
-      textValues: textValues,
-    );
-
-    if (!validationResult.isValid) {
-      if (mounted) {
-        setState(() => _autoValidateMode = AutovalidateMode.always);
-        context.showSnack(
-          'Please fill the required field: ${validationResult.firstInvalidLabel}',
-        );
-      }
-      return;
-    }
-
-    if (!isFormValid) {
-      if (mounted) {
-        setState(() => _autoValidateMode = AutovalidateMode.always);
-        context.showSnack('Please fix the errors in the form.');
-      }
-      return;
-    }
-
-    try {
-      final success = await _vm.save(
-        textValues: textValues,
-        subcategoryId: widget.subcategoryId,
-        submissionId: widget.submissionId,
+    if (landFormData == null) {
+      context.showSnack(
+        _landVm.landFormError ?? 'Unable to load land form. Please try again.',
       );
-      if (success && mounted) {
-        context.showSnack('Registration updated!', success: true);
-        Navigator.pop(context, true);
-      }
-    } catch (e) {
-      if (mounted) context.showSnack('Error: ${e.toString()}');
+      return;
+    }
+
+    final result = await Navigator.pushNamed(
+      context,
+      '/add-land-detail',
+      arguments: {
+        'farmerId': widget.farmerId,
+        'landFormData': landFormData,
+      },
+    );
+
+    if (result == true && mounted) {
+      await _vm.loadEditForm(
+        subcategoryId: widget.subcategoryId,
+        farmerId: widget.farmerId,
+      );
     }
   }
 
@@ -239,8 +230,9 @@ class _EditFarmerDetailsViewState extends State<EditFarmerDetailsView> {
       builder: (context, _) {
         final isUploading =
             _vm.fields.any((df) => _vm.isFieldUploading(df.field.key));
-        final showOverlay =
-            _vm.isSaving || _vm.fields.any((df) => df.isLoadingOptions);
+        final showOverlay = _vm.isSaving ||
+            _landVm.isLoadingLandForm ||
+            _vm.fields.any((df) => df.isLoadingOptions);
         final isBlocked = showOverlay || isUploading;
 
         return Stack(
@@ -306,7 +298,7 @@ class _EditFarmerDetailsViewState extends State<EditFarmerDetailsView> {
               ElevatedButton(
                 onPressed: () => _vm.loadEditForm(
                   subcategoryId: widget.subcategoryId,
-                  submissionId: widget.submissionId,
+                  farmerId: widget.farmerId,
                 ),
                 child: const Text('Retry'),
               ),
@@ -316,7 +308,7 @@ class _EditFarmerDetailsViewState extends State<EditFarmerDetailsView> {
       );
     }
 
-    if (_vm.fields.isEmpty) {
+    if (_vm.fields.isEmpty && _vm.landDetails.isEmpty) {
       return const Center(
         child: Text('No data available',
             style: TextStyle(color: AppColors.textMedium, fontSize: 16)),
@@ -332,12 +324,50 @@ class _EditFarmerDetailsViewState extends State<EditFarmerDetailsView> {
       child: Column(
         children: [
           Expanded(
-            child: ListView.separated(
-              padding: const EdgeInsets.all(16),
-              itemCount: visibleFields.length,
-              separatorBuilder: (_, __) => const SizedBox(height: 12),
-              itemBuilder: (context, index) =>
-                  _buildField(visibleFields[index]),
+            child: Stack(
+              children: [
+                ListView(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 112),
+                  children: [
+                    ...visibleFields.map(
+                      (field) => Padding(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: _buildField(field),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    LandDetailsSection(
+                      lands: _vm.landDetails,
+                      onLandTap: (land, _, title) async {
+                        final result = await Navigator.pushNamed(
+                          context,
+                          '/edit-land-detail',
+                          arguments: {
+                            'land': land,
+                            'title': title,
+                            'subcategoryId': widget.subcategoryId,
+                            'submissionId': land.submissionId,
+                          },
+                        );
+                        if (result == true && mounted) {
+                          await _vm.loadEditForm(
+                            subcategoryId: widget.subcategoryId,
+                            farmerId: widget.farmerId,
+                          );
+                        }
+                      },
+                    ),
+                  ],
+                ),
+                Positioned(
+                  right: 16,
+                  bottom: 24,
+                  child: AddNewLandButton(
+                    onPressed:
+                        isBlocked ? () {} : () => _openAddLandDetailForm(),
+                  ),
+                ),
+              ],
             ),
           ),
           _buildSubmitButton(isBlocked),
@@ -394,41 +424,70 @@ class _EditFarmerDetailsViewState extends State<EditFarmerDetailsView> {
     );
   }
 
+  Future<void> _save() async {
+    final isFormValid = _formKey.currentState?.validate() ?? true;
+
+    final textValues = Map.fromEntries(
+      _textCtrl.entries.map((e) => MapEntry(e.key, e.value.text)),
+    );
+
+    final visibleFields =
+        _vm.fields.where((df) => _vm.isFieldVisible(df)).toList();
+    final validationResult = validateFields(
+      visibleFields,
+      textValues: textValues,
+    );
+
+    if (!validationResult.isValid) {
+      if (mounted) {
+        context.showSnack(
+          'Please fill the required field: ${validationResult.firstInvalidLabel}',
+        );
+      }
+      return;
+    }
+
+    if (!isFormValid) {
+      if (mounted) {
+        context.showSnack('Please fix the errors in the form.');
+      }
+      return;
+    }
+
+    try {
+      final success = await _vm.save(
+        textValues: textValues,
+        subcategoryId: widget.subcategoryId,
+        farmerId: widget.farmerId,
+      );
+      if (success && mounted) {
+        context.showSnack('Farmer details updated!', success: true);
+        Navigator.pop(context, true);
+      }
+    } catch (e) {
+      if (mounted) context.showSnack('Error: ${e.toString()}');
+    }
+  }
+
   Widget _buildSubmitButton(bool isBlocked) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-      decoration: BoxDecoration(
-        color: Theme.of(context).scaffoldBackgroundColor,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.06),
-            blurRadius: 8,
-            offset: const Offset(0, -2),
-          ),
-        ],
-      ),
-      child: ElevatedButton.icon(
-        onPressed: isBlocked ? null : _save,
-        icon: const Icon(Icons.cloud_upload_outlined),
-        label: const Text('Update Registration'),
-        style: ElevatedButton.styleFrom(
-          minimumSize: const Size(double.infinity, 48),
-        ),
-      ),
+    return BottomUpdateButton(
+      label: 'Update Data',
+      icon: Icons.cloud_upload_outlined,
+      onPressed: isBlocked ? null : _save,
     );
   }
 }
 
 // ─── Edit Popup Form Sheet ──────────────────────────────────────────────────
 
-class _EditPopupFormSheet extends StatefulWidget {
+class EditPopupFormSheet extends StatefulWidget {
   final ApiField parentField;
   final List<DynamicFieldModel> initialFields;
   final void Function(List<DynamicFieldModel> updated) onSaved;
-  final EditFarmerDetailsViewModel viewModel;
+  final DynamicFieldFormViewModel viewModel;
 
-  const _EditPopupFormSheet({
+  const EditPopupFormSheet({
+    super.key,
     required this.parentField,
     required this.initialFields,
     required this.onSaved,
@@ -436,10 +495,10 @@ class _EditPopupFormSheet extends StatefulWidget {
   });
 
   @override
-  State<_EditPopupFormSheet> createState() => _EditPopupFormSheetState();
+  State<EditPopupFormSheet> createState() => _EditPopupFormSheetState();
 }
 
-class _EditPopupFormSheetState extends State<_EditPopupFormSheet> {
+class _EditPopupFormSheetState extends State<EditPopupFormSheet> {
   final _popupFormKey = GlobalKey<FormState>();
   AutovalidateMode _autoValidateMode = AutovalidateMode.disabled;
   final Map<String, TextEditingController> _textCtrl = {};
@@ -737,7 +796,7 @@ class _EditPopupFormSheetState extends State<_EditPopupFormSheet> {
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (_) => _EditPopupFormSheet(
+      builder: (_) => EditPopupFormSheet(
         parentField: df.field,
         initialFields: currentValues,
         onSaved: (result) {

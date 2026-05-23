@@ -17,9 +17,10 @@ class FarmerDetailViewModel extends ChangeNotifier {
   String? error;
   String formName = '';
   List<DynamicFieldModel> fields = [];
+  List<LandDetail> landDetails = [];
 
   Future<void> loadFormDetail(
-      {required int subcategoryId, required int submissionId}) async {
+      {required int subcategoryId, required int farmerId}) async {
     final userId = _authService.userId;
     if (userId == null) {
       error = 'User not authenticated.';
@@ -33,11 +34,14 @@ class FarmerDetailViewModel extends ChangeNotifier {
 
     try {
       final result =
-          await _service.fetchFormDetail(subcategoryId, submissionId, userId);
+          await _service.fetchFormDetail(subcategoryId, farmerId, userId);
       formName = result.formName;
       fields = result.fields;
+      landDetails = result.landDetails;
     } catch (e) {
       error = e.toString();
+      fields = [];
+      landDetails = [];
     } finally {
       isLoading = false;
       notifyListeners();
