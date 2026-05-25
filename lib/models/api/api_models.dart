@@ -374,16 +374,83 @@ class DynamicFieldModel {
   }
 }
 
+class FarmerDetails {
+  const FarmerDetails({
+    this.farmerId,
+    this.farmerCode,
+    this.fields = const [],
+  });
+
+  final int? farmerId;
+  final String? farmerCode;
+  final List<DynamicFieldModel> fields;
+
+  factory FarmerDetails.fromJson(Map<String, dynamic> json) {
+    final data = _normalizeJsonKeys(json);
+    final rawFields = data['fields'] as List<dynamic>? ?? const [];
+    return FarmerDetails(
+      farmerId: data['farmerId'] == null ? null : _asInt(data['farmerId']),
+      farmerCode: _asNullableString(data['farmerCode']),
+      fields: rawFields
+          .whereType<Map>()
+          .map((field) =>
+              DynamicFieldModel.fromJson(Map<String, dynamic>.from(field)))
+          .toList(),
+    );
+  }
+}
+
+class LandDetail {
+  const LandDetail({
+    this.submissionId,
+    this.landId,
+    this.landCode,
+    this.landTitle,
+    this.fields = const [],
+  });
+
+  final int? submissionId;
+  final int? landId;
+  final String? landCode;
+  final String? landTitle;
+  final List<DynamicFieldModel> fields;
+
+  factory LandDetail.fromJson(Map<String, dynamic> json) {
+    final data = _normalizeJsonKeys(json);
+    final rawFields = data['fields'] as List<dynamic>? ?? const [];
+    return LandDetail(
+      submissionId:
+          data['submissionId'] == null ? null : _asInt(data['submissionId']),
+      landId: data['landId'] == null ? null : _asInt(data['landId']),
+      landCode: _asNullableString(data['landCode']),
+      landTitle: _asNullableString(data['landTitle']),
+      fields: rawFields
+          .whereType<Map>()
+          .map((field) =>
+              DynamicFieldModel.fromJson(Map<String, dynamic>.from(field)))
+          .toList(),
+    );
+  }
+}
+
 class ApiForm {
   const ApiForm({
     required this.formId,
     required this.formName,
+    this.prefixCode,
+    this.formType,
+    this.description,
+    this.isActive,
     this.geoLocationRequired = false,
     this.fields = const [],
   });
 
   final int formId;
   final String formName;
+  final String? prefixCode;
+  final String? formType;
+  final String? description;
+  final bool? isActive;
   final bool geoLocationRequired;
   final List<ApiField> fields;
 
@@ -392,6 +459,10 @@ class ApiForm {
     return ApiForm(
       formId: _asInt(data['formId']),
       formName: data['formName']?.toString() ?? '',
+      prefixCode: _asNullableString(data['prefixCode']),
+      formType: _asNullableString(data['formType']),
+      description: _asNullableString(data['description']),
+      isActive: data.containsKey('isActive') ? _asBool(data['isActive']) : null,
       geoLocationRequired: data['geoLocationRequired'] as bool? ?? false,
       fields: (data['fields'] as List<dynamic>? ?? const [])
           .whereType<Map>()
@@ -403,9 +474,58 @@ class ApiForm {
   Map<String, dynamic> toJson() => <String, dynamic>{
         'formId': formId,
         'formName': formName,
+        if (prefixCode != null) 'prefixCode': prefixCode,
+        if (formType != null) 'formType': formType,
+        if (description != null) 'description': description,
+        if (isActive != null) 'isActive': isActive,
         'geoLocationRequired': geoLocationRequired,
         'fields': fields.map((field) => field.toJson()).toList(),
       };
+}
+
+class LandFormData {
+  const LandFormData({
+    required this.subcategoryId,
+    required this.subcategoryName,
+    required this.rawData,
+    this.forms = const [],
+  });
+
+  final int subcategoryId;
+  final String subcategoryName;
+  final Map<String, dynamic> rawData;
+  final List<ApiForm> forms;
+
+  factory LandFormData.fromJson(Map<String, dynamic> json) {
+    final data = _normalizeJsonKeys(json);
+    return LandFormData(
+      subcategoryId: _asInt(data['subcategoryId']),
+      subcategoryName: data['subcategoryName']?.toString() ?? '',
+      rawData: _deepCopyMap(json),
+      forms: (data['forms'] as List<dynamic>? ?? const [])
+          .whereType<Map>()
+          .map((json) => ApiForm.fromJson(Map<String, dynamic>.from(json)))
+          .toList(),
+    );
+  }
+
+  ApiForm? get firstUsableForm {
+    final activeForms = forms.where((form) => form.isActive == true).toList();
+    if (activeForms.isNotEmpty) {
+      for (final form in activeForms) {
+        if (form.fields.isNotEmpty) return form;
+      }
+      return null;
+    }
+    for (final form in forms) {
+      if (form.fields.isNotEmpty) return form;
+    }
+    return null;
+  }
+
+  Map<String, dynamic> copyRawData() => _deepCopyMap(rawData);
+
+  Map<String, dynamic> toJson() => copyRawData();
 }
 
 Map<String, dynamic> _normalizeJsonKeys(Map<String, dynamic> json) {
@@ -435,6 +555,34 @@ int _asInt(Object? value, {int fallback = 0}) {
   if (value is num) return value.toInt();
   if (value is String) return int.tryParse(value) ?? fallback;
   return fallback;
+}
+
+bool _asBool(Object? value, {bool fallback = false}) {
+  if (value is bool) return value;
+  if (value is num) return value != 0;
+  if (value is String) {
+    final normalized = value.trim().toLowerCase();
+    if (normalized == 'true' || normalized == '1') return true;
+    if (normalized == 'false' || normalized == '0') return false;
+  }
+  return fallback;
+}
+
+Map<String, dynamic> _deepCopyMap(Map<dynamic, dynamic> source) {
+  return source.map(
+    (key, value) => MapEntry(key.toString(), _deepCopyJsonValue(value)),
+  );
+}
+
+Object? _deepCopyJsonValue(Object? value) {
+  if (value is Map) return _deepCopyMap(value);
+  if (value is List) return value.map(_deepCopyJsonValue).toList();
+  return value;
+}
+
+String? _asNullableString(Object? value) {
+  final text = value?.toString().trim();
+  return text == null || text.isEmpty ? null : text;
 }
 
 List<dynamic>? _parseShowWhen(Object? raw) {

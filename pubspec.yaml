@@ -1,5 +1,5 @@
-name: farmer_registration
-description: "Greenated App with green agriculture theme and API backend."
+name: greenated
+description: "Greenated mobile app for farmer registration, land mapping, and marketplace workflows."
 publish_to: 'none'
 version: 1.0.0+1
 
@@ -61,6 +61,8 @@ flutter_launcher_icons:
 flutter:
   uses-material-design: true
   assets:
-    - .env
+    - .env.development
+    - .env.staging
+    - .env.production
     - assets/images/
     - assets/icons/
