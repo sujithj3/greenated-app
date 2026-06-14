@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import '../../utils/app_colors.dart';
+import '../../utils/camera_photo_frame.dart';
 import '../../utils/snack_bar_helper.dart';
 import '../../view_models/tools/camera_capture_view_model.dart';
 
@@ -33,63 +34,14 @@ class ImagePreviewView extends StatelessWidget {
         title: const Text('Preview'),
         leading: IconButton(
           icon: const Icon(Icons.close),
-          onPressed: viewModel.retake, // Instead of popping the route, retake unsets the image
+          onPressed: viewModel
+              .retake, // Instead of popping the route, retake unsets the image
         ),
       ),
       body: Stack(
         fit: StackFit.expand,
         children: [
-          Image.file(
-            File(viewModel.capturedImagePath!),
-            fit: BoxFit.contain,
-          ),
-          
-          // UI representation of the overlay (before it is permanently burnt in)
-          Positioned(
-            top: 20,
-            left: 20,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-              decoration: BoxDecoration(
-                color: Colors.black.withValues(alpha: 0.6),
-                borderRadius: BorderRadius.circular(4),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    viewModel.locationText,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  if (viewModel.latLngText.isNotEmpty) ...[
-                    Text(
-                      viewModel.latLngText,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                  ],
-                  Text(
-                    viewModel.timestampText,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
+          _buildImageWithOverlay(),
 
           // Loading overlay during processing
           if (viewModel.isProcessing)
@@ -120,23 +72,102 @@ class ImagePreviewView extends StatelessWidget {
             OutlinedButton.icon(
               onPressed: viewModel.isProcessing ? null : viewModel.retake,
               icon: const Icon(Icons.refresh, color: Colors.white),
-              label: const Text('Retake', style: TextStyle(color: Colors.white)),
+              label:
+                  const Text('Retake', style: TextStyle(color: Colors.white)),
               style: OutlinedButton.styleFrom(
                 side: const BorderSide(color: Colors.white),
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
               ),
             ),
             ElevatedButton.icon(
-              onPressed: (viewModel.isProcessing || viewModel.isFetchingLocation) ? null : () => _save(context),
+              onPressed:
+                  (viewModel.isProcessing || viewModel.isFetchingLocation)
+                      ? null
+                      : () => _save(context),
               icon: const Icon(Icons.check),
-              label: Text(viewModel.isFetchingLocation ? 'Fetching Location...' : 'Save'),
+              label: Text(viewModel.isFetchingLocation
+                  ? 'Fetching Location...'
+                  : 'Save'),
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.primary,
-                padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
               ),
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildImageWithOverlay() {
+    return Builder(
+      builder: (context) {
+        return Center(
+          child: AspectRatio(
+            aspectRatio: CameraPhotoFrame.aspectRatioForOrientation(
+              MediaQuery.orientationOf(context),
+            ),
+            child: ClipRect(
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  Image.file(
+                    File(viewModel.capturedImagePath!),
+                    fit: BoxFit.cover,
+                  ),
+                  Positioned(
+                    top: 10,
+                    left: 10,
+                    right: 20,
+                    child: Align(
+                      alignment: Alignment.topLeft,
+                      child: _buildOverlayLabel(),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildOverlayLabel() {
+    return Container(
+      constraints: const BoxConstraints(maxWidth: 360),
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.6),
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _buildOverlayText(viewModel.locationText),
+          const SizedBox(height: 4),
+          if (viewModel.latLngText.isNotEmpty) ...[
+            _buildOverlayText(viewModel.latLngText),
+            const SizedBox(height: 4),
+          ],
+          _buildOverlayText(viewModel.timestampText),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildOverlayText(String text) {
+    return Text(
+      text,
+      maxLines: 2,
+      overflow: TextOverflow.ellipsis,
+      style: const TextStyle(
+        color: Colors.white,
+        fontSize: 14,
+        fontWeight: FontWeight.w600,
       ),
     );
   }

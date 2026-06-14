@@ -122,28 +122,36 @@ class _FilesViewerScreenState extends State<FilesViewerScreen> {
       return GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: () => _openImageViewer(file),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(12),
-          child: Container(
-            color: Colors.black,
-            child: file.localPath != null
-                ? Image.file(
-                    File(file.localPath!),
-                    width: double.infinity,
-                    height: double.infinity,
-                    fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) => _fallback(file),
-                  )
-                : CachedNetworkImage(
-                    imageUrl: file.url ?? '',
-                    width: double.infinity,
-                    height: double.infinity,
-                    fit: BoxFit.cover,
-                    placeholder: (_, __) => const Center(
-                      child: CircularProgressIndicator(color: Colors.white),
+        child: Container(
+          decoration: BoxDecoration(
+            color: AppColors.white,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: AppColors.light),
+          ),
+          padding: const EdgeInsets.all(1),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(11),
+            child: ColoredBox(
+              color: AppColors.white,
+              child: file.localPath != null
+                  ? Image.file(
+                      File(file.localPath!),
+                      width: double.infinity,
+                      height: double.infinity,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => _fallback(file),
+                    )
+                  : CachedNetworkImage(
+                      imageUrl: file.url ?? '',
+                      width: double.infinity,
+                      height: double.infinity,
+                      fit: BoxFit.cover,
+                      placeholder: (_, __) => const Center(
+                        child: CircularProgressIndicator(),
+                      ),
+                      errorWidget: (_, __, ___) => _fallback(file),
                     ),
-                    errorWidget: (_, __, ___) => _fallback(file),
-                  ),
+            ),
           ),
         ),
       );
@@ -571,30 +579,33 @@ class _PdfPreviewState extends State<_PdfPreview> {
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: AppColors.light),
       ),
-      clipBehavior: Clip.antiAlias,
-      child: Column(
-        children: [
-          Expanded(child: _buildPreviewContent()),
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(16),
-            decoration: const BoxDecoration(
-              color: AppColors.white,
-              border: Border(top: BorderSide(color: AppColors.light)),
-            ),
-            child: ElevatedButton.icon(
-              onPressed: widget.isOpening ? null : widget.onViewPdf,
-              icon: widget.isOpening
-                  ? const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.visibility_outlined),
-              label: const Text('View PDF'),
-            ),
+      padding: const EdgeInsets.all(1),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(11),
+        child: ColoredBox(
+          color: AppColors.white,
+          child: Column(
+            children: [
+              Expanded(child: _buildPreviewContent()),
+              Container(
+                width: double.infinity,
+                color: AppColors.white,
+                padding: const EdgeInsets.all(16),
+                child: ElevatedButton.icon(
+                  onPressed: widget.isOpening ? null : widget.onViewPdf,
+                  icon: widget.isOpening
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.visibility_outlined),
+                  label: const Text('View PDF'),
+                ),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
@@ -610,16 +621,15 @@ class _PdfPreviewState extends State<_PdfPreview> {
     }
 
     return ColoredBox(
-      color: AppColors.veryLight,
+      color: AppColors.white,
       child: Padding(
         padding: const EdgeInsets.all(12),
         child: PdfPageView(
           document: document,
           pageNumber: 1,
           backgroundColor: AppColors.white,
-          decoration: BoxDecoration(
+          decoration: const BoxDecoration(
             color: AppColors.white,
-            border: Border.all(color: AppColors.light),
           ),
         ),
       ),

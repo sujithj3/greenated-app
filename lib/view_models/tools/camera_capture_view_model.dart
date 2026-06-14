@@ -22,6 +22,7 @@ class CameraCaptureViewModel extends ChangeNotifier {
   String? capturedImagePath;
   bool isProcessing = false;
   bool isFetchingLocation = false;
+  bool shouldShowCameraSettings = false;
   String? processingError;
 
   DateTime? _locationFetchedAt;
@@ -40,11 +41,15 @@ class CameraCaptureViewModel extends ChangeNotifier {
 
   Future<void> initialize() async {
     isInitialized = false;
+    processingError = null;
+    shouldShowCameraSettings = false;
     notifyListeners();
 
     final hasPermission = await _cameraService.requestCameraPermission();
     if (!hasPermission) {
-      processingError = 'Camera permission denied.';
+      processingError =
+          'Camera permission denied. Enable camera access from Settings.';
+      shouldShowCameraSettings = true;
       notifyListeners();
       return;
     }
@@ -58,7 +63,7 @@ class CameraCaptureViewModel extends ChangeNotifier {
 
     cameraController = CameraController(
       camera,
-      ResolutionPreset.high,
+      ResolutionPreset.max,
       enableAudio: false,
       imageFormatGroup: ImageFormatGroup.jpeg,
     );
@@ -74,6 +79,10 @@ class CameraCaptureViewModel extends ChangeNotifier {
       processingError = 'Failed to initialize camera: $e';
       notifyListeners();
     }
+  }
+
+  Future<void> openCameraSettings() async {
+    await _cameraService.openCameraSettings();
   }
 
   Future<void> _fetchLocation() async {

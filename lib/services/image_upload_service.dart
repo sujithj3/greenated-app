@@ -33,7 +33,7 @@ class ImageUploadService {
     final response = await _apiClient.uploadFile<Map<String, dynamic>>(
       ApiEndpoints.imageUpload,
       filePath: filePath,
-      fileKey: 'file',
+      fileKey: 'image',
       decoder: (raw) {
         if (raw is Map) return Map<String, dynamic>.from(raw);
         return null;
