@@ -488,8 +488,7 @@ class _FarmerFormViewState extends State<FarmerFormView> {
       popupFormFilled = getFilledCount(subFieldsList);
     }
 
-    final isCameraField = f.fieldStyle == FieldStyle.camera ||
-        f.fieldStyle == FieldStyle.cameraFile;
+    final isCameraField = f.fieldStyle == FieldStyle.camera;
 
     return DynamicFieldBuilder(
       field: f,
@@ -894,8 +893,7 @@ class _PopupFormSheetState extends State<_PopupFormSheet> {
       popupFormFilled = getFilledCount(subFieldsList);
     }
 
-    final isCameraField = f.fieldStyle == FieldStyle.camera ||
-        f.fieldStyle == FieldStyle.cameraFile;
+    final isCameraField = f.fieldStyle == FieldStyle.camera;
 
     return DynamicFieldBuilder(
       field: f,

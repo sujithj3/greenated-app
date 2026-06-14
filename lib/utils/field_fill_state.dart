@@ -48,7 +48,6 @@ bool isFieldFilled(DynamicFieldModel field,
     // ── Camera / File ─────────────────────────────────────────────────────
     case FieldStyle.camera:
     case FieldStyle.file:
-    case FieldStyle.cameraFile:
       if (value == null) return false;
       if (value is String) return value.trim().isNotEmpty;
       return true;

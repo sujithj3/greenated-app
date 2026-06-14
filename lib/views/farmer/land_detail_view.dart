@@ -193,8 +193,7 @@ $coordLines
       popupFormFilled = getFilledCount(subFields);
     }
 
-    final isCameraField = f.fieldStyle == FieldStyle.camera ||
-        f.fieldStyle == FieldStyle.cameraFile;
+    final isCameraField = f.fieldStyle == FieldStyle.camera;
 
     return DynamicFieldBuilder(
       field: f,
@@ -362,8 +361,7 @@ class _ViewOnlyPopupSheetState extends State<_ViewOnlyPopupSheet> {
     final subFields = f.isPopupForm
         ? (df.value as List<DynamicFieldModel>? ?? [])
         : <DynamicFieldModel>[];
-    final isCameraField = f.fieldStyle == FieldStyle.camera ||
-        f.fieldStyle == FieldStyle.cameraFile;
+    final isCameraField = f.fieldStyle == FieldStyle.camera;
 
     return DynamicFieldBuilder(
       field: f,

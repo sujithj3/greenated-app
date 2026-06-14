@@ -102,7 +102,6 @@ class DynamicFieldBuilder extends StatelessWidget {
       case FieldStyle.date:
         return _buildDateField(context);
       case FieldStyle.camera:
-      case FieldStyle.cameraFile:
         return _buildCameraField(context);
       case FieldStyle.file:
         return _buildAttachmentField(context);
@@ -293,7 +292,7 @@ class DynamicFieldBuilder extends StatelessWidget {
 
     return DropdownButtonFormField<String>(
       key: ValueKey('dropdown_${field.key}'),
-      value: selected,
+      initialValue: selected,
       isExpanded: true,
       decoration: InputDecoration(
         labelText: field.required ? '${field.label} *' : field.label,
@@ -897,7 +896,7 @@ class DynamicFieldBuilder extends StatelessWidget {
 
   IconData _attachmentIcon() {
     return switch (field.fieldStyle) {
-      FieldStyle.camera || FieldStyle.cameraFile => Icons.photo_camera_outlined,
+      FieldStyle.camera => Icons.photo_camera_outlined,
       FieldStyle.file => Icons.upload_file_outlined,
       _ => Icons.attach_file_outlined,
     };

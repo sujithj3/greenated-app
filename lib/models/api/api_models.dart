@@ -9,8 +9,6 @@ enum FieldType {
   arrayInt,
   arrayDict,
   dict,
-  image,
-  multimedia,
   unknown;
 
   static FieldType fromApiValue(Object? rawValue) {
@@ -24,8 +22,6 @@ enum FieldType {
       'ARRAY-INT' || 'ARRAY_INT' => FieldType.arrayInt,
       'ARRAY-DICT' || 'ARRAY_DICT' => FieldType.arrayDict,
       'DICT' => FieldType.dict,
-      'IMAGE' => FieldType.image,
-      'MULTIMEDIA' => FieldType.multimedia,
       'NUMBER' => FieldType.integer,
       _ => FieldType.unknown,
     };
@@ -41,7 +37,6 @@ enum FieldStyle {
   date,
   camera,
   file,
-  cameraFile,
   popupForm,
   mapPolygon,
   unknown;
@@ -57,7 +52,6 @@ enum FieldStyle {
       'DATE' => FieldStyle.date,
       'CAMERA' => FieldStyle.camera,
       'FILE' => FieldStyle.file,
-      'CAMERA_FILE' => FieldStyle.cameraFile,
       'POPUP_FORM' => FieldStyle.popupForm,
       'BUTTON' => FieldStyle.popupForm,
       'MAP_POLYGON' => FieldStyle.mapPolygon,
@@ -220,8 +214,6 @@ class ApiField {
       FieldType.arrayInt => 'ARRAY_INT',
       FieldType.arrayDict => 'ARRAY_DICT',
       FieldType.dict => 'DICT',
-      FieldType.image => 'IMAGE',
-      FieldType.multimedia => 'MULTIMEDIA',
       FieldType.unknown => 'UNKNOWN',
     };
 
@@ -234,7 +226,6 @@ class ApiField {
       FieldStyle.date => 'DATE',
       FieldStyle.camera => 'CAMERA',
       FieldStyle.file => 'FILE',
-      FieldStyle.cameraFile => 'CAMERA_FILE',
       FieldStyle.popupForm => 'POPUP_FORM',
       FieldStyle.mapPolygon => 'MAP_POLYGON',
       FieldStyle.unknown => 'UNKNOWN',
