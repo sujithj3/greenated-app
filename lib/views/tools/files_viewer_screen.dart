@@ -42,6 +42,7 @@ class _FilesViewerScreenState extends State<FilesViewerScreen> {
   late int _selectedIndex;
   final ScrollController _thumbnailScrollController = ScrollController();
   bool _isDownloading = false;
+  bool _isOpeningPdf = false;
 
   AppFileItem get _selectedFile => widget.files[_selectedIndex];
 
@@ -158,8 +159,8 @@ class _FilesViewerScreenState extends State<FilesViewerScreen> {
           'pdf_${file.localPath ?? file.url ?? file.id ?? file.displayName}',
         ),
         file: file,
-        isDownloading: _isDownloading,
-        onDownload: _downloadSelected,
+        isOpening: _isOpeningPdf,
+        onViewPdf: () => _openPdfViewer(file),
       );
     }
 
@@ -275,6 +276,149 @@ class _FilesViewerScreenState extends State<FilesViewerScreen> {
     );
   }
 
+  Future<void> _openPdfViewer(AppFileItem file) async {
+    if (_isOpeningPdf) return;
+
+    setState(() => _isOpeningPdf = true);
+    PdfDocument? document;
+    try {
+      var passwordPromptCount = 0;
+      document = await _openPdfDocument(
+        file,
+        passwordProvider: () {
+          final showInvalidMessage = passwordPromptCount > 0;
+          passwordPromptCount += 1;
+          return _showPdfPasswordDialog(
+            file,
+            showInvalidMessage: showInvalidMessage,
+          );
+        },
+      );
+
+      if (!mounted) {
+        await document.dispose();
+        return;
+      }
+
+      final routeDocument = document;
+      document = null;
+      await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => _FullScreenPdfViewer(
+            file: file,
+            document: routeDocument,
+          ),
+        ),
+      );
+    } on PdfPasswordException {
+      // The user cancelled the password dialog or pdfrx rejected the password.
+    } catch (e) {
+      if (mounted) {
+        context.showSnack('Unable to open PDF. Please try again.');
+      }
+    } finally {
+      await document?.dispose();
+      if (mounted) setState(() => _isOpeningPdf = false);
+    }
+  }
+
+  Future<PdfDocument> _openPdfDocument(
+    AppFileItem file, {
+    PdfPasswordProvider? passwordProvider,
+  }) async {
+    await pdfrxFlutterInitialize();
+
+    if (file.localPath != null) {
+      return PdfDocument.openFile(
+        file.localPath!,
+        passwordProvider: passwordProvider,
+        useProgressiveLoading: true,
+      );
+    }
+
+    final uri = Uri.tryParse(file.url ?? '');
+    if (uri == null ||
+        uri.host.isEmpty ||
+        (uri.scheme != 'http' && uri.scheme != 'https')) {
+      throw StateError('No PDF URL available.');
+    }
+
+    return PdfDocument.openUri(
+      uri,
+      passwordProvider: passwordProvider,
+      useProgressiveLoading: true,
+    );
+  }
+
+  Future<String?> _showPdfPasswordDialog(
+    AppFileItem file, {
+    required bool showInvalidMessage,
+  }) async {
+    if (!mounted) return null;
+
+    final textController = TextEditingController();
+    try {
+      return showDialog<String>(
+        context: context,
+        barrierDismissible: false,
+        builder: (dialogContext) {
+          return AlertDialog(
+            title: const Text('Enter PDF password'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  file.displayName,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: AppColors.textMedium,
+                    fontSize: 13,
+                  ),
+                ),
+                if (showInvalidMessage) ...[
+                  const SizedBox(height: 10),
+                  const Text(
+                    'Incorrect password. Try again.',
+                    style: TextStyle(color: AppColors.error, fontSize: 13),
+                  ),
+                ],
+                const SizedBox(height: 12),
+                TextField(
+                  controller: textController,
+                  autofocus: true,
+                  keyboardType: TextInputType.visiblePassword,
+                  obscureText: true,
+                  decoration: const InputDecoration(
+                    labelText: 'Password',
+                    border: OutlineInputBorder(),
+                  ),
+                  onSubmitted: (value) =>
+                      Navigator.of(dialogContext).pop(value),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(dialogContext).pop(null),
+                child: const Text('Cancel'),
+              ),
+              TextButton(
+                onPressed: () =>
+                    Navigator.of(dialogContext).pop(textController.text),
+                child: const Text('OK'),
+              ),
+            ],
+          );
+        },
+      );
+    } finally {
+      textController.dispose();
+    }
+  }
+
   Future<void> _downloadSelected() async {
     final file = _selectedFile;
     setState(() => _isDownloading = true);
@@ -379,38 +523,47 @@ class _PdfPreview extends StatefulWidget {
   const _PdfPreview({
     super.key,
     required this.file,
-    required this.isDownloading,
-    required this.onDownload,
+    required this.isOpening,
+    required this.onViewPdf,
   });
 
   final AppFileItem file;
-  final bool isDownloading;
-  final VoidCallback onDownload;
+  final bool isOpening;
+  final VoidCallback onViewPdf;
 
   @override
   State<_PdfPreview> createState() => _PdfPreviewState();
 }
 
 class _PdfPreviewState extends State<_PdfPreview> {
-  int _passwordPromptCount = 0;
-  bool _passwordDialogCancelled = false;
+  PdfDocument? _document;
+  bool _isLoading = false;
+  Object? _error;
+  int _loadGeneration = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadPreview();
+  }
 
   @override
   void didUpdateWidget(covariant _PdfPreview oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (_sourceKey(oldWidget.file) != _sourceKey(widget.file)) {
-      _passwordPromptCount = 0;
-      _passwordDialogCancelled = false;
+      _loadPreview();
     }
   }
 
   @override
-  Widget build(BuildContext context) {
-    final viewer = _buildPdfViewer();
-    if (viewer == null) {
-      return _buildFallback();
-    }
+  void dispose() {
+    _loadGeneration += 1;
+    _document?.dispose();
+    super.dispose();
+  }
 
+  @override
+  Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
       decoration: BoxDecoration(
@@ -419,135 +572,153 @@ class _PdfPreviewState extends State<_PdfPreview> {
         border: Border.all(color: AppColors.light),
       ),
       clipBehavior: Clip.antiAlias,
-      child: viewer,
+      child: Column(
+        children: [
+          Expanded(child: _buildPreviewContent()),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(16),
+            decoration: const BoxDecoration(
+              color: AppColors.white,
+              border: Border(top: BorderSide(color: AppColors.light)),
+            ),
+            child: ElevatedButton.icon(
+              onPressed: widget.isOpening ? null : widget.onViewPdf,
+              icon: widget.isOpening
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.visibility_outlined),
+              label: const Text('View PDF'),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
-  Widget? _buildPdfViewer() {
-    final params = PdfViewerParams(
-      backgroundColor: AppColors.white,
-      loadingBannerBuilder: (_, __, ___) => const Center(
-        child: CircularProgressIndicator(),
-      ),
-      errorBannerBuilder: (context, error, stackTrace, documentRef) {
-        return _buildFallback(message: _messageForError(error));
-      },
-    );
+  Widget _buildPreviewContent() {
+    if (_isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
 
-    if (widget.file.localPath != null) {
-      return PdfViewer.file(
-        widget.file.localPath!,
-        passwordProvider: _showPasswordDialog,
-        params: params,
+    final document = _document;
+    if (_error != null || document == null) {
+      return _PdfPreviewFallback(file: widget.file);
+    }
+
+    return ColoredBox(
+      color: AppColors.veryLight,
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: PdfPageView(
+          document: document,
+          pageNumber: 1,
+          backgroundColor: AppColors.white,
+          decoration: BoxDecoration(
+            color: AppColors.white,
+            border: Border.all(color: AppColors.light),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _loadPreview() async {
+    final generation = ++_loadGeneration;
+    final oldDocument = _document;
+    _document = null;
+    await oldDocument?.dispose();
+
+    if (mounted) {
+      setState(() {
+        _isLoading = true;
+        _error = null;
+      });
+    }
+
+    try {
+      final document = await _openDocumentForPreview(widget.file);
+      if (!mounted || generation != _loadGeneration) {
+        await document.dispose();
+        return;
+      }
+
+      setState(() {
+        _document = document;
+        _isLoading = false;
+      });
+    } catch (e) {
+      if (!mounted || generation != _loadGeneration) return;
+      setState(() {
+        _error = e;
+        _isLoading = false;
+      });
+    }
+  }
+
+  Future<PdfDocument> _openDocumentForPreview(AppFileItem file) async {
+    await pdfrxFlutterInitialize();
+
+    if (file.localPath != null) {
+      return PdfDocument.openFile(
+        file.localPath!,
+        useProgressiveLoading: true,
       );
     }
 
-    final uri = Uri.tryParse(widget.file.url ?? '');
+    final uri = Uri.tryParse(file.url ?? '');
     if (uri == null ||
         uri.host.isEmpty ||
         (uri.scheme != 'http' && uri.scheme != 'https')) {
-      return null;
+      throw StateError('No PDF URL available.');
     }
 
-    return PdfViewer.uri(
+    return PdfDocument.openUri(
       uri,
-      passwordProvider: _showPasswordDialog,
-      params: params,
+      useProgressiveLoading: true,
     );
-  }
-
-  Widget _buildFallback({String message = 'Preview not available'}) {
-    return _FileFallback(
-      file: widget.file,
-      message: message,
-      isDownloading: widget.isDownloading,
-      onDownload: widget.onDownload,
-    );
-  }
-
-  Future<String?> _showPasswordDialog() async {
-    if (!mounted) return null;
-
-    final textController = TextEditingController();
-    final showInvalidMessage = _passwordPromptCount > 0;
-    _passwordPromptCount += 1;
-    _passwordDialogCancelled = false;
-
-    try {
-      final password = await showDialog<String>(
-        context: context,
-        barrierDismissible: false,
-        builder: (dialogContext) {
-          return AlertDialog(
-            title: const Text('Enter PDF password'),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  widget.file.displayName,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: AppColors.textMedium,
-                    fontSize: 13,
-                  ),
-                ),
-                if (showInvalidMessage) ...[
-                  const SizedBox(height: 10),
-                  const Text(
-                    'Incorrect password. Try again.',
-                    style: TextStyle(color: AppColors.error, fontSize: 13),
-                  ),
-                ],
-                const SizedBox(height: 12),
-                TextField(
-                  controller: textController,
-                  autofocus: true,
-                  keyboardType: TextInputType.visiblePassword,
-                  obscureText: true,
-                  decoration: const InputDecoration(
-                    labelText: 'Password',
-                    border: OutlineInputBorder(),
-                  ),
-                  onSubmitted: (value) =>
-                      Navigator.of(dialogContext).pop(value),
-                ),
-              ],
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(dialogContext).pop(null),
-                child: const Text('Cancel'),
-              ),
-              TextButton(
-                onPressed: () =>
-                    Navigator.of(dialogContext).pop(textController.text),
-                child: const Text('OK'),
-              ),
-            ],
-          );
-        },
-      );
-
-      if (password == null) {
-        _passwordDialogCancelled = true;
-      }
-      return password;
-    } finally {
-      textController.dispose();
-    }
-  }
-
-  String _messageForError(Object error) {
-    if (_passwordDialogCancelled || error is PdfPasswordException) {
-      return 'Password is required to preview this PDF.';
-    }
-    return 'Preview not available';
   }
 
   String _sourceKey(AppFileItem file) =>
       file.localPath ?? file.url ?? file.id ?? file.displayName;
+}
+
+class _PdfPreviewFallback extends StatelessWidget {
+  const _PdfPreviewFallback({required this.file});
+
+  final AppFileItem file;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(_iconFor(file), size: 64, color: AppColors.primary),
+          const SizedBox(height: 16),
+          Text(
+            file.displayName,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              color: AppColors.textDark,
+              fontWeight: FontWeight.w700,
+              fontSize: 16,
+            ),
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'Preview not available',
+            textAlign: TextAlign.center,
+            style: TextStyle(color: AppColors.textMedium),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class _TxtPreview extends StatelessWidget {
@@ -637,6 +808,76 @@ class _TxtFallback extends StatelessWidget {
             style: TextStyle(color: AppColors.textMedium),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _FullScreenPdfViewer extends StatefulWidget {
+  const _FullScreenPdfViewer({
+    required this.file,
+    required this.document,
+  });
+
+  final AppFileItem file;
+  final PdfDocument document;
+
+  @override
+  State<_FullScreenPdfViewer> createState() => _FullScreenPdfViewerState();
+}
+
+class _FullScreenPdfViewerState extends State<_FullScreenPdfViewer> {
+  late final PdfDocumentRefDirect _documentRef;
+
+  @override
+  void initState() {
+    super.initState();
+    _documentRef = PdfDocumentRefDirect(
+      widget.document,
+      autoDispose: false,
+    );
+  }
+
+  @override
+  void dispose() {
+    widget.document.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      appBar: AppBar(
+        backgroundColor: Colors.black,
+        foregroundColor: Colors.white,
+        title: Text(
+          widget.file.displayName,
+          overflow: TextOverflow.ellipsis,
+        ),
+        leading: IconButton(
+          icon: const Icon(Icons.close),
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+      ),
+      body: SafeArea(
+        child: PdfViewer(
+          _documentRef,
+          params: PdfViewerParams(
+            backgroundColor: Colors.black,
+            loadingBannerBuilder: (_, __, ___) => const Center(
+              child: CircularProgressIndicator(color: Colors.white),
+            ),
+            errorBannerBuilder: (_, __, ___, ____) {
+              return const Center(
+                child: Text(
+                  'Unable to open PDF',
+                  style: TextStyle(color: Colors.white70),
+                ),
+              );
+            },
+          ),
+        ),
       ),
     );
   }
