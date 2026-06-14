@@ -491,7 +491,7 @@ class AppFileItem {
 
   bool get isTxt => _normalizedExtension == 'txt';
 
-  bool get isPreviewable => isImage || isTxt;
+  bool get isPreviewable => isImage || isPdf || isTxt;
 
   String get _normalizedExtension =>
       (extension ?? _extensionFrom(localPath ?? url ?? id) ?? '').toLowerCase();
