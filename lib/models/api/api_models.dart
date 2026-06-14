@@ -262,9 +262,10 @@ class DynamicFieldModel {
   final ApiField field;
   dynamic value;
 
-  /// Presigned S3 URL for displaying camera-field images in the UI.
+  /// Presigned S3 URL(s) for display.
+  /// Camera fields use a single string; FILE fields use a cleaned `List<String>`.
   /// Display-only — never included in form submissions (excluded from toJson).
-  String? previewUrl;
+  dynamic previewUrl;
 
   List<ApiOption> resolvedOptions;
   bool isLoadingOptions;
@@ -297,6 +298,8 @@ class DynamicFieldModel {
           .toList();
     } else if (field.fieldStyle == FieldStyle.checkbox) {
       initialValue = false;
+    } else if (field.fieldStyle == FieldStyle.file) {
+      initialValue = <String>[];
     }
     return DynamicFieldModel(
       field: field,
@@ -321,7 +324,9 @@ class DynamicFieldModel {
           .toList();
     } else {
       resolvedValue = data['value'];
-      if (resolvedValue is List) {
+      if (apiField.fieldStyle == FieldStyle.file) {
+        resolvedValue = cleanStringList(resolvedValue);
+      } else if (resolvedValue is List) {
         resolvedValue = List<dynamic>.from(resolvedValue);
       }
     }
@@ -329,7 +334,9 @@ class DynamicFieldModel {
     return DynamicFieldModel(
       field: apiField,
       value: resolvedValue,
-      previewUrl: data['previewUrl'] as String?,
+      previewUrl: apiField.fieldStyle == FieldStyle.file
+          ? cleanStringList(data['previewUrl'])
+          : _firstCleanString(data['previewUrl']),
       resolvedOptions: apiField.options,
     );
   }
@@ -346,7 +353,8 @@ class DynamicFieldModel {
         json['fields'] = <Map<String, dynamic>>[];
       }
     } else {
-      json['value'] = value;
+      json['value'] =
+          field.fieldStyle == FieldStyle.file ? fileValueList : value;
     }
     return json;
   }
@@ -354,15 +362,139 @@ class DynamicFieldModel {
   DynamicFieldModel copyWith({
     ApiField? field,
     dynamic value,
-    String? previewUrl,
+    dynamic previewUrl,
   }) {
     return DynamicFieldModel(
       field: field ?? this.field,
-      value: value ?? this.value,
-      previewUrl: previewUrl ?? this.previewUrl,
+      value: value ?? _copyDynamicValue(this.value),
+      previewUrl: previewUrl ?? _copyDynamicValue(this.previewUrl),
       resolvedOptions: resolvedOptions,
     );
   }
+
+  List<String> get fileValueList => cleanStringList(value);
+
+  List<String> get filePreviewUrlList => cleanStringList(previewUrl);
+
+  List<AppFileItem> get fileItems => AppFileItem.fromReferences(
+        value: value,
+        previewUrl: previewUrl,
+      );
+
+  void appendFileReferences({
+    required List<String> paths,
+    required List<String> previewUrls,
+  }) {
+    value = <String>[
+      ...fileValueList,
+      ...cleanStringList(paths),
+    ];
+    previewUrl = <String>[
+      ...filePreviewUrlList,
+      ...cleanStringList(previewUrls),
+    ];
+  }
+}
+
+class AppFileItem {
+  const AppFileItem({
+    this.id,
+    this.name,
+    this.url,
+    this.localPath,
+    this.mimeType,
+    this.extension,
+    required this.isRemote,
+  });
+
+  final String? id;
+  final String? name;
+  final String? url;
+  final String? localPath;
+  final String? mimeType;
+  final String? extension;
+  final bool isRemote;
+
+  factory AppFileItem.remote({
+    String? path,
+    String? previewUrl,
+  }) {
+    final source = _firstNonEmptyString(<String?>[path, previewUrl]);
+    return AppFileItem(
+      id: path ?? previewUrl,
+      name: _fileNameFrom(source),
+      url: previewUrl?.trim().isNotEmpty == true
+          ? previewUrl!.trim()
+          : (path != null && _isHttpUrl(path) ? path.trim() : null),
+      extension: _extensionFrom(source),
+      isRemote: true,
+    );
+  }
+
+  factory AppFileItem.local(String path) {
+    return AppFileItem(
+      id: path,
+      name: _fileNameFrom(path),
+      localPath: path,
+      extension: _extensionFrom(path),
+      isRemote: false,
+    );
+  }
+
+  static List<AppFileItem> fromReferences({
+    required Object? value,
+    required Object? previewUrl,
+  }) {
+    final paths = cleanStringList(value);
+    final previews = cleanStringList(previewUrl);
+    final total =
+        paths.length > previews.length ? paths.length : previews.length;
+    final files = <AppFileItem>[];
+    for (var i = 0; i < total; i++) {
+      final path = i < paths.length ? paths[i] : null;
+      final preview = i < previews.length ? previews[i] : null;
+      if ((path == null || path.trim().isEmpty) &&
+          (preview == null || preview.trim().isEmpty)) {
+        continue;
+      }
+      files.add(AppFileItem.remote(path: path, previewUrl: preview));
+    }
+    return files;
+  }
+
+  String get displayName {
+    final candidate = _firstNonEmptyString(<String?>[
+      name,
+      localPath,
+      id,
+      url,
+    ]);
+    return _fileNameFrom(candidate) ?? 'File';
+  }
+
+  bool get isImage => const <String>{
+        'jpg',
+        'jpeg',
+        'png',
+        'gif',
+        'webp',
+        'bmp',
+        'heic',
+        'heif',
+      }.contains(_normalizedExtension);
+
+  bool get isPdf => _normalizedExtension == 'pdf';
+
+  bool get isDoc => _normalizedExtension == 'doc';
+
+  bool get isDocx => _normalizedExtension == 'docx';
+
+  bool get isTxt => _normalizedExtension == 'txt';
+
+  bool get isPreviewable => isImage || isTxt;
+
+  String get _normalizedExtension =>
+      (extension ?? _extensionFrom(localPath ?? url ?? id) ?? '').toLowerCase();
 }
 
 class FarmerDetails {
@@ -574,6 +706,68 @@ Object? _deepCopyJsonValue(Object? value) {
 String? _asNullableString(Object? value) {
   final text = value?.toString().trim();
   return text == null || text.isEmpty ? null : text;
+}
+
+List<String> cleanStringList(Object? raw) {
+  if (raw == null) return <String>[];
+  if (raw is List) {
+    return raw
+        .map((item) => item?.toString().trim() ?? '')
+        .where((item) => item.isNotEmpty)
+        .toList();
+  }
+  final text = raw.toString().trim();
+  return text.isEmpty ? <String>[] : <String>[text];
+}
+
+String? _firstCleanString(Object? raw) {
+  final values = cleanStringList(raw);
+  return values.isEmpty ? null : values.first;
+}
+
+dynamic _copyDynamicValue(dynamic value) {
+  if (value is List<DynamicFieldModel>) {
+    return value.map((field) => field.copyWith()).toList();
+  }
+  if (value is List) {
+    return List<dynamic>.from(value);
+  }
+  if (value is Map) {
+    return Map<dynamic, dynamic>.from(value);
+  }
+  return value;
+}
+
+String? _firstNonEmptyString(List<String?> values) {
+  for (final value in values) {
+    final text = value?.trim();
+    if (text != null && text.isNotEmpty) return text;
+  }
+  return null;
+}
+
+bool _isHttpUrl(String value) {
+  final uri = Uri.tryParse(value.trim());
+  return uri != null && (uri.scheme == 'http' || uri.scheme == 'https');
+}
+
+String? _fileNameFrom(String? raw) {
+  final value = raw?.trim();
+  if (value == null || value.isEmpty) return null;
+  final withoutQuery = value.split('?').first.split('#').first;
+  final normalized = withoutQuery.replaceAll(r'\', '/');
+  final segments = normalized.split('/').where((part) => part.isNotEmpty);
+  if (segments.isEmpty) return value;
+  final last = Uri.decodeComponent(segments.last);
+  return last.isEmpty ? value : last;
+}
+
+String? _extensionFrom(String? raw) {
+  final fileName = _fileNameFrom(raw);
+  if (fileName == null) return null;
+  final dotIndex = fileName.lastIndexOf('.');
+  if (dotIndex < 0 || dotIndex == fileName.length - 1) return null;
+  return fileName.substring(dotIndex + 1).toLowerCase();
 }
 
 List<dynamic>? _parseShowWhen(Object? raw) {

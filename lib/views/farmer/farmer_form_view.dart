@@ -4,11 +4,13 @@ import 'package:provider/provider.dart';
 import '../../config/app_constants.dart';
 import '../../models/api/api_models.dart';
 import '../../services/auth_service.dart';
+import '../../services/file_upload_service.dart';
 import '../../utils/field_fill_state.dart';
 import '../../services/form_config_service.dart';
 import '../../services/image_upload_service.dart';
 import '../../services/registration_form_service.dart';
 import '../../utils/app_colors.dart';
+import '../../utils/file_upload_helper.dart';
 import '../../utils/form_validator.dart';
 import '../../utils/snack_bar_helper.dart';
 import '../../core/network/api_client.dart';
@@ -42,6 +44,7 @@ class _FarmerFormViewState extends State<FarmerFormView> {
       context.read<RegistrationFormService>(),
       context.read<AuthService>(),
       context.read<ImageUploadService>(),
+      context.read<FileUploadService>(),
       context.read<ApiClient>(),
     );
   }
@@ -197,6 +200,23 @@ class _FarmerFormViewState extends State<FarmerFormView> {
       context.showSnack('Photo uploaded successfully', success: true);
     } else {
       context.showSnack('Photo upload failed. Please try again.');
+    }
+  }
+
+  Future<void> _pickAndUploadFiles(DynamicFieldModel df) async {
+    final localPaths = await pickDynamicUploadFiles(context);
+    if (localPaths.isEmpty || !mounted) return;
+
+    final result = await _vm.uploadFilesForField(df.field.key, localPaths);
+    if (!mounted) return;
+
+    if (result == null) {
+      context.showSnack('File upload failed. Please try again.');
+    } else if (result.hasIncompleteData) {
+      context.showSnack('Files uploaded, but some previews are unavailable.',
+          success: true);
+    } else {
+      context.showSnack('Files uploaded successfully', success: true);
     }
   }
 
@@ -489,6 +509,7 @@ class _FarmerFormViewState extends State<FarmerFormView> {
     }
 
     final isCameraField = f.fieldStyle == FieldStyle.camera;
+    final isFileField = f.fieldStyle == FieldStyle.file;
 
     return DynamicFieldBuilder(
       field: f,
@@ -503,10 +524,12 @@ class _FarmerFormViewState extends State<FarmerFormView> {
       popupFormFilledCount: popupFormFilled,
       popupFormTotalCount: popupFormTotal,
       // Camera field wiring
-      isUploading: isCameraField ? _vm.isFieldUploading(f.key) : false,
+      isUploading:
+          (isCameraField || isFileField) ? _vm.isFieldUploading(f.key) : false,
       onCapturePhoto: isCameraField ? () => _captureAndUpload(f.key) : null,
       onClearPhoto: isCameraField ? () => _vm.clearCameraImage(f.key) : null,
-      previewUrl: isCameraField ? df.previewUrl : null,
+      onAddFiles: isFileField ? () => _pickAndUploadFiles(df) : null,
+      previewUrl: (isCameraField || isFileField) ? df.previewUrl : null,
       onMapPolygonPressed: f.fieldStyle == FieldStyle.mapPolygon
           ? () => _openMapForDynamicField(df)
           : null,
@@ -876,6 +899,33 @@ class _PopupFormSheetState extends State<_PopupFormSheet> {
     }
   }
 
+  Future<void> _pickAndUploadSubFieldFiles(DynamicFieldModel df) async {
+    final localPaths = await pickDynamicUploadFiles(context);
+    if (localPaths.isEmpty || !mounted) return;
+
+    final result =
+        await widget.viewModel.uploadFilesOnly(df.field.key, localPaths);
+    if (!mounted) return;
+
+    if (result == null) {
+      _showLocalSnack('File upload failed. Please try again.');
+      return;
+    }
+
+    setState(() {
+      df.appendFileReferences(
+        paths: result.paths,
+        previewUrls: result.previewUrls,
+      );
+    });
+    if (result.hasIncompleteData) {
+      _showLocalSnack('Files uploaded, but some previews are unavailable.',
+          success: true);
+    } else {
+      _showLocalSnack('Files uploaded successfully', success: true);
+    }
+  }
+
   void _clearSubFieldPhoto(DynamicFieldModel df) {
     setState(() {
       df.value = null;
@@ -894,6 +944,7 @@ class _PopupFormSheetState extends State<_PopupFormSheet> {
     }
 
     final isCameraField = f.fieldStyle == FieldStyle.camera;
+    final isFileField = f.fieldStyle == FieldStyle.file;
 
     return DynamicFieldBuilder(
       field: f,
@@ -917,12 +968,14 @@ class _PopupFormSheetState extends State<_PopupFormSheet> {
       onMapPolygonPressed: f.fieldStyle == FieldStyle.mapPolygon
           ? () => _openMapForNestedDynamicField(df)
           : null,
-      previewUrl: isCameraField ? df.previewUrl : null,
-      isUploading:
-          isCameraField ? widget.viewModel.isFieldUploading(f.key) : false,
+      previewUrl: (isCameraField || isFileField) ? df.previewUrl : null,
+      isUploading: (isCameraField || isFileField)
+          ? widget.viewModel.isFieldUploading(f.key)
+          : false,
       onCapturePhoto:
           isCameraField ? () => _captureAndUploadSubField(df) : null,
       onClearPhoto: isCameraField ? () => _clearSubFieldPhoto(df) : null,
+      onAddFiles: isFileField ? () => _pickAndUploadSubFieldFiles(df) : null,
       resolvedOptions:
           f.fieldStyle == FieldStyle.dropdown ? df.resolvedOptions : null,
       isLoadingOptions:

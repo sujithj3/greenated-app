@@ -194,6 +194,7 @@ $coordLines
     }
 
     final isCameraField = f.fieldStyle == FieldStyle.camera;
+    final isFileField = f.fieldStyle == FieldStyle.file;
 
     return DynamicFieldBuilder(
       field: f,
@@ -214,7 +215,7 @@ $coordLines
           : null,
       resolvedOptions:
           f.fieldStyle == FieldStyle.dropdown ? df.resolvedOptions : null,
-      previewUrl: isCameraField ? df.previewUrl : null,
+      previewUrl: (isCameraField || isFileField) ? df.previewUrl : null,
     );
   }
 }
@@ -362,6 +363,7 @@ class _ViewOnlyPopupSheetState extends State<_ViewOnlyPopupSheet> {
         ? (df.value as List<DynamicFieldModel>? ?? [])
         : <DynamicFieldModel>[];
     final isCameraField = f.fieldStyle == FieldStyle.camera;
+    final isFileField = f.fieldStyle == FieldStyle.file;
 
     return DynamicFieldBuilder(
       field: f,
@@ -381,7 +383,7 @@ class _ViewOnlyPopupSheetState extends State<_ViewOnlyPopupSheet> {
           : null,
       resolvedOptions:
           f.fieldStyle == FieldStyle.dropdown ? df.resolvedOptions : null,
-      previewUrl: isCameraField ? df.previewUrl : null,
+      previewUrl: (isCameraField || isFileField) ? df.previewUrl : null,
     );
   }
 }

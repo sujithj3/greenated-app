@@ -105,6 +105,15 @@ ValidationResult _validateSingleField(
     return const ValidationResult(isValid: true);
   }
 
+  if (f.fieldStyle == FieldStyle.file) {
+    if (df.fileItems.isEmpty) {
+      df.setError('${f.label} is required');
+      return ValidationResult(isValid: false, firstInvalidLabel: f.label);
+    }
+    df.clearError();
+    return const ValidationResult(isValid: true);
+  }
+
   dynamic v;
   if (textValues != null && textValues.containsKey(f.key)) {
     v = textValues[f.key]!.trim();

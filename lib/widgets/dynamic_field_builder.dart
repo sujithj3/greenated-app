@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../models/api/api_models.dart';
 import '../utils/app_colors.dart';
+import 'file_upload_field.dart';
 
 /// Renders a single [ApiField] as the appropriate UI widget based on its
 /// [FieldStyle]. Handles validation, value tracking, and user interaction.
@@ -14,7 +15,7 @@ class DynamicFieldBuilder extends StatelessWidget {
     required this.onChanged,
     this.textController,
     this.accentColor,
-    this.onPickAttachment,
+    this.onAddFiles,
     this.onPopupFormPressed,
     this.popupFormFilledCount,
     this.popupFormTotalCount,
@@ -38,7 +39,7 @@ class DynamicFieldBuilder extends StatelessWidget {
   final ValueChanged<dynamic> onChanged;
   final TextEditingController? textController;
   final Color? accentColor;
-  final Future<dynamic> Function(ApiField field)? onPickAttachment;
+  final VoidCallback? onAddFiles;
   final VoidCallback? onPopupFormPressed;
   final int? popupFormFilledCount;
   final int? popupFormTotalCount;
@@ -74,9 +75,9 @@ class DynamicFieldBuilder extends StatelessWidget {
   /// When true, all fields render in read-only display mode.
   final bool isViewMode;
 
-  /// Presigned S3 URL for displaying a camera-field image.
-  /// Takes priority over [value] when resolving the image URL for display.
-  final String? previewUrl;
+  /// Presigned S3 URL(s) for display.
+  /// Camera fields pass a String; FILE fields pass a `List<String>`.
+  final dynamic previewUrl;
 
   /// Whether this field has a validation error (used for POPUP_FORM fields).
   final bool hasError;
@@ -104,7 +105,7 @@ class DynamicFieldBuilder extends StatelessWidget {
       case FieldStyle.camera:
         return _buildCameraField(context);
       case FieldStyle.file:
-        return _buildAttachmentField(context);
+        return _buildFileField(context);
       case FieldStyle.popupForm:
         return _buildPopupFormField();
       case FieldStyle.mapPolygon:
@@ -586,9 +587,12 @@ class DynamicFieldBuilder extends StatelessWidget {
   // ── Camera Field (dynamic, with network image preview) ─────────────────────
 
   Widget _buildCameraField(BuildContext context) {
-    final imageUrl = (previewUrl != null && previewUrl!.isNotEmpty)
-        ? previewUrl
-        : (value is String && (value as String).isNotEmpty
+    final cameraPreview =
+        previewUrl is String && (previewUrl as String).trim().isNotEmpty
+            ? (previewUrl as String).trim()
+            : null;
+    final imageUrl = cameraPreview ??
+        (value is String && (value as String).isNotEmpty
             ? value as String
             : null);
 
@@ -685,7 +689,7 @@ class DynamicFieldBuilder extends StatelessWidget {
               ),
               if (!isViewMode) ...[
                 const SizedBox(height: 12),
-                // ── Retake / Delete buttons ──
+                // ── Change / Delete buttons ──
                 if (isUploading)
                   OutlinedButton.icon(
                     onPressed: null,
@@ -705,8 +709,9 @@ class DynamicFieldBuilder extends StatelessWidget {
                       Expanded(
                         child: OutlinedButton.icon(
                           onPressed: onCapturePhoto,
-                          icon: const Icon(Icons.refresh, size: 18),
-                          label: const Text('Retake'),
+                          icon:
+                              const Icon(Icons.photo_camera_outlined, size: 18),
+                          label: const Text('Change Photo'),
                         ),
                       ),
                       const SizedBox(width: 12),
@@ -797,120 +802,35 @@ class DynamicFieldBuilder extends StatelessWidget {
     );
   }
 
-  // ── Attachment (Camera / File) ─────────────────────────────────────────────
+  // ── File Upload Field ─────────────────────────────────────────────────────
 
-  Widget _buildAttachmentField(BuildContext context) {
-    return FormField<dynamic>(
-      key: ValueKey('attachment_${field.key}'),
-      initialValue: value,
+  Widget _buildFileField(BuildContext context) {
+    final files = AppFileItem.fromReferences(
+      value: value,
+      previewUrl: previewUrl,
+    );
+    return FormField<List<AppFileItem>>(
+      key: ValueKey('file_${field.key}_${files.length}'),
+      initialValue: files,
       validator: (isViewMode || !field.required)
           ? null
-          : (v) {
-              if (value == null) return '${field.label} is required';
+          : (_) {
+              if (files.isEmpty) return '${field.label} is required';
               return null;
             },
       builder: (state) {
-        final hasAttachment = value != null;
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            InkWell(
-              borderRadius: BorderRadius.circular(12),
-              onTap: isViewMode
-                  ? null
-                  : () async {
-                      if (onPickAttachment == null) return;
-                      final result = await onPickAttachment!(field);
-                      if (result == null) return;
-                      state.didChange(result);
-                      onChanged(result);
-                    },
-              child: Container(
-                width: double.infinity,
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                decoration: BoxDecoration(
-                  color: AppColors.veryLight,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                    color: state.hasError ? AppColors.error : AppColors.light,
-                  ),
-                ),
-                child: Row(
-                  children: [
-                    Icon(_attachmentIcon(), color: _accent),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        hasAttachment
-                            ? _attachmentLabel(value)
-                            : isViewMode
-                                ? 'No file'
-                                : (field.required
-                                    ? '${field.label} *'
-                                    : field.label),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: hasAttachment
-                              ? AppColors.textDark
-                              : AppColors.textMedium,
-                        ),
-                      ),
-                    ),
-                    if (hasAttachment && !isViewMode)
-                      InkWell(
-                        onTap: () {
-                          state.didChange(null);
-                          onChanged(null);
-                        },
-                        borderRadius: BorderRadius.circular(14),
-                        child: const Padding(
-                          padding: EdgeInsets.all(4),
-                          child: Icon(Icons.close,
-                              size: 18, color: AppColors.textMedium),
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-            ),
-            if (state.hasError) ...[
-              const SizedBox(height: 6),
-              Padding(
-                padding: const EdgeInsets.only(left: 12),
-                child: Text(
-                  state.errorText!,
-                  style: TextStyle(
-                    color: Theme.of(context).colorScheme.error,
-                    fontSize: 12,
-                  ),
-                ),
-              ),
-            ],
-          ],
+        return FileUploadField(
+          field: field,
+          files: files,
+          accentColor: _accent,
+          isViewMode: isViewMode,
+          isUploading: isUploading,
+          hasError: state.hasError,
+          errorText: state.errorText,
+          onAddFiles: onAddFiles,
         );
       },
     );
-  }
-
-  IconData _attachmentIcon() {
-    return switch (field.fieldStyle) {
-      FieldStyle.camera => Icons.photo_camera_outlined,
-      FieldStyle.file => Icons.upload_file_outlined,
-      _ => Icons.attach_file_outlined,
-    };
-  }
-
-  String _attachmentLabel(dynamic attachment) {
-    if (attachment is Map && attachment['name'] is String) {
-      return attachment['name'] as String;
-    }
-    if (attachment is String && attachment.trim().isNotEmpty) {
-      final segments = attachment.split('/');
-      return segments.isNotEmpty ? segments.last : attachment;
-    }
-    return 'Selected file';
   }
 
   // ── Popup Form (opens sub-form in bottom sheet) ───────────────────────────

@@ -14,6 +14,7 @@ import 'core/network/interceptor/logging_interceptor.dart';
 import 'repositories/category_repository.dart';
 import 'services/auth_service.dart';
 import 'services/category_api_service.dart';
+import 'services/file_upload_service.dart';
 import 'services/form_config_service.dart';
 import 'services/image_upload_service.dart';
 import 'services/registration_form_service.dart';
@@ -92,6 +93,11 @@ class FarmerRegistrationApp extends StatelessWidget {
         ),
         Provider<ImageUploadService>(
           create: (context) => ImageUploadService(
+            apiClient: context.read<ApiClient>(),
+          ),
+        ),
+        Provider<FileUploadService>(
+          create: (context) => FileUploadService(
             apiClient: context.read<ApiClient>(),
           ),
         ),

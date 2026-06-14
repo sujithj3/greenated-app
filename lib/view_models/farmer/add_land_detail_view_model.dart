@@ -7,6 +7,8 @@ import '../../core/network/api_method.dart';
 import '../../core/network/api_request.dart';
 import '../../models/api/api_models.dart';
 import '../../services/auth_service.dart';
+import '../../services/file_upload_service.dart'
+    show FileUploadService, FileUploadResult;
 import '../../services/image_upload_service.dart'
     show ImageUploadService, ImageUploadResult;
 import '../../services/registration_form_service.dart';
@@ -18,15 +20,18 @@ class AddLandDetailViewModel extends DynamicFieldFormViewModel {
     required AuthService authService,
     required ApiClient apiClient,
     required ImageUploadService imageUploadService,
+    required FileUploadService fileUploadService,
   })  : _service = service,
         _authService = authService,
         _apiClient = apiClient,
-        _imageUploadService = imageUploadService;
+        _imageUploadService = imageUploadService,
+        _fileUploadService = fileUploadService;
 
   final RegistrationFormService _service;
   final AuthService _authService;
   final ApiClient _apiClient;
   final ImageUploadService _imageUploadService;
+  final FileUploadService _fileUploadService;
 
   bool isSaving = false;
   bool isLoadingLandForm = false;
@@ -228,6 +233,58 @@ class AddLandDetailViewModel extends DynamicFieldFormViewModel {
       return await _imageUploadService.uploadImage(localFilePath);
     } catch (e) {
       debugPrint('Image upload failed for field "$fieldKey": $e');
+      return null;
+    } finally {
+      _uploadingFields[fieldKey] = false;
+      notifyListeners();
+    }
+  }
+
+  Future<FileUploadResult?> uploadFilesForField(
+    String fieldKey,
+    List<String> localFilePaths,
+  ) async {
+    _uploadingFields[fieldKey] = true;
+    notifyListeners();
+
+    try {
+      final result = await _fileUploadService.uploadFiles(
+        fieldKey: fieldKey,
+        filePaths: localFilePaths,
+      );
+      final idx = fields.indexWhere((df) => df.field.key == fieldKey);
+      if (idx != -1) {
+        fields[idx].appendFileReferences(
+          paths: result.paths,
+          previewUrls: result.previewUrls,
+        );
+        notifyListeners();
+        _handleDependencyChange(fieldKey);
+      }
+      return result;
+    } catch (e) {
+      debugPrint('File upload failed for field "$fieldKey": $e');
+      return null;
+    } finally {
+      _uploadingFields[fieldKey] = false;
+      notifyListeners();
+    }
+  }
+
+  @override
+  Future<FileUploadResult?> uploadFilesOnly(
+    String fieldKey,
+    List<String> localFilePaths,
+  ) async {
+    _uploadingFields[fieldKey] = true;
+    notifyListeners();
+    try {
+      return await _fileUploadService.uploadFiles(
+        fieldKey: fieldKey,
+        filePaths: localFilePaths,
+      );
+    } catch (e) {
+      debugPrint('File upload failed for field "$fieldKey": $e');
       return null;
     } finally {
       _uploadingFields[fieldKey] = false;
