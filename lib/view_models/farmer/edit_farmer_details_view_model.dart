@@ -10,6 +10,8 @@ import '../../services/file_upload_service.dart'
 import '../../services/image_upload_service.dart'
     show ImageUploadService, ImageUploadResult;
 import '../../services/registration_form_service.dart';
+import '../../services/upload_compression_service.dart'
+    show UploadValidationException;
 import 'dynamic_field_form_view_model.dart';
 
 /// ViewModel for the Edit Farmer Details flow.
@@ -44,6 +46,8 @@ class EditFarmerDetailsViewModel extends DynamicFieldFormViewModel {
   bool isLoading = false;
   bool isSaving = false;
   String? error;
+  @override
+  String? lastUploadErrorMessage;
   String formName = '';
   List<DynamicFieldModel> fields = [];
   List<LandDetail> landDetails = [];
@@ -58,6 +62,15 @@ class EditFarmerDetailsViewModel extends DynamicFieldFormViewModel {
   /// Whether a specific camera field is currently uploading.
   @override
   bool isFieldUploading(String key) => _uploadingFields[key] ?? false;
+
+  void _clearUploadError() {
+    lastUploadErrorMessage = null;
+  }
+
+  void _recordUploadError(Object error) {
+    lastUploadErrorMessage =
+        error is UploadValidationException ? error.message : null;
+  }
 
   int? get currentUserId => _authService.userId;
 
@@ -143,6 +156,7 @@ class EditFarmerDetailsViewModel extends DynamicFieldFormViewModel {
   /// Returns the [ImageUploadResult] on success, or null on failure.
   Future<ImageUploadResult?> uploadCameraImage(
       String fieldKey, String localFilePath) async {
+    _clearUploadError();
     _uploadingFields[fieldKey] = true;
     notifyListeners();
 
@@ -156,6 +170,7 @@ class EditFarmerDetailsViewModel extends DynamicFieldFormViewModel {
       }
       return result;
     } catch (e) {
+      _recordUploadError(e);
       debugPrint('Image upload failed for field "$fieldKey": $e');
       return null;
     } finally {
@@ -180,11 +195,13 @@ class EditFarmerDetailsViewModel extends DynamicFieldFormViewModel {
   @override
   Future<ImageUploadResult?> uploadImageOnly(
       String fieldKey, String localFilePath) async {
+    _clearUploadError();
     _uploadingFields[fieldKey] = true;
     notifyListeners();
     try {
       return await _imageUploadService.uploadImage(localFilePath);
     } catch (e) {
+      _recordUploadError(e);
       debugPrint('Image upload failed for field "$fieldKey": $e');
       return null;
     } finally {
@@ -197,6 +214,7 @@ class EditFarmerDetailsViewModel extends DynamicFieldFormViewModel {
     String fieldKey,
     List<String> localFilePaths,
   ) async {
+    _clearUploadError();
     _uploadingFields[fieldKey] = true;
     notifyListeners();
 
@@ -215,6 +233,7 @@ class EditFarmerDetailsViewModel extends DynamicFieldFormViewModel {
       }
       return result;
     } catch (e) {
+      _recordUploadError(e);
       debugPrint('File upload failed for field "$fieldKey": $e');
       return null;
     } finally {
@@ -228,6 +247,7 @@ class EditFarmerDetailsViewModel extends DynamicFieldFormViewModel {
     String fieldKey,
     List<String> localFilePaths,
   ) async {
+    _clearUploadError();
     _uploadingFields[fieldKey] = true;
     notifyListeners();
     try {
@@ -236,6 +256,7 @@ class EditFarmerDetailsViewModel extends DynamicFieldFormViewModel {
         filePaths: localFilePaths,
       );
     } catch (e) {
+      _recordUploadError(e);
       debugPrint('File upload failed for field "$fieldKey": $e');
       return null;
     } finally {

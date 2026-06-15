@@ -18,6 +18,7 @@ import 'services/file_upload_service.dart';
 import 'services/form_config_service.dart';
 import 'services/image_upload_service.dart';
 import 'services/registration_form_service.dart';
+import 'services/upload_compression_service.dart';
 import 'utils/app_colors.dart';
 import 'views/auth/splash_view.dart';
 import 'views/auth/login_view.dart';
@@ -91,14 +92,19 @@ class FarmerRegistrationApp extends StatelessWidget {
             apiClient: context.read<ApiClient>(),
           ),
         ),
+        Provider<UploadCompressionService>(
+          create: (_) => const UploadCompressionService(),
+        ),
         Provider<ImageUploadService>(
           create: (context) => ImageUploadService(
             apiClient: context.read<ApiClient>(),
+            uploadCompressionService: context.read<UploadCompressionService>(),
           ),
         ),
         Provider<FileUploadService>(
           create: (context) => FileUploadService(
             apiClient: context.read<ApiClient>(),
+            uploadCompressionService: context.read<UploadCompressionService>(),
           ),
         ),
         ChangeNotifierProvider(

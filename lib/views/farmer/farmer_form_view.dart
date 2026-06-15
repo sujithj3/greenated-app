@@ -199,7 +199,9 @@ class _FarmerFormViewState extends State<FarmerFormView> {
     if (result != null) {
       context.showSnack('Photo uploaded successfully', success: true);
     } else {
-      context.showSnack('Photo upload failed. Please try again.');
+      context.showSnack(
+        _vm.lastUploadErrorMessage ?? 'Photo upload failed. Please try again.',
+      );
     }
   }
 
@@ -211,7 +213,9 @@ class _FarmerFormViewState extends State<FarmerFormView> {
     if (!mounted) return;
 
     if (result == null) {
-      context.showSnack('File upload failed. Please try again.');
+      context.showSnack(
+        _vm.lastUploadErrorMessage ?? 'File upload failed. Please try again.',
+      );
     } else if (result.hasIncompleteData) {
       context.showSnack('Files uploaded, but some previews are unavailable.',
           success: true);
@@ -895,7 +899,10 @@ class _PopupFormSheetState extends State<_PopupFormSheet> {
       });
       _showLocalSnack('Photo uploaded successfully', success: true);
     } else {
-      _showLocalSnack('Photo upload failed. Please try again.');
+      _showLocalSnack(
+        widget.viewModel.lastUploadErrorMessage ??
+            'Photo upload failed. Please try again.',
+      );
     }
   }
 
@@ -908,7 +915,10 @@ class _PopupFormSheetState extends State<_PopupFormSheet> {
     if (!mounted) return;
 
     if (result == null) {
-      _showLocalSnack('File upload failed. Please try again.');
+      _showLocalSnack(
+        widget.viewModel.lastUploadErrorMessage ??
+            'File upload failed. Please try again.',
+      );
       return;
     }
 
