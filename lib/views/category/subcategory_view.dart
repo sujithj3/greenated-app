@@ -38,15 +38,19 @@ class _SubcategoryViewState extends State<SubcategoryView> {
   Widget build(BuildContext context) {
     final args = ModalRoute.of(context)?.settings.arguments as Map? ?? {};
     final categoryName = args['category'] as String? ?? '';
-    final selectionMode = args['selectionMode'] as bool? ?? false;
     final flowType = args['flowType'] as FlowType? ?? FlowType.listing;
     final catData = AppCategories.styleFor(categoryName);
     final isRegistration = flowType == FlowType.registration;
-    final isPickMode = selectionMode || isRegistration;
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(isPickMode ? 'Select Subcategory' : categoryName),
+        title: ListenableBuilder(
+          listenable: _vm,
+          builder: (context, _) {
+            final category = _vm.getCategoryByName(categoryName);
+            return Text(_titleForCategory(category));
+          },
+        ),
         backgroundColor: catData?.color ?? AppColors.primary,
       ),
       body: ListenableBuilder(
@@ -59,12 +63,27 @@ class _SubcategoryViewState extends State<SubcategoryView> {
             category: category,
             catData: catData,
             isRegistration: isRegistration,
-            isPickMode: isPickMode,
             flowType: flowType,
           );
         },
       ),
     );
+  }
+
+  String _titleForCategory(CategoryModel? category) {
+    final headerTitle = _firstHeaderTitle(category);
+    return headerTitle == null ? 'Select Subcategory' : 'Select-$headerTitle';
+  }
+
+  String? _firstHeaderTitle(CategoryModel? category) {
+    for (final subcategory
+        in category?.subcategories ?? const <SubcategoryModel>[]) {
+      final headerTitle = subcategory.headerTitle?.trim();
+      if (headerTitle != null && headerTitle.isNotEmpty) {
+        return headerTitle;
+      }
+    }
+    return null;
   }
 
   Widget _buildBody({
@@ -73,7 +92,6 @@ class _SubcategoryViewState extends State<SubcategoryView> {
     required CategoryModel? category,
     required CategoryData? catData,
     required bool isRegistration,
-    required bool isPickMode,
     required FlowType flowType,
   }) {
     if (_vm.isLoading && category == null) {
@@ -115,44 +133,44 @@ class _SubcategoryViewState extends State<SubcategoryView> {
       onRefresh: () => _vm.fetchCategories(forceRefresh: true),
       child: Column(
         children: <Widget>[
-          if (!isPickMode)
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
-              color:
-                  (catData?.color ?? AppColors.primary).withValues(alpha: 0.1),
-              child: Row(
-                children: <Widget>[
-                  Icon(
-                    catData?.icon ?? Icons.category,
-                    color: catData?.color ?? AppColors.primary,
-                    size: 36,
-                  ),
-                  const SizedBox(width: 12),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: <Widget>[
-                      Text(
-                        category.categoryName,
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w700,
-                          color: catData?.color ?? AppColors.primary,
-                        ),
-                      ),
-                      Text(
-                      //  '${category.subcategoryCount} ${category.subcategoryCount == 1 ? "Project" : "Projects"}',
-                      "Projects",
-                        style: const TextStyle(
-                          color: AppColors.textMedium,
-                          fontSize: 13,
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
+          // Picker UI is intentionally disabled for now; flow type is still
+          // forwarded so registration/listing behavior can be restored later.
+          // Container(
+          //   width: double.infinity,
+          //   padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
+          //   color: (catData?.color ?? AppColors.primary).withValues(alpha: 0.1),
+          //   child: Row(
+          //     children: <Widget>[
+          //       Icon(
+          //         catData?.icon ?? Icons.category,
+          //         color: catData?.color ?? AppColors.primary,
+          //         size: 36,
+          //       ),
+          //       const SizedBox(width: 12),
+          //       Column(
+          //         crossAxisAlignment: CrossAxisAlignment.start,
+          //         children: <Widget>[
+          //           Text(
+          //             category.categoryName,
+          //             style: TextStyle(
+          //               fontSize: 18,
+          //               fontWeight: FontWeight.w700,
+          //               color: catData?.color ?? AppColors.primary,
+          //             ),
+          //           ),
+          //           const Text(
+          //             //  '${category.subcategoryCount} ${category.subcategoryCount == 1 ? "Project" : "Projects"}',
+          //             "Projects",
+          //             style: TextStyle(
+          //               color: AppColors.textMedium,
+          //               fontSize: 13,
+          //             ),
+          //           ),
+          //         ],
+          //       ),
+          //     ],
+          //   ),
+          // ),
           Expanded(
             child: ListView.separated(
               padding: const EdgeInsets.all(16),
@@ -162,20 +180,14 @@ class _SubcategoryViewState extends State<SubcategoryView> {
                 final subcategory = subcategories[index];
                 return _SubcategoryTile(
                   subcategory: subcategory,
-                  categoryName: categoryName,
                   catData: catData,
-                  selectionMode: isPickMode,
                   onTap: () {
-                    if (isPickMode && !isRegistration) {
-                      Navigator.pop(context, subcategory.subcategoryName);
-                      return;
-                    }
-
                     Navigator.pushNamed(
                       context,
                       '/registered-farmers',
                       arguments: {
-                        'flowType': flowType,
+                        'flowType':
+                            isRegistration ? FlowType.registration : flowType,
                         'subcategoryId': subcategory.subcategoryId,
                         'category': categoryName,
                         'subcategory': subcategory.subcategoryName,
@@ -195,24 +207,18 @@ class _SubcategoryViewState extends State<SubcategoryView> {
 class _SubcategoryTile extends StatelessWidget {
   const _SubcategoryTile({
     required this.subcategory,
-    required this.categoryName,
     required this.catData,
-    required this.selectionMode,
     required this.onTap,
   });
 
   final SubcategoryModel subcategory;
-  final String categoryName;
   final CategoryData? catData;
-  final bool selectionMode;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final color = catData?.color ?? AppColors.primary;
-    final subtitle = selectionMode
-        ? categoryName
-        : '${subcategory.farmerCount} farmers';
+    final subtitle = '${subcategory.farmerCount} farmers';
 
     return Card(
       child: ListTile(
@@ -234,33 +240,31 @@ class _SubcategoryTile extends StatelessWidget {
           subtitle,
           style: const TextStyle(fontSize: 12, color: AppColors.textMedium),
         ),
-        trailing: selectionMode
-            ? const Icon(Icons.check_circle_outline, color: AppColors.primary)
-            : Row(
-                mainAxisSize: MainAxisSize.min,
-                children: <Widget>[
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      color: color.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Text(
-                      '${subcategory.farmerCount}',
-                      style: TextStyle(
-                        color: color,
-                        fontWeight: FontWeight.w700,
-                        fontSize: 13,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 4),
-                  const Icon(Icons.chevron_right, color: AppColors.textMedium),
-                ],
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            Container(
+              padding: const EdgeInsets.symmetric(
+                horizontal: 10,
+                vertical: 4,
               ),
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Text(
+                '${subcategory.farmerCount}',
+                style: TextStyle(
+                  color: color,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 13,
+                ),
+              ),
+            ),
+            const SizedBox(width: 4),
+            const Icon(Icons.chevron_right, color: AppColors.textMedium),
+          ],
+        ),
       ),
     );
   }
