@@ -2,6 +2,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 
 import 'app_colors.dart';
+import 'snack_bar_helper.dart';
 
 const List<String> allowedUploadExtensions = <String>[
   'jpg',
@@ -17,6 +18,7 @@ const List<String> allowedUploadExtensions = <String>[
   'docx',
   'txt',
 ];
+const int maxUploadSelectionCount = 5;
 
 enum FileUploadSource {
   camera,
@@ -72,10 +74,19 @@ Future<List<String>> pickDynamicUploadFiles(BuildContext context) async {
         allowedExtensions: allowedUploadExtensions,
       );
       if (result == null) return <String>[];
-      return result.files
+      final paths = result.files
           .map((file) => file.path?.trim() ?? '')
           .where((path) => path.isNotEmpty && _isAllowedUploadPath(path))
           .toList();
+      if (paths.length > maxUploadSelectionCount) {
+        if (context.mounted) {
+          context.showSnack(
+            'You can select up to $maxUploadSelectionCount files at a time.',
+          );
+        }
+        return <String>[];
+      }
+      return paths;
   }
 }
 

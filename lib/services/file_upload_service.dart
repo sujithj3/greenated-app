@@ -1,5 +1,6 @@
 import '../core/network/network.dart';
 import '../models/api/api_models.dart';
+import 'upload_compression_service.dart';
 
 class FileUploadResult {
   const FileUploadResult({
@@ -22,10 +23,15 @@ class FileUploadResult {
 }
 
 class FileUploadService {
-  const FileUploadService({required ApiClient apiClient})
-      : _apiClient = apiClient;
+  FileUploadService({
+    required ApiClient apiClient,
+    UploadCompressionService? uploadCompressionService,
+  })  : _apiClient = apiClient,
+        _uploadCompressionService =
+            uploadCompressionService ?? const UploadCompressionService();
 
   final ApiClient _apiClient;
+  final UploadCompressionService _uploadCompressionService;
 
   Future<FileUploadResult> uploadFiles({
     required String fieldKey,
@@ -36,31 +42,42 @@ class FileUploadService {
       throw const ApiException('No files selected.');
     }
 
-    final response = await _apiClient.uploadFiles<Map<String, dynamic>>(
-      ApiEndpoints.filesUpload,
-      filePaths: cleanedPaths,
-      fileKey: 'file',
-      decoder: (raw) {
-        if (raw is Map) return Map<String, dynamic>.from(raw);
-        return null;
-      },
-    );
-
-    if (response.hasError || response.data == null) {
-      throw ApiException(
-        response.message.isNotEmpty
-            ? response.message
-            : 'File upload failed. Please try again.',
-        statusCode: response.statusCode,
+    UploadValidationResult? preparedUpload;
+    try {
+      preparedUpload = await _uploadCompressionService.prepareFiles(
+        cleanedPaths,
       );
-    }
 
-    final result = FileUploadResult.fromJson(response.data!);
-    if (result.paths.isEmpty) {
-      throw const ApiException(
-        'Upload succeeded but no file path was returned.',
+      final response = await _apiClient.uploadFiles<Map<String, dynamic>>(
+        ApiEndpoints.filesUpload,
+        filePaths: preparedUpload.filePaths,
+        fileKey: 'file',
+        decoder: (raw) {
+          if (raw is Map) return Map<String, dynamic>.from(raw);
+          return null;
+        },
       );
+
+      if (response.hasError || response.data == null) {
+        throw ApiException(
+          response.message.isNotEmpty
+              ? response.message
+              : 'File upload failed. Please try again.',
+          statusCode: response.statusCode,
+        );
+      }
+
+      final result = FileUploadResult.fromJson(response.data!);
+      if (result.paths.isEmpty) {
+        throw const ApiException(
+          'Upload succeeded but no file path was returned.',
+        );
+      }
+      return result;
+    } finally {
+      if (preparedUpload != null) {
+        await _uploadCompressionService.cleanupTemporaryFiles(preparedUpload);
+      }
     }
-    return result;
   }
 }

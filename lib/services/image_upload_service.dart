@@ -1,4 +1,5 @@
 import '../core/network/network.dart';
+import 'upload_compression_service.dart';
 
 /// Result of a successful image upload.
 class ImageUploadResult {
@@ -21,44 +22,64 @@ class ImageUploadResult {
 /// Endpoint: POST image/upload (multipart/form-data, key: "file")
 /// Expected response: { statusCode: 200, hasError: false, data: { imagePath: "...", previewUrl: "..." } }
 class ImageUploadService {
-  const ImageUploadService({required ApiClient apiClient})
-      : _apiClient = apiClient;
+  ImageUploadService({
+    required ApiClient apiClient,
+    UploadCompressionService? uploadCompressionService,
+  })  : _apiClient = apiClient,
+        _uploadCompressionService =
+            uploadCompressionService ?? const UploadCompressionService();
 
   final ApiClient _apiClient;
+  final UploadCompressionService _uploadCompressionService;
 
   /// Uploads an image file and returns an [ImageUploadResult] on success.
   ///
   /// Throws [ApiException] on failure.
   Future<ImageUploadResult> uploadImage(String filePath) async {
-    final response = await _apiClient.uploadFile<Map<String, dynamic>>(
-      ApiEndpoints.imageUpload,
-      filePath: filePath,
-      fileKey: 'image',
-      decoder: (raw) {
-        if (raw is Map) return Map<String, dynamic>.from(raw);
-        return null;
-      },
-    );
-
-    if (response.hasError || response.data == null) {
-      throw ApiException(
-        response.message.isNotEmpty
-            ? response.message
-            : 'Image upload failed. Please try again.',
-        statusCode: response.statusCode,
+    UploadValidationResult? preparedUpload;
+    try {
+      preparedUpload = await _uploadCompressionService.prepareSingleFile(
+        filePath,
       );
-    }
 
-    final imagePath = response.data!['imagePath'] as String?;
-    final previewUrl = response.data!['previewUrl'] as String?;
+      final response = await _apiClient.uploadFile<Map<String, dynamic>>(
+        ApiEndpoints.imageUpload,
+        filePath: preparedUpload.filePaths.single,
+        fileKey: 'image',
+        decoder: (raw) {
+          if (raw is Map) return Map<String, dynamic>.from(raw);
+          return null;
+        },
+      );
 
-    if (imagePath == null || imagePath.isEmpty) {
-      throw const ApiException('Upload succeeded but no image path was returned.');
-    }
-    if (previewUrl == null || previewUrl.isEmpty) {
-      throw const ApiException('Upload succeeded but no preview URL was returned.');
-    }
+      if (response.hasError || response.data == null) {
+        throw ApiException(
+          response.message.isNotEmpty
+              ? response.message
+              : 'Image upload failed. Please try again.',
+          statusCode: response.statusCode,
+        );
+      }
 
-    return ImageUploadResult(imagePath: imagePath, previewUrl: previewUrl);
+      final imagePath = response.data!['imagePath'] as String?;
+      final previewUrl = response.data!['previewUrl'] as String?;
+
+      if (imagePath == null || imagePath.isEmpty) {
+        throw const ApiException(
+          'Upload succeeded but no image path was returned.',
+        );
+      }
+      if (previewUrl == null || previewUrl.isEmpty) {
+        throw const ApiException(
+          'Upload succeeded but no preview URL was returned.',
+        );
+      }
+
+      return ImageUploadResult(imagePath: imagePath, previewUrl: previewUrl);
+    } finally {
+      if (preparedUpload != null) {
+        await _uploadCompressionService.cleanupTemporaryFiles(preparedUpload);
+      }
+    }
   }
 }

@@ -123,7 +123,9 @@ class _EditLandDetailViewState extends State<EditLandDetailView> {
     if (result != null) {
       context.showSnack('Photo uploaded successfully', success: true);
     } else {
-      context.showSnack('Photo upload failed. Please try again.');
+      context.showSnack(
+        _vm.lastUploadErrorMessage ?? 'Photo upload failed. Please try again.',
+      );
     }
   }
 
@@ -135,7 +137,9 @@ class _EditLandDetailViewState extends State<EditLandDetailView> {
     if (!mounted) return;
 
     if (result == null) {
-      context.showSnack('File upload failed. Please try again.');
+      context.showSnack(
+        _vm.lastUploadErrorMessage ?? 'File upload failed. Please try again.',
+      );
     } else if (result.hasIncompleteData) {
       context.showSnack('Files uploaded, but some previews are unavailable.',
           success: true);

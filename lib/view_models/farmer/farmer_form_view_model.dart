@@ -11,6 +11,8 @@ import '../../services/form_config_service.dart';
 import '../../services/image_upload_service.dart'
     show ImageUploadService, ImageUploadResult;
 import '../../services/registration_form_service.dart';
+import '../../services/upload_compression_service.dart'
+    show UploadValidationException;
 
 class FarmerFormViewModel extends ChangeNotifier {
   final FormConfigService _formConfigService;
@@ -41,6 +43,7 @@ class FarmerFormViewModel extends ChangeNotifier {
   bool isLoadingForm = true;
   bool isSaving = false;
   String? formLoadError;
+  String? lastUploadErrorMessage;
 
   /// Tracks per-field upload state for camera fields (key → isUploading).
   final Map<String, bool> _uploadingFields = {};
@@ -150,6 +153,15 @@ class FarmerFormViewModel extends ChangeNotifier {
   /// Whether a specific camera field is currently uploading.
   bool isFieldUploading(String key) => _uploadingFields[key] ?? false;
 
+  void _clearUploadError() {
+    lastUploadErrorMessage = null;
+  }
+
+  void _recordUploadError(Object error) {
+    lastUploadErrorMessage =
+        error is UploadValidationException ? error.message : null;
+  }
+
   /// Uploads a captured image for a camera-type dynamic field.
   ///
   /// [fieldKey] identifies which dynamic field to store the imagePath in.
@@ -158,6 +170,7 @@ class FarmerFormViewModel extends ChangeNotifier {
   /// Returns the [ImageUploadResult] on success, or null on failure.
   Future<ImageUploadResult?> uploadCameraImage(
       String fieldKey, String localFilePath) async {
+    _clearUploadError();
     _uploadingFields[fieldKey] = true;
     notifyListeners();
 
@@ -172,6 +185,7 @@ class FarmerFormViewModel extends ChangeNotifier {
       }
       return result;
     } catch (e) {
+      _recordUploadError(e);
       debugPrint('Image upload failed for field "$fieldKey": $e');
       return null;
     } finally {
@@ -185,11 +199,13 @@ class FarmerFormViewModel extends ChangeNotifier {
   /// The caller is responsible for applying the result to their own field model.
   Future<ImageUploadResult?> uploadImageOnly(
       String fieldKey, String localFilePath) async {
+    _clearUploadError();
     _uploadingFields[fieldKey] = true;
     notifyListeners();
     try {
       return await _imageUploadService.uploadImage(localFilePath);
     } catch (e) {
+      _recordUploadError(e);
       debugPrint('Image upload failed for field "$fieldKey": $e');
       return null;
     } finally {
@@ -202,6 +218,7 @@ class FarmerFormViewModel extends ChangeNotifier {
     String fieldKey,
     List<String> localFilePaths,
   ) async {
+    _clearUploadError();
     _uploadingFields[fieldKey] = true;
     notifyListeners();
 
@@ -221,6 +238,7 @@ class FarmerFormViewModel extends ChangeNotifier {
       }
       return result;
     } catch (e) {
+      _recordUploadError(e);
       debugPrint('File upload failed for field "$fieldKey": $e');
       return null;
     } finally {
@@ -233,6 +251,7 @@ class FarmerFormViewModel extends ChangeNotifier {
     String fieldKey,
     List<String> localFilePaths,
   ) async {
+    _clearUploadError();
     _uploadingFields[fieldKey] = true;
     notifyListeners();
     try {
@@ -241,6 +260,7 @@ class FarmerFormViewModel extends ChangeNotifier {
         filePaths: localFilePaths,
       );
     } catch (e) {
+      _recordUploadError(e);
       debugPrint('File upload failed for field "$fieldKey": $e');
       return null;
     } finally {

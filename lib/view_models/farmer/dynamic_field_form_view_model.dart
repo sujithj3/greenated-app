@@ -5,6 +5,8 @@ import '../../services/file_upload_service.dart' show FileUploadResult;
 import '../../services/image_upload_service.dart' show ImageUploadResult;
 
 abstract class DynamicFieldFormViewModel extends ChangeNotifier {
+  String? get lastUploadErrorMessage;
+
   bool isFieldUploading(String key);
 
   Future<ImageUploadResult?> uploadImageOnly(
