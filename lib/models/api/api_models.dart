@@ -394,6 +394,24 @@ class DynamicFieldModel {
       ...cleanStringList(previewUrls),
     ];
   }
+
+  bool removeFileReferenceByPath(String path) {
+    final trimmedPath = path.trim();
+    if (trimmedPath.isEmpty) return false;
+
+    final paths = fileValueList;
+    final previews = filePreviewUrlList;
+    final index = paths.indexWhere((item) => item.trim() == trimmedPath);
+    if (index == -1) return false;
+
+    paths.removeAt(index);
+    if (index < previews.length) {
+      previews.removeAt(index);
+    }
+    value = paths;
+    previewUrl = previews;
+    return true;
+  }
 }
 
 class AppFileItem {
@@ -402,6 +420,7 @@ class AppFileItem {
     this.name,
     this.url,
     this.localPath,
+    this.remotePath,
     this.mimeType,
     this.extension,
     required this.isRemote,
@@ -411,6 +430,7 @@ class AppFileItem {
   final String? name;
   final String? url;
   final String? localPath;
+  final String? remotePath;
   final String? mimeType;
   final String? extension;
   final bool isRemote;
@@ -426,6 +446,7 @@ class AppFileItem {
       url: previewUrl?.trim().isNotEmpty == true
           ? previewUrl!.trim()
           : (path != null && _isHttpUrl(path) ? path.trim() : null),
+      remotePath: path?.trim().isNotEmpty == true ? path!.trim() : null,
       extension: _extensionFrom(source),
       isRemote: true,
     );
@@ -436,6 +457,7 @@ class AppFileItem {
       id: path,
       name: _fileNameFrom(path),
       localPath: path,
+      remotePath: null,
       extension: _extensionFrom(path),
       isRemote: false,
     );

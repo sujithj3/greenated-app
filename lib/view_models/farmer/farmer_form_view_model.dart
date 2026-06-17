@@ -269,6 +269,43 @@ class FarmerFormViewModel extends ChangeNotifier {
     }
   }
 
+  Future<void> deleteFileForField(
+    DynamicFieldModel fieldModel,
+    AppFileItem file,
+  ) async {
+    final path = file.remotePath?.trim() ?? '';
+    final fieldKey = fieldModel.field.key;
+    await deleteFileOnly(fieldKey, path);
+
+    final idx = dynamicFields.indexWhere((df) => df.field.key == fieldKey);
+    if (idx == -1) return;
+    if (dynamicFields[idx].removeFileReferenceByPath(path)) {
+      notifyListeners();
+      _handleDependencyChange(fieldKey);
+    }
+  }
+
+  Future<void> deleteFileOnly(
+    String fieldKey,
+    String path, {
+    int? fieldId,
+    int? submissionId,
+  }) async {
+    _clearUploadError();
+    _uploadingFields[fieldKey] = true;
+    notifyListeners();
+
+    try {
+      await _fileUploadService.deleteFileByPath(path);
+    } catch (e) {
+      debugPrint('File delete failed for field "$fieldKey": $e');
+      rethrow;
+    } finally {
+      _uploadingFields[fieldKey] = false;
+      notifyListeners();
+    }
+  }
+
   /// Clears the uploaded image for a camera-type dynamic field.
   void clearCameraImage(String fieldKey) {
     final idx = dynamicFields.indexWhere((df) => df.field.key == fieldKey);

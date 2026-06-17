@@ -16,6 +16,7 @@ class DynamicFieldBuilder extends StatelessWidget {
     this.textController,
     this.accentColor,
     this.onAddFiles,
+    this.onDeleteFile,
     this.onPopupFormPressed,
     this.popupFormFilledCount,
     this.popupFormTotalCount,
@@ -40,6 +41,7 @@ class DynamicFieldBuilder extends StatelessWidget {
   final TextEditingController? textController;
   final Color? accentColor;
   final VoidCallback? onAddFiles;
+  final Future<void> Function(AppFileItem file)? onDeleteFile;
   final VoidCallback? onPopupFormPressed;
   final int? popupFormFilledCount;
   final int? popupFormTotalCount;
@@ -828,6 +830,7 @@ class DynamicFieldBuilder extends StatelessWidget {
           hasError: state.hasError,
           errorText: state.errorText,
           onAddFiles: onAddFiles,
+          onDeleteFile: onDeleteFile,
         );
       },
     );

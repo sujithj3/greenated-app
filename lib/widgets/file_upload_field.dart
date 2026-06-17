@@ -15,6 +15,7 @@ class FileUploadField extends StatelessWidget {
     required this.hasError,
     this.errorText,
     this.onAddFiles,
+    this.onDeleteFile,
   });
 
   final ApiField field;
@@ -25,6 +26,7 @@ class FileUploadField extends StatelessWidget {
   final bool hasError;
   final String? errorText;
   final VoidCallback? onAddFiles;
+  final Future<void> Function(AppFileItem file)? onDeleteFile;
 
   bool get _hasFiles => files.isNotEmpty;
 
@@ -161,7 +163,10 @@ class FileUploadField extends StatelessWidget {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => FilesViewerScreen(files: files),
+        builder: (_) => FilesViewerScreen(
+          files: files,
+          onDeleteFile: onDeleteFile,
+        ),
       ),
     );
   }

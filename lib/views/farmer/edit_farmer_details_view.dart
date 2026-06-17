@@ -44,6 +44,7 @@ class _EditFarmerDetailsViewState extends State<EditFarmerDetailsView> {
   late final AddLandDetailViewModel _landVm;
   final Map<String, TextEditingController> _textCtrl = {};
   bool _isInit = false;
+  bool _shouldRefreshOnPop = false;
   final AutovalidateMode _autoValidateMode = AutovalidateMode.disabled;
 
   @override
@@ -174,6 +175,27 @@ class _EditFarmerDetailsViewState extends State<EditFarmerDetailsView> {
     }
   }
 
+  Future<void> _deleteFile(DynamicFieldModel df, AppFileItem file) async {
+    await _vm.deleteFileForField(df, file);
+    if (!mounted) return;
+    _markShouldRefreshOnPop();
+  }
+
+  void _markShouldRefreshOnPop() {
+    if (_shouldRefreshOnPop || !mounted) return;
+    setState(() => _shouldRefreshOnPop = true);
+  }
+
+  void _popWithRefreshResult() {
+    if (!mounted) return;
+    setState(() => _shouldRefreshOnPop = false);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        Navigator.pop(context, true);
+      }
+    });
+  }
+
   // ── Popup Form Sheet (view + edit) ──────────────────────────────────────
 
   Future<void> _openEditPopupSheet(DynamicFieldModel df) async {
@@ -191,6 +213,7 @@ class _EditFarmerDetailsViewState extends State<EditFarmerDetailsView> {
           df.clearError();
           if (mounted) setState(() {});
         },
+        onFileDeleted: _markShouldRefreshOnPop,
         viewModel: _vm,
       ),
     );
@@ -260,33 +283,41 @@ class _EditFarmerDetailsViewState extends State<EditFarmerDetailsView> {
             _vm.fields.any((df) => df.isLoadingOptions);
         final isBlocked = showOverlay || isUploading;
 
-        return Stack(
-          children: [
-            Scaffold(
-              appBar: AppBar(
-                title: Text(
-                    _vm.formName.isNotEmpty ? 'Edit ${_vm.formName}' : 'Edit'),
+        return PopScope<Object?>(
+          canPop: !_shouldRefreshOnPop,
+          onPopInvokedWithResult: (didPop, _) {
+            if (didPop) return;
+            _popWithRefreshResult();
+          },
+          child: Stack(
+            children: [
+              Scaffold(
+                appBar: AppBar(
+                  title: Text(_vm.formName.isNotEmpty
+                      ? 'Edit ${_vm.formName}'
+                      : 'Edit'),
+                ),
+                body: _buildBody(isBlocked),
               ),
-              body: _buildBody(isBlocked),
-            ),
-            if (isBlocked)
-              AbsorbPointer(
-                absorbing: true,
-                child: showOverlay
-                    ? Container(
-                        color: Colors.black.withValues(alpha: 0.45),
-                        child: const Center(
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              CircularProgressIndicator(color: Colors.white),
-                            ],
+              if (isBlocked)
+                AbsorbPointer(
+                  absorbing: true,
+                  child: showOverlay
+                      ? Container(
+                          color: Colors.black.withValues(alpha: 0.45),
+                          child: const Center(
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                CircularProgressIndicator(color: Colors.white),
+                              ],
+                            ),
                           ),
-                        ),
-                      )
-                    : const SizedBox.shrink(),
-              ),
-          ],
+                        )
+                      : const SizedBox.shrink(),
+                ),
+            ],
+          ),
         );
       },
     );
@@ -434,6 +465,7 @@ class _EditFarmerDetailsViewState extends State<EditFarmerDetailsView> {
       onCapturePhoto: isCameraField ? () => _captureAndUpload(f.key) : null,
       onClearPhoto: isCameraField ? () => _vm.clearCameraImage(f.key) : null,
       onAddFiles: isFileField ? () => _pickAndUploadFiles(df) : null,
+      onDeleteFile: isFileField ? (file) => _deleteFile(df, file) : null,
       previewUrl: (isCameraField || isFileField) ? df.previewUrl : null,
       onMapPolygonPressed: f.fieldStyle == FieldStyle.mapPolygon
           ? () => _openMapForField(df)
@@ -511,6 +543,7 @@ class EditPopupFormSheet extends StatefulWidget {
   final ApiField parentField;
   final List<DynamicFieldModel> initialFields;
   final void Function(List<DynamicFieldModel> updated) onSaved;
+  final VoidCallback? onFileDeleted;
   final DynamicFieldFormViewModel viewModel;
 
   const EditPopupFormSheet({
@@ -518,6 +551,7 @@ class EditPopupFormSheet extends StatefulWidget {
     required this.parentField,
     required this.initialFields,
     required this.onSaved,
+    this.onFileDeleted,
     required this.viewModel,
   });
 
@@ -770,6 +804,25 @@ class _EditPopupFormSheetState extends State<EditPopupFormSheet> {
     }
   }
 
+  Future<void> _deleteSubFieldFile(
+    DynamicFieldModel df,
+    AppFileItem file,
+  ) async {
+    final path = file.remotePath?.trim() ?? '';
+    await widget.viewModel.deleteFileOnly(
+      df.field.key,
+      path,
+      fieldId: df.field.fieldId,
+    );
+    if (!mounted) return;
+
+    setState(() {
+      df.removeFileReferenceByPath(path);
+    });
+    widget.onSaved(_fields);
+    widget.onFileDeleted?.call();
+  }
+
   void _clearSubFieldPhoto(DynamicFieldModel df) {
     setState(() {
       df.value = null;
@@ -820,6 +873,8 @@ class _EditPopupFormSheetState extends State<EditPopupFormSheet> {
           isCameraField ? () => _captureAndUploadSubField(df) : null,
       onClearPhoto: isCameraField ? () => _clearSubFieldPhoto(df) : null,
       onAddFiles: isFileField ? () => _pickAndUploadSubFieldFiles(df) : null,
+      onDeleteFile:
+          isFileField ? (file) => _deleteSubFieldFile(df, file) : null,
       resolvedOptions:
           f.fieldStyle == FieldStyle.dropdown ? df.resolvedOptions : null,
       isLoadingOptions:
@@ -865,6 +920,7 @@ class _EditPopupFormSheetState extends State<EditPopupFormSheet> {
           setState(() => df.value = result);
           df.clearError();
         },
+        onFileDeleted: widget.onFileDeleted,
         viewModel: widget.viewModel,
       ),
     );

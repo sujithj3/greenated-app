@@ -142,6 +142,10 @@ class _AddLandDetailFormState extends State<AddLandDetailForm> {
     }
   }
 
+  Future<void> _deleteFile(DynamicFieldModel df, AppFileItem file) {
+    return _vm.deleteFileForField(df, file);
+  }
+
   Future<void> _openPopupSheet(DynamicFieldModel df) async {
     final currentValues = df.value as List<DynamicFieldModel>? ?? [];
     await showModalBottomSheet(
@@ -348,6 +352,7 @@ class _AddLandDetailFormState extends State<AddLandDetailForm> {
       onCapturePhoto: isCameraField ? () => _captureAndUpload(f.key) : null,
       onClearPhoto: isCameraField ? () => _vm.clearCameraImage(f.key) : null,
       onAddFiles: isFileField ? () => _pickAndUploadFiles(df) : null,
+      onDeleteFile: isFileField ? (file) => _deleteFile(df, file) : null,
       previewUrl: (isCameraField || isFileField) ? df.previewUrl : null,
       onMapPolygonPressed: f.fieldStyle == FieldStyle.mapPolygon
           ? () => _openMapForField(df)

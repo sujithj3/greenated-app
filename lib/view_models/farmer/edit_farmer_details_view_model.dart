@@ -51,6 +51,7 @@ class EditFarmerDetailsViewModel extends DynamicFieldFormViewModel {
   String formName = '';
   List<DynamicFieldModel> fields = [];
   List<LandDetail> landDetails = [];
+  int? editSubmissionId;
 
   /// Guards dependency handling: stays `false` until the initial load
   /// completes, so prefilled values don't trigger cascading API calls.
@@ -106,10 +107,12 @@ class EditFarmerDetailsViewModel extends DynamicFieldFormViewModel {
       formName = result.formName;
       fields = result.fields;
       landDetails = result.landDetails;
+      editSubmissionId = result.resolvedSubmissionId;
     } catch (e) {
       error = e.toString();
       fields = [];
       landDetails = [];
+      editSubmissionId = null;
     } finally {
       isLoading = false;
       // Enable dependency handling AFTER the initial load finishes.
@@ -263,6 +266,85 @@ class EditFarmerDetailsViewModel extends DynamicFieldFormViewModel {
       _uploadingFields[fieldKey] = false;
       notifyListeners();
     }
+  }
+
+  Future<void> deleteFileForField(
+    DynamicFieldModel fieldModel,
+    AppFileItem file,
+  ) async {
+    final path = file.remotePath?.trim() ?? '';
+    final fieldKey = fieldModel.field.key;
+    await deleteFileOnly(
+      fieldKey,
+      path,
+      fieldId: fieldModel.field.fieldId,
+    );
+
+    final idx = fields.indexWhere((df) => df.field.key == fieldKey);
+    if (idx == -1) return;
+    if (fields[idx].removeFileReferenceByPath(path)) {
+      notifyListeners();
+    }
+  }
+
+  @override
+  Future<void> deleteFileOnly(
+    String fieldKey,
+    String path, {
+    int? fieldId,
+    int? submissionId,
+  }) async {
+    _clearUploadError();
+    _uploadingFields[fieldKey] = true;
+    notifyListeners();
+
+    try {
+      await _fileUploadService.deleteFileByPath(
+        path,
+        fieldId: fieldId,
+        submissionId:
+            submissionId ?? _submissionIdForFilePath(path) ?? editSubmissionId,
+      );
+    } catch (e) {
+      debugPrint('File delete failed for field "$fieldKey": $e');
+      rethrow;
+    } finally {
+      _uploadingFields[fieldKey] = false;
+      notifyListeners();
+    }
+  }
+
+  int? _submissionIdForFilePath(String path) {
+    final trimmedPath = path.trim();
+    if (trimmedPath.isEmpty) return null;
+
+    for (final land in landDetails) {
+      final submissionId = land.submissionId;
+      if (submissionId == null || submissionId <= 0) continue;
+      if (_fieldsContainFilePath(land.fields, trimmedPath)) {
+        return submissionId;
+      }
+    }
+
+    return null;
+  }
+
+  bool _fieldsContainFilePath(
+    List<DynamicFieldModel> fieldList,
+    String path,
+  ) {
+    for (final df in fieldList) {
+      if (df.fileValueList.any((item) => item.trim() == path)) {
+        return true;
+      }
+
+      final value = df.value;
+      if (value is List<DynamicFieldModel> &&
+          _fieldsContainFilePath(value, path)) {
+        return true;
+      }
+    }
+    return false;
   }
 
   // ── Save (POST edit) ──────────────────────────────────────────────────────

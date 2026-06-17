@@ -224,6 +224,10 @@ class _FarmerFormViewState extends State<FarmerFormView> {
     }
   }
 
+  Future<void> _deleteFile(DynamicFieldModel df, AppFileItem file) {
+    return _vm.deleteFileForField(df, file);
+  }
+
   // ── Popup form sheet ──────────────────────────────────────────────────────
 
   void _openPopupFormSheet(DynamicFieldModel df, Color catColor) {
@@ -533,6 +537,7 @@ class _FarmerFormViewState extends State<FarmerFormView> {
       onCapturePhoto: isCameraField ? () => _captureAndUpload(f.key) : null,
       onClearPhoto: isCameraField ? () => _vm.clearCameraImage(f.key) : null,
       onAddFiles: isFileField ? () => _pickAndUploadFiles(df) : null,
+      onDeleteFile: isFileField ? (file) => _deleteFile(df, file) : null,
       previewUrl: (isCameraField || isFileField) ? df.previewUrl : null,
       onMapPolygonPressed: f.fieldStyle == FieldStyle.mapPolygon
           ? () => _openMapForDynamicField(df)
@@ -936,6 +941,20 @@ class _PopupFormSheetState extends State<_PopupFormSheet> {
     }
   }
 
+  Future<void> _deleteSubFieldFile(
+    DynamicFieldModel df,
+    AppFileItem file,
+  ) async {
+    final path = file.remotePath?.trim() ?? '';
+    await widget.viewModel.deleteFileOnly(df.field.key, path);
+    if (!mounted) return;
+
+    setState(() {
+      df.removeFileReferenceByPath(path);
+    });
+    widget.onSaved(_fields);
+  }
+
   void _clearSubFieldPhoto(DynamicFieldModel df) {
     setState(() {
       df.value = null;
@@ -986,6 +1005,8 @@ class _PopupFormSheetState extends State<_PopupFormSheet> {
           isCameraField ? () => _captureAndUploadSubField(df) : null,
       onClearPhoto: isCameraField ? () => _clearSubFieldPhoto(df) : null,
       onAddFiles: isFileField ? () => _pickAndUploadSubFieldFiles(df) : null,
+      onDeleteFile:
+          isFileField ? (file) => _deleteSubFieldFile(df, file) : null,
       resolvedOptions:
           f.fieldStyle == FieldStyle.dropdown ? df.resolvedOptions : null,
       isLoadingOptions:

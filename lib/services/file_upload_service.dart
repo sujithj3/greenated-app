@@ -80,4 +80,42 @@ class FileUploadService {
       }
     }
   }
+
+  Future<void> deleteFileByPath(
+    String path, {
+    int? fieldId,
+    int? submissionId,
+  }) async {
+    final trimmedPath = path.trim();
+    if (trimmedPath.isEmpty) {
+      throw const ApiException('File path not found.');
+    }
+
+    final body = <String, dynamic>{
+      'path': trimmedPath,
+      if (fieldId != null) 'fieldId': fieldId,
+      if (submissionId != null) 'submissionId': submissionId,
+    };
+
+    final response = await _apiClient.send<Map<String, dynamic>>(
+      ApiRequest(
+        method: ApiMethod.delete,
+        path: ApiEndpoints.deleteFile,
+        body: body,
+      ),
+      decoder: (raw) {
+        if (raw is Map) return Map<String, dynamic>.from(raw);
+        return null;
+      },
+    );
+
+    if (response.hasError) {
+      throw ApiException(
+        response.message.isNotEmpty
+            ? response.message
+            : 'File delete failed. Please try again.',
+        statusCode: response.statusCode,
+      );
+    }
+  }
 }

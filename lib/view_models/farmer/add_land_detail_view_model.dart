@@ -313,6 +313,60 @@ class AddLandDetailViewModel extends DynamicFieldFormViewModel {
     }
   }
 
+  Future<void> deleteFileForField(
+    DynamicFieldModel fieldModel,
+    AppFileItem file,
+  ) async {
+    final path = file.remotePath?.trim() ?? '';
+    final fieldKey = fieldModel.field.key;
+    final deleteSubmissionId = _validSubmissionId;
+    await deleteFileOnly(
+      fieldKey,
+      path,
+      fieldId: deleteSubmissionId == null ? null : fieldModel.field.fieldId,
+      submissionId: deleteSubmissionId,
+    );
+
+    final idx = fields.indexWhere((df) => df.field.key == fieldKey);
+    if (idx == -1) return;
+    if (fields[idx].removeFileReferenceByPath(path)) {
+      notifyListeners();
+      _handleDependencyChange(fieldKey);
+    }
+  }
+
+  @override
+  Future<void> deleteFileOnly(
+    String fieldKey,
+    String path, {
+    int? fieldId,
+    int? submissionId,
+  }) async {
+    _clearUploadError();
+    _uploadingFields[fieldKey] = true;
+    notifyListeners();
+
+    try {
+      final deleteSubmissionId = submissionId ?? _validSubmissionId;
+      await _fileUploadService.deleteFileByPath(
+        path,
+        fieldId: deleteSubmissionId == null ? null : fieldId,
+        submissionId: deleteSubmissionId,
+      );
+    } catch (e) {
+      debugPrint('File delete failed for field "$fieldKey": $e');
+      rethrow;
+    } finally {
+      _uploadingFields[fieldKey] = false;
+      notifyListeners();
+    }
+  }
+
+  int? get _validSubmissionId {
+    final value = submissionId;
+    return value != null && value > 0 ? value : null;
+  }
+
   Future<void> retryFetchOptions(String fieldKey) async {
     final idx = fields.indexWhere((df) => df.field.key == fieldKey);
     if (idx == -1) return;

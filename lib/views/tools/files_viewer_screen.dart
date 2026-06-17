@@ -10,6 +10,7 @@ import 'package:share_plus/share_plus.dart';
 import '../../models/api/api_models.dart';
 import '../../utils/app_colors.dart';
 import '../../utils/snack_bar_helper.dart';
+import '../../widgets/popup_form.dart';
 
 IconData _iconFor(AppFileItem file) {
   if (file.isPdf) return Icons.picture_as_pdf_outlined;
@@ -24,10 +25,12 @@ class FilesViewerScreen extends StatefulWidget {
     super.key,
     required this.files,
     this.initialIndex = 0,
+    this.onDeleteFile,
   });
 
   final List<AppFileItem> files;
   final int initialIndex;
+  final Future<void> Function(AppFileItem file)? onDeleteFile;
 
   @override
   State<FilesViewerScreen> createState() => _FilesViewerScreenState();
@@ -40,19 +43,38 @@ class _FilesViewerScreenState extends State<FilesViewerScreen> {
   static const double _thumbnailHorizontalPadding = 12;
 
   late int _selectedIndex;
+  late List<AppFileItem> _files;
   final ScrollController _thumbnailScrollController = ScrollController();
   bool _isDownloading = false;
+  bool _isDeleting = false;
   bool _isOpeningPdf = false;
 
-  AppFileItem get _selectedFile => widget.files[_selectedIndex];
+  AppFileItem get _selectedFile => _files[_selectedIndex];
+  bool get _canDeleteSelected =>
+      widget.onDeleteFile != null &&
+      _files.isNotEmpty &&
+      (_selectedFile.remotePath?.trim().isNotEmpty ?? false);
 
   @override
   void initState() {
     super.initState();
-    _selectedIndex = widget.files.isEmpty
+    _files = List<AppFileItem>.of(widget.files);
+    _selectedIndex = _files.isEmpty
         ? 0
-        : widget.initialIndex.clamp(0, widget.files.length - 1).toInt();
+        : widget.initialIndex.clamp(0, _files.length - 1).toInt();
     _scrollSelectedThumbnail();
+  }
+
+  @override
+  void didUpdateWidget(covariant FilesViewerScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.files == widget.files) return;
+    _files = List<AppFileItem>.of(widget.files);
+    if (_files.isEmpty) {
+      _selectedIndex = 0;
+    } else {
+      _selectedIndex = _selectedIndex.clamp(0, _files.length - 1).toInt();
+    }
   }
 
   @override
@@ -63,7 +85,7 @@ class _FilesViewerScreenState extends State<FilesViewerScreen> {
 
   @override
   Widget build(BuildContext context) {
-    if (widget.files.isEmpty) {
+    if (_files.isEmpty) {
       return Scaffold(
         appBar: AppBar(title: const Text('Files')),
         body: const Center(
@@ -80,9 +102,27 @@ class _FilesViewerScreenState extends State<FilesViewerScreen> {
       appBar: AppBar(
         title: const Text('Files'),
         actions: [
+          if (_canDeleteSelected)
+            IconButton(
+              tooltip: 'Delete',
+              onPressed: (_isDeleting || _isDownloading)
+                  ? null
+                  : _confirmDeleteSelected,
+              icon: _isDeleting
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
+                    )
+                  : const Icon(Icons.delete_outline),
+            ),
           IconButton(
             tooltip: 'Download',
-            onPressed: _isDownloading ? null : _downloadSelected,
+            onPressed:
+                (_isDownloading || _isDeleting) ? null : _downloadSelected,
             icon: _isDownloading
                 ? const SizedBox(
                     width: 18,
@@ -182,7 +222,7 @@ class _FilesViewerScreenState extends State<FilesViewerScreen> {
     return _FileFallback(
       file: file,
       message: message,
-      isDownloading: _isDownloading,
+      isDownloading: _isDownloading || _isDeleting,
       onDownload: _downloadSelected,
     );
   }
@@ -197,10 +237,10 @@ class _FilesViewerScreenState extends State<FilesViewerScreen> {
         padding:
             const EdgeInsets.symmetric(horizontal: _thumbnailHorizontalPadding),
         scrollDirection: Axis.horizontal,
-        itemCount: widget.files.length,
+        itemCount: _files.length,
         separatorBuilder: (_, __) => const SizedBox(width: _thumbnailSpacing),
         itemBuilder: (_, index) {
-          final file = widget.files[index];
+          final file = _files[index];
           final isSelected = index == _selectedIndex;
           return GestureDetector(
             onTap: () => _selectFile(index),
@@ -245,8 +285,8 @@ class _FilesViewerScreenState extends State<FilesViewerScreen> {
   }
 
   void _selectFile(int index) {
-    if (widget.files.isEmpty) return;
-    final nextIndex = index.clamp(0, widget.files.length - 1).toInt();
+    if (_files.isEmpty) return;
+    final nextIndex = index.clamp(0, _files.length - 1).toInt();
     if (nextIndex == _selectedIndex) {
       _scrollSelectedThumbnail();
       return;
@@ -256,6 +296,7 @@ class _FilesViewerScreenState extends State<FilesViewerScreen> {
   }
 
   void _scrollSelectedThumbnail() {
+    if (_files.isEmpty) return;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted || !_thumbnailScrollController.hasClients) return;
       final position = _thumbnailScrollController.position;
@@ -427,7 +468,59 @@ class _FilesViewerScreenState extends State<FilesViewerScreen> {
     }
   }
 
+  Future<void> _confirmDeleteSelected() async {
+    if (!_canDeleteSelected || _isDeleting) return;
+
+    final file = _selectedFile;
+    final confirmed = await showPopupConfirm(
+      context,
+      title: 'Delete file?',
+      message: 'Delete "${file.displayName}"? This action cannot be undone.',
+      confirmLabel: 'Delete',
+      confirmColor: AppColors.error,
+      icon: Icons.delete_outline,
+    );
+
+    if (confirmed != true || !mounted) return;
+    await _deleteFile(file);
+  }
+
+  Future<void> _deleteFile(AppFileItem file) async {
+    final onDeleteFile = widget.onDeleteFile;
+    if (onDeleteFile == null) return;
+
+    setState(() => _isDeleting = true);
+    try {
+      await onDeleteFile(file);
+      if (!mounted) return;
+
+      final deletePath = file.remotePath?.trim();
+      final removeIndex = deletePath == null || deletePath.isEmpty
+          ? _files.indexOf(file)
+          : _files.indexWhere(
+              (item) => item.remotePath?.trim() == deletePath,
+            );
+
+      setState(() {
+        if (removeIndex != -1) {
+          _files.removeAt(removeIndex);
+          _selectedIndex = _files.isEmpty
+              ? 0
+              : removeIndex.clamp(0, _files.length - 1).toInt();
+        }
+        _isDeleting = false;
+      });
+      context.showSnack('File deleted successfully', success: true);
+      _scrollSelectedThumbnail();
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isDeleting = false);
+      context.showSnack('Unable to delete file. Please try again.');
+    }
+  }
+
   Future<void> _downloadSelected() async {
+    if (_files.isEmpty) return;
     final file = _selectedFile;
     setState(() => _isDownloading = true);
     try {

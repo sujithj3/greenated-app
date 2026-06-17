@@ -19,6 +19,13 @@ abstract class DynamicFieldFormViewModel extends ChangeNotifier {
     List<String> localFilePaths,
   );
 
+  Future<void> deleteFileOnly(
+    String fieldKey,
+    String path, {
+    int? fieldId,
+    int? submissionId,
+  });
+
   Future<void> handleSubfieldDependencyChange(
     String changedKey,
     List<DynamicFieldModel> fieldList,

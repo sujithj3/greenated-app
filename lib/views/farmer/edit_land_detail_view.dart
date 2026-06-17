@@ -40,6 +40,7 @@ class _EditLandDetailViewState extends State<EditLandDetailView> {
   final Map<String, TextEditingController> _textCtrl = {};
   late final AddLandDetailViewModel _vm;
   bool _isInit = false;
+  bool _shouldRefreshOnPop = false;
   final AutovalidateMode _autoValidateMode = AutovalidateMode.disabled;
 
   @override
@@ -148,6 +149,27 @@ class _EditLandDetailViewState extends State<EditLandDetailView> {
     }
   }
 
+  Future<void> _deleteFile(DynamicFieldModel df, AppFileItem file) async {
+    await _vm.deleteFileForField(df, file);
+    if (!mounted) return;
+    _markShouldRefreshOnPop();
+  }
+
+  void _markShouldRefreshOnPop() {
+    if (_shouldRefreshOnPop || !mounted) return;
+    setState(() => _shouldRefreshOnPop = true);
+  }
+
+  void _popWithRefreshResult() {
+    if (!mounted) return;
+    setState(() => _shouldRefreshOnPop = false);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        Navigator.pop(context, true);
+      }
+    });
+  }
+
   Future<void> _openEditPopupSheet(DynamicFieldModel df) async {
     final currentValues = df.value as List<DynamicFieldModel>? ?? [];
     await showModalBottomSheet(
@@ -162,6 +184,7 @@ class _EditLandDetailViewState extends State<EditLandDetailView> {
           df.clearError();
           if (mounted) setState(() {});
         },
+        onFileDeleted: _markShouldRefreshOnPop,
         viewModel: _vm,
       ),
     );
@@ -267,25 +290,33 @@ class _EditLandDetailViewState extends State<EditLandDetailView> {
             _vm.isSaving || _vm.fields.any((df) => df.isLoadingOptions);
         final isBlocked = showOverlay || isUploading;
 
-        return Stack(
-          children: [
-            Scaffold(
-              appBar: AppBar(title: Text(widget.title)),
-              body: _buildBody(isBlocked),
-            ),
-            if (isBlocked)
-              AbsorbPointer(
-                absorbing: true,
-                child: showOverlay
-                    ? Container(
-                        color: Colors.black.withValues(alpha: 0.45),
-                        child: const Center(
-                          child: CircularProgressIndicator(color: Colors.white),
-                        ),
-                      )
-                    : const SizedBox.shrink(),
+        return PopScope<Object?>(
+          canPop: !_shouldRefreshOnPop,
+          onPopInvokedWithResult: (didPop, _) {
+            if (didPop) return;
+            _popWithRefreshResult();
+          },
+          child: Stack(
+            children: [
+              Scaffold(
+                appBar: AppBar(title: Text(widget.title)),
+                body: _buildBody(isBlocked),
               ),
-          ],
+              if (isBlocked)
+                AbsorbPointer(
+                  absorbing: true,
+                  child: showOverlay
+                      ? Container(
+                          color: Colors.black.withValues(alpha: 0.45),
+                          child: const Center(
+                            child:
+                                CircularProgressIndicator(color: Colors.white),
+                          ),
+                        )
+                      : const SizedBox.shrink(),
+                ),
+            ],
+          ),
         );
       },
     );
@@ -359,6 +390,7 @@ class _EditLandDetailViewState extends State<EditLandDetailView> {
       onCapturePhoto: isCameraField ? () => _captureAndUpload(f.key) : null,
       onClearPhoto: isCameraField ? () => _vm.clearCameraImage(f.key) : null,
       onAddFiles: isFileField ? () => _pickAndUploadFiles(df) : null,
+      onDeleteFile: isFileField ? (file) => _deleteFile(df, file) : null,
       previewUrl: (isCameraField || isFileField) ? df.previewUrl : null,
       onMapPolygonPressed: f.fieldStyle == FieldStyle.mapPolygon
           ? () => _openMapForField(df)
