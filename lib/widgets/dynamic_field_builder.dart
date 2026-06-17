@@ -23,6 +23,7 @@ class DynamicFieldBuilder extends StatelessWidget {
     this.isUploading = false,
     this.onCapturePhoto,
     this.onClearPhoto,
+    this.onDeleteCameraPhoto,
     this.onMapPolygonPressed,
     this.onGenerateKml,
     this.resolvedOptions,
@@ -54,6 +55,9 @@ class DynamicFieldBuilder extends StatelessWidget {
 
   /// Callback to clear/remove a captured image for a camera field.
   final VoidCallback? onClearPhoto;
+
+  /// Async callback to delete an uploaded camera image through the API.
+  final Future<void> Function()? onDeleteCameraPhoto;
 
   /// Callback to open the map for a map polygon field.
   final VoidCallback? onMapPolygonPressed;
@@ -700,9 +704,25 @@ class DynamicFieldBuilder extends StatelessWidget {
                       height: 18,
                       child: CircularProgressIndicator(strokeWidth: 2),
                     ),
-                    label: const Text('Uploading...'),
+                    label: Text(
+                      onDeleteCameraPhoto == null
+                          ? 'Uploading...'
+                          : 'Removing...',
+                    ),
                     style: OutlinedButton.styleFrom(
                       minimumSize: const Size(double.infinity, 48),
+                    ),
+                  )
+                else if (onDeleteCameraPhoto != null)
+                  OutlinedButton.icon(
+                    onPressed: onDeleteCameraPhoto,
+                    icon: const Icon(Icons.delete_outline,
+                        size: 18, color: AppColors.error),
+                    label: const Text('Remove',
+                        style: TextStyle(color: AppColors.error)),
+                    style: OutlinedButton.styleFrom(
+                      minimumSize: const Size(double.infinity, 48),
+                      side: const BorderSide(color: AppColors.error),
                     ),
                   )
                 else

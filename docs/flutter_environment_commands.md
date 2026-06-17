@@ -64,6 +64,11 @@ Use this when staging values are ready:
 flutter run --flavor staging --dart-define=APP_ENV=staging
 ```
 
+## Production Debug
+```bash
+flutter run --flavor production --dart-define=APP_ENV=production
+```
+
 ## Android Debug APKs
 
 Use these to create installable debug APKs for each flavor:
@@ -71,6 +76,8 @@ Use these to create installable debug APKs for each flavor:
 ```bash
 # Development debug APK
 flutter build apk --flavor development --debug --dart-define=APP_ENV=development
+
+flutter build apk --flavor development --debug --dart-define=APP_ENV=development --split-per-abi
 
 # Staging debug APK
 flutter build apk --flavor staging --debug --dart-define=APP_ENV=staging

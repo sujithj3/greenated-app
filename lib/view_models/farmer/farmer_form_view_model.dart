@@ -296,7 +296,11 @@ class FarmerFormViewModel extends ChangeNotifier {
     notifyListeners();
 
     try {
-      await _fileUploadService.deleteFileByPath(path);
+      await _fileUploadService.deleteFileByPath(
+        path,
+        fieldId: fieldId,
+        submissionId: submissionId,
+      );
     } catch (e) {
       debugPrint('File delete failed for field "$fieldKey": $e');
       rethrow;

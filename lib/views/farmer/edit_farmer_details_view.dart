@@ -17,6 +17,7 @@ import '../../view_models/farmer/dynamic_field_form_view_model.dart';
 import '../../view_models/farmer/edit_farmer_details_view_model.dart';
 import '../../widgets/dynamic_field_builder.dart';
 import '../../widgets/land_details_widgets.dart';
+import '../../widgets/popup_form.dart';
 import '../../widgets/shimmer_loading.dart';
 
 /// Edit view for a previously submitted farmer registration.
@@ -181,6 +182,46 @@ class _EditFarmerDetailsViewState extends State<EditFarmerDetailsView> {
     _markShouldRefreshOnPop();
   }
 
+  Future<void> _reloadEditFormAfterDelete() async {
+    _markShouldRefreshOnPop();
+    await _vm.loadEditForm(
+      subcategoryId: widget.subcategoryId,
+      farmerId: widget.farmerId,
+    );
+  }
+
+  Future<void> _deleteCameraPhoto(DynamicFieldModel df) async {
+    final confirmed = await showPopupConfirm(
+      context,
+      title: 'Remove photo?',
+      message: 'Remove this photo? This action cannot be undone.',
+      confirmLabel: 'Remove',
+      confirmColor: AppColors.error,
+      icon: Icons.delete_outline,
+    );
+    if (confirmed != true || !mounted) return;
+
+    final path = df.value?.toString().trim() ?? '';
+    try {
+      await _vm.deleteFileOnly(
+        df.field.key,
+        path,
+        fieldId: df.field.fieldId,
+        submissionId: _vm.editSubmissionId,
+      );
+      if (!mounted) return;
+
+      _vm.clearCameraImage(df.field.key);
+      await _reloadEditFormAfterDelete();
+      if (!mounted) return;
+      context.showSnack('Photo removed successfully', success: true);
+    } catch (_) {
+      if (mounted) {
+        context.showSnack('Unable to remove photo. Please try again.');
+      }
+    }
+  }
+
   void _markShouldRefreshOnPop() {
     if (_shouldRefreshOnPop || !mounted) return;
     setState(() => _shouldRefreshOnPop = true);
@@ -214,6 +255,7 @@ class _EditFarmerDetailsViewState extends State<EditFarmerDetailsView> {
           if (mounted) setState(() {});
         },
         onFileDeleted: _markShouldRefreshOnPop,
+        onCameraPhotoDeleted: _reloadEditFormAfterDelete,
         viewModel: _vm,
       ),
     );
@@ -464,6 +506,7 @@ class _EditFarmerDetailsViewState extends State<EditFarmerDetailsView> {
           (isCameraField || isFileField) ? _vm.isFieldUploading(f.key) : false,
       onCapturePhoto: isCameraField ? () => _captureAndUpload(f.key) : null,
       onClearPhoto: isCameraField ? () => _vm.clearCameraImage(f.key) : null,
+      onDeleteCameraPhoto: isCameraField ? () => _deleteCameraPhoto(df) : null,
       onAddFiles: isFileField ? () => _pickAndUploadFiles(df) : null,
       onDeleteFile: isFileField ? (file) => _deleteFile(df, file) : null,
       previewUrl: (isCameraField || isFileField) ? df.previewUrl : null,
@@ -544,6 +587,7 @@ class EditPopupFormSheet extends StatefulWidget {
   final List<DynamicFieldModel> initialFields;
   final void Function(List<DynamicFieldModel> updated) onSaved;
   final VoidCallback? onFileDeleted;
+  final Future<void> Function()? onCameraPhotoDeleted;
   final DynamicFieldFormViewModel viewModel;
 
   const EditPopupFormSheet({
@@ -552,6 +596,7 @@ class EditPopupFormSheet extends StatefulWidget {
     required this.initialFields,
     required this.onSaved,
     this.onFileDeleted,
+    this.onCameraPhotoDeleted,
     required this.viewModel,
   });
 
@@ -823,6 +868,42 @@ class _EditPopupFormSheetState extends State<EditPopupFormSheet> {
     widget.onFileDeleted?.call();
   }
 
+  Future<void> _deleteSubFieldPhoto(DynamicFieldModel df) async {
+    final confirmed = await showPopupConfirm(
+      context,
+      title: 'Remove photo?',
+      message: 'Remove this photo? This action cannot be undone.',
+      confirmLabel: 'Remove',
+      confirmColor: AppColors.error,
+      icon: Icons.delete_outline,
+    );
+    if (confirmed != true || !mounted) return;
+
+    final path = df.value?.toString().trim() ?? '';
+    try {
+      await widget.viewModel.deleteFileOnly(
+        df.field.key,
+        path,
+        fieldId: df.field.fieldId,
+      );
+      if (!mounted) return;
+
+      setState(() {
+        df.value = null;
+        df.previewUrl = null;
+      });
+      widget.onSaved(_fields);
+      widget.onFileDeleted?.call();
+      await widget.onCameraPhotoDeleted?.call();
+      if (!mounted) return;
+      _showLocalSnack('Photo removed successfully', success: true);
+    } catch (_) {
+      if (mounted) {
+        _showLocalSnack('Unable to remove photo. Please try again.');
+      }
+    }
+  }
+
   void _clearSubFieldPhoto(DynamicFieldModel df) {
     setState(() {
       df.value = null;
@@ -872,6 +953,8 @@ class _EditPopupFormSheetState extends State<EditPopupFormSheet> {
       onCapturePhoto:
           isCameraField ? () => _captureAndUploadSubField(df) : null,
       onClearPhoto: isCameraField ? () => _clearSubFieldPhoto(df) : null,
+      onDeleteCameraPhoto:
+          isCameraField ? () => _deleteSubFieldPhoto(df) : null,
       onAddFiles: isFileField ? () => _pickAndUploadSubFieldFiles(df) : null,
       onDeleteFile:
           isFileField ? (file) => _deleteSubFieldFile(df, file) : null,
@@ -921,6 +1004,7 @@ class _EditPopupFormSheetState extends State<EditPopupFormSheet> {
           df.clearError();
         },
         onFileDeleted: widget.onFileDeleted,
+        onCameraPhotoDeleted: widget.onCameraPhotoDeleted,
         viewModel: widget.viewModel,
       ),
     );
