@@ -90,20 +90,43 @@ class _CameraCaptureViewState extends State<CameraCaptureView>
 
     return SafeArea(
       top: false,
-      child: Column(
-        children: [
-          const SizedBox(height: 24),
-          AspectRatio(
-            aspectRatio: CameraPhotoFrame.aspectRatioForOrientation(
-              MediaQuery.orientationOf(context),
-            ),
-            child: _buildCameraPreview(),
-          ),
-          const SizedBox(height: 100),
-          _buildCaptureButton(),
-          const Spacer(),
-          const SizedBox(height: 24),
-        ],
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final frameAspectRatio = CameraPhotoFrame.aspectRatioForOrientation(
+            MediaQuery.orientationOf(context),
+          );
+          final topGap = (constraints.maxHeight * 0.04).clamp(12.0, 24.0);
+          final actionGap = (constraints.maxHeight * 0.08).clamp(24.0, 64.0);
+          const captureButtonSize = 56.0;
+          const bottomGap = 24.0;
+          final availablePreviewHeight = (constraints.maxHeight -
+                  topGap -
+                  actionGap -
+                  captureButtonSize -
+                  bottomGap)
+              .clamp(0.0, double.infinity);
+          final widthBasedPreviewHeight =
+              constraints.maxWidth / frameAspectRatio;
+          final previewHeight = widthBasedPreviewHeight > availablePreviewHeight
+              ? availablePreviewHeight
+              : widthBasedPreviewHeight;
+          final previewWidth = previewHeight * frameAspectRatio;
+
+          return Column(
+            children: [
+              SizedBox(height: topGap),
+              SizedBox(
+                width: previewWidth,
+                height: previewHeight,
+                child: _buildCameraPreview(),
+              ),
+              SizedBox(height: actionGap),
+              _buildCaptureButton(),
+              const Spacer(),
+              const SizedBox(height: bottomGap),
+            ],
+          );
+        },
       ),
     );
   }
