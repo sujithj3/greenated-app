@@ -11,6 +11,8 @@ class ImagePreviewView extends StatelessWidget {
   const ImagePreviewView({super.key, required this.viewModel});
 
   Future<void> _save(BuildContext context) async {
+    if (viewModel.isProcessing) return;
+
     final resultPath = await viewModel.processAndSave();
     if (resultPath != null) {
       if (context.mounted) {

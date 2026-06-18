@@ -213,7 +213,7 @@ class CameraCaptureViewModel extends ChangeNotifier {
   }
 
   Future<String?> processAndSave() async {
-    if (capturedImagePath == null) return null;
+    if (capturedImagePath == null || isProcessing) return null;
 
     isProcessing = true;
     processingError = null;
