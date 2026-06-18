@@ -109,7 +109,7 @@ class UploadCompressionService {
     this.uuid = const Uuid(),
   });
 
-  static const int serverUploadLimitBytes = 5000000;
+  static const int serverUploadLimitBytes = 10000000;
   static const int maxUploadBytes = serverUploadLimitBytes;
   static const int maxImageLongSide = 2048;
   static const List<int> compressionQualities = <int>[85, 75, 65, 55];

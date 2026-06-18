@@ -124,10 +124,10 @@ void main() {
 
   test('rejects multiple compressed images when final total exceeds limit',
       () async {
-    final compressor = FakeUploadImageCompressor(outputSizeBytes: 2600000);
+    final compressor = FakeUploadImageCompressor(outputSizeBytes: 5100000);
     final service = serviceWith(compressor);
-    final first = await _createFile(tempDir, 'first.jpg', 4000000);
-    final second = await _createFile(tempDir, 'second.jpg', 4000000);
+    final first = await _createFile(tempDir, 'first.jpg', 8000000);
+    final second = await _createFile(tempDir, 'second.jpg', 8000000);
 
     await expectLater(
       service.prepareFiles(<String>[first.path, second.path]),
@@ -145,12 +145,14 @@ void main() {
 
   test('rejects a compressed image when its final size exceeds the limit',
       () async {
-    final compressor = FakeUploadImageCompressor(outputSizeBytes: 6000000);
+    final compressor = FakeUploadImageCompressor(
+      outputSizeBytes: UploadCompressionService.maxUploadBytes + 500000,
+    );
     final service = serviceWith(compressor);
     final image = await _createFile(
       tempDir,
       'still-too-large.jpg',
-      UploadCompressionService.maxUploadBytes + 1,
+      UploadCompressionService.maxUploadBytes + 1000000,
     );
 
     await expectLater(
