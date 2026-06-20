@@ -31,6 +31,7 @@ class _LandMeasurementViewState extends State<LandMeasurementView> {
   MapType _mapType = MapType.hybrid;
 
   late final LandMeasurementViewModel _vm;
+  bool _didAutoLocate = false;
 
   static const CameraPosition _defaultCamera = CameraPosition(
     target: LatLng(20.5937, 78.9629), // India center
@@ -236,6 +237,10 @@ class _LandMeasurementViewState extends State<LandMeasurementView> {
                                 ? CameraPosition(target: points.first, zoom: 18)
                                 : _defaultCamera;
                             _vm.updateCamera(initialPos);
+                            if (points.isEmpty && !_didAutoLocate) {
+                              _didAutoLocate = true;
+                              unawaited(_goToMyLocation());
+                            }
                           },
                           initialCameraPosition: points.isNotEmpty
                               ? CameraPosition(target: points.first, zoom: 18)
@@ -371,7 +376,7 @@ class _LandMeasurementViewState extends State<LandMeasurementView> {
           children: [
             Expanded(
               child: Text(
-                'Area ${_vm.areaInHectares.toStringAsFixed(2)} ha',
+                'Area ${_vm.areaInAcres.toStringAsFixed(4)} Acres',
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
