@@ -32,6 +32,7 @@ class _LandMeasurementViewState extends State<LandMeasurementView> {
 
   late final LandMeasurementViewModel _vm;
   bool _didAutoLocate = false;
+  bool _hasLocationPermission = false;
 
   static const CameraPosition _defaultCamera = CameraPosition(
     target: LatLng(20.5937, 78.9629), // India center
@@ -73,6 +74,11 @@ class _LandMeasurementViewState extends State<LandMeasurementView> {
 
   // ─── Location ────────────────────────────────────────────────────────────
 
+  void _setLocationPermissionGranted(bool granted) {
+    if (!mounted || _hasLocationPermission == granted) return;
+    setState(() => _hasLocationPermission = granted);
+  }
+
   Future<void> _goToMyLocation() async {
     if (_vm.isLocating) return;
     _vm.isLocating = true;
@@ -104,6 +110,7 @@ class _LandMeasurementViewState extends State<LandMeasurementView> {
   Future<bool> _ensureLocationAccess() async {
     final serviceEnabled = await Geolocator.isLocationServiceEnabled();
     if (!serviceEnabled) {
+      _setLocationPermissionGranted(false);
       if (mounted) context.showSnack('Location services are disabled.');
       return false;
     }
@@ -112,16 +119,19 @@ class _LandMeasurementViewState extends State<LandMeasurementView> {
     if (permission == LocationPermission.denied) {
       permission = await Geolocator.requestPermission();
       if (permission == LocationPermission.denied) {
+        _setLocationPermissionGranted(false);
         if (mounted) context.showSnack('Location permission denied.');
         return false;
       }
     }
 
     if (permission == LocationPermission.deniedForever) {
+      _setLocationPermissionGranted(false);
       if (mounted) context.showSnack('Location permission permanently denied.');
       return false;
     }
 
+    _setLocationPermissionGranted(true);
     return true;
   }
 
@@ -246,7 +256,7 @@ class _LandMeasurementViewState extends State<LandMeasurementView> {
                               ? CameraPosition(target: points.first, zoom: 18)
                               : _defaultCamera,
                           mapType: _mapType,
-                          myLocationEnabled: true,
+                          myLocationEnabled: _hasLocationPermission,
                           myLocationButtonEnabled: false,
                           onTap: _viewOnly ? null : _onTap,
                           onCameraMove: (pos) => _vm.updateCamera(pos),
