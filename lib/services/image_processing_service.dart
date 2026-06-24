@@ -72,39 +72,43 @@ String _processImageInBackground(_ImageProcessingRequest request) {
 
   final maxLineWidth = imageWidth - (paddingX * 2) - 20;
   final overlayLines = [
-    _ellipsizeToWidth(request.locationText, font, maxLineWidth),
-    if (request.latLngText.isNotEmpty)
+    if (request.locationText.trim().isNotEmpty)
+      _ellipsizeToWidth(request.locationText, font, maxLineWidth),
+    if (request.latLngText.trim().isNotEmpty)
       _ellipsizeToWidth(request.latLngText, font, maxLineWidth),
-    _ellipsizeToWidth(request.timestampText, font, maxLineWidth),
+    if (request.timestampText.trim().isNotEmpty)
+      _ellipsizeToWidth(request.timestampText, font, maxLineWidth),
   ];
 
-  final maxTextWidth = overlayLines
-      .map((line) => _calculateTextWidth(line, font))
-      .reduce((a, b) => a > b ? a : b);
+  if (overlayLines.isNotEmpty) {
+    final maxTextWidth = overlayLines
+        .map((line) => _calculateTextWidth(line, font))
+        .reduce((a, b) => a > b ? a : b);
 
-  final totalTextHeight = (font.lineHeight * overlayLines.length) +
-      (lineSpacing * (overlayLines.length - 1));
+    final totalTextHeight = (font.lineHeight * overlayLines.length) +
+        (lineSpacing * (overlayLines.length - 1));
 
-  img.fillRect(
-    capturedImage,
-    x1: paddingX - 10,
-    y1: paddingY - 10,
-    x2: paddingX + maxTextWidth + 10,
-    y2: paddingY + totalTextHeight + 10,
-    color: img.ColorRgba8(0, 0, 0, 150),
-  );
-
-  int currentY = paddingY;
-  for (final line in overlayLines) {
-    img.drawString(
+    img.fillRect(
       capturedImage,
-      line,
-      font: font,
-      x: paddingX,
-      y: currentY,
-      color: img.ColorRgb8(255, 255, 255),
+      x1: paddingX - 10,
+      y1: paddingY - 10,
+      x2: paddingX + maxTextWidth + 10,
+      y2: paddingY + totalTextHeight + 10,
+      color: img.ColorRgba8(0, 0, 0, 150),
     );
-    currentY += font.lineHeight + lineSpacing;
+
+    int currentY = paddingY;
+    for (final line in overlayLines) {
+      img.drawString(
+        capturedImage,
+        line,
+        font: font,
+        x: paddingX,
+        y: currentY,
+        color: img.ColorRgb8(255, 255, 255),
+      );
+      currentY += font.lineHeight + lineSpacing;
+    }
   }
 
   final processedBytes = img.encodeJpg(capturedImage, quality: 85);

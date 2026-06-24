@@ -13,6 +13,7 @@ import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import '../../utils/app_colors.dart';
+import '../../utils/location_services_dialog.dart';
 import '../../utils/snack_bar_helper.dart';
 import '../../view_models/tools/land_measurement_view_model.dart';
 import '../../widgets/custom_map_pin.dart';
@@ -33,6 +34,7 @@ class _LandMeasurementViewState extends State<LandMeasurementView> {
   late final LandMeasurementViewModel _vm;
   bool _didAutoLocate = false;
   bool _hasLocationPermission = false;
+  bool _isLocationServicesDialogVisible = false;
 
   static const CameraPosition _defaultCamera = CameraPosition(
     target: LatLng(20.5937, 78.9629), // India center
@@ -111,7 +113,7 @@ class _LandMeasurementViewState extends State<LandMeasurementView> {
     final serviceEnabled = await Geolocator.isLocationServiceEnabled();
     if (!serviceEnabled) {
       _setLocationPermissionGranted(false);
-      if (mounted) context.showSnack('Location services are disabled.');
+      if (mounted) unawaited(_showLocationServicesDisabledDialog());
       return false;
     }
 
@@ -135,6 +137,16 @@ class _LandMeasurementViewState extends State<LandMeasurementView> {
     return true;
   }
 
+  Future<void> _showLocationServicesDisabledDialog() async {
+    if (_isLocationServicesDialogVisible || !mounted) return;
+    _isLocationServicesDialogVisible = true;
+    try {
+      await showLocationServicesDisabledDialog(context);
+    } finally {
+      _isLocationServicesDialogVisible = false;
+    }
+  }
+
   Future<void> _refreshCurrentLocation({Position? fallbackPosition}) async {
     try {
       final position = await Geolocator.getCurrentPosition(
@@ -143,6 +155,10 @@ class _LandMeasurementViewState extends State<LandMeasurementView> {
       );
       _cachedPosition = position;
       _moveCameraToPosition(position, zoom: 18);
+    } on LocationServiceDisabledException {
+      if (fallbackPosition == null && mounted) {
+        unawaited(_showLocationServicesDisabledDialog());
+      }
     } on TimeoutException {
       if (fallbackPosition == null && mounted) {
         context

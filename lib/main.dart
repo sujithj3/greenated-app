@@ -189,7 +189,12 @@ class FarmerRegistrationApp extends StatelessWidget {
             case '/land-measurement':
               page = const LandMeasurementView();
             case '/camera-capture':
-              page = const CameraCaptureView();
+              final cameraArgs =
+                  settings.arguments as Map<String, dynamic>? ?? {};
+              page = CameraCaptureView(
+                requiresLocation:
+                    cameraArgs['requiresLocation'] as bool? ?? false,
+              );
             case '/registered-farmers':
               final args = settings.arguments as Map<String, dynamic>? ?? {};
               page = RegisteredListView(

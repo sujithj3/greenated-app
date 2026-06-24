@@ -190,8 +190,11 @@ class _FarmerFormViewState extends State<FarmerFormView> {
   // ── Camera capture + upload (dynamic field driven) ─────────────────────
 
   Future<void> _captureAndUpload(String fieldKey) async {
-    final localPath =
-        await Navigator.pushNamed(context, '/camera-capture') as String?;
+    final localPath = await Navigator.pushNamed(
+      context,
+      '/camera-capture',
+      arguments: const {'requiresLocation': true},
+    ) as String?;
     if (localPath == null || !mounted) return;
 
     final result = await _vm.uploadCameraImage(fieldKey, localPath);
@@ -207,7 +210,10 @@ class _FarmerFormViewState extends State<FarmerFormView> {
   }
 
   Future<void> _pickAndUploadFiles(DynamicFieldModel df) async {
-    final localPaths = await pickDynamicUploadFiles(context);
+    final localPaths = await pickDynamicUploadFiles(
+      context,
+      requiresLocationForCamera: true,
+    );
     if (localPaths.isEmpty || !mounted) return;
 
     final result = await _vm.uploadFilesForField(df.field.key, localPaths);
@@ -920,8 +926,11 @@ class _PopupFormSheetState extends State<_PopupFormSheet> {
   }
 
   Future<void> _captureAndUploadSubField(DynamicFieldModel df) async {
-    final localPath =
-        await Navigator.pushNamed(context, '/camera-capture') as String?;
+    final localPath = await Navigator.pushNamed(
+      context,
+      '/camera-capture',
+      arguments: const {'requiresLocation': true},
+    ) as String?;
     if (localPath == null || !mounted) return;
 
     final result =
@@ -943,7 +952,10 @@ class _PopupFormSheetState extends State<_PopupFormSheet> {
   }
 
   Future<void> _pickAndUploadSubFieldFiles(DynamicFieldModel df) async {
-    final localPaths = await pickDynamicUploadFiles(context);
+    final localPaths = await pickDynamicUploadFiles(
+      context,
+      requiresLocationForCamera: true,
+    );
     if (localPaths.isEmpty || !mounted) return;
 
     final result =

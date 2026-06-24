@@ -4,6 +4,7 @@ import '../../utils/app_colors.dart';
 import '../../utils/camera_photo_frame.dart';
 import '../../utils/snack_bar_helper.dart';
 import '../../view_models/tools/camera_capture_view_model.dart';
+import '../../widgets/camera_preview_loader.dart';
 
 class ImagePreviewView extends StatelessWidget {
   final CameraCaptureViewModel viewModel;
@@ -115,9 +116,35 @@ class ImagePreviewView extends StatelessWidget {
               child: Stack(
                 fit: StackFit.expand,
                 children: [
-                  Image.file(
-                    File(viewModel.capturedImagePath!),
-                    fit: BoxFit.cover,
+                  LayoutBuilder(
+                    builder: (context, constraints) {
+                      final devicePixelRatio =
+                          MediaQuery.devicePixelRatioOf(context);
+                      final cacheWidth = _previewCacheDimension(
+                        constraints.maxWidth,
+                        devicePixelRatio,
+                      );
+                      final cacheHeight = _previewCacheDimension(
+                        constraints.maxHeight,
+                        devicePixelRatio,
+                      );
+
+                      return Image.file(
+                        File(viewModel.capturedImagePath!),
+                        fit: BoxFit.cover,
+                        cacheWidth: cacheWidth,
+                        cacheHeight: cacheHeight,
+                        filterQuality: FilterQuality.medium,
+                        frameBuilder:
+                            (context, child, frame, wasSynchronouslyLoaded) {
+                          if (wasSynchronouslyLoaded || frame != null) {
+                            return child;
+                          }
+
+                          return const CameraPreviewLoader();
+                        },
+                      );
+                    },
                   ),
                   Positioned(
                     top: 10,
@@ -137,7 +164,20 @@ class ImagePreviewView extends StatelessWidget {
     );
   }
 
+  int? _previewCacheDimension(double logicalSize, double devicePixelRatio) {
+    if (!logicalSize.isFinite || logicalSize <= 0) return null;
+    return (logicalSize * devicePixelRatio).round();
+  }
+
   Widget _buildOverlayLabel() {
+    final overlayTexts = [
+      if (viewModel.locationText.trim().isNotEmpty) viewModel.locationText,
+      if (viewModel.latLngText.trim().isNotEmpty) viewModel.latLngText,
+      if (viewModel.timestampText.trim().isNotEmpty) viewModel.timestampText,
+    ];
+
+    if (overlayTexts.isEmpty) return const SizedBox.shrink();
+
     return Container(
       constraints: const BoxConstraints(maxWidth: 360),
       padding: const EdgeInsets.all(10),
@@ -149,13 +189,10 @@ class ImagePreviewView extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
-          _buildOverlayText(viewModel.locationText),
-          const SizedBox(height: 4),
-          if (viewModel.latLngText.isNotEmpty) ...[
-            _buildOverlayText(viewModel.latLngText),
-            const SizedBox(height: 4),
+          for (final (index, text) in overlayTexts.indexed) ...[
+            if (index > 0) const SizedBox(height: 4),
+            _buildOverlayText(text),
           ],
-          _buildOverlayText(viewModel.timestampText),
         ],
       ),
     );

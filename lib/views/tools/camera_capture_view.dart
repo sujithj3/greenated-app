@@ -2,11 +2,18 @@ import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import '../../utils/app_colors.dart';
 import '../../utils/camera_photo_frame.dart';
+import '../../utils/location_services_dialog.dart';
 import '../../view_models/tools/camera_capture_view_model.dart';
+import '../../widgets/camera_preview_loader.dart';
 import 'image_preview_view.dart';
 
 class CameraCaptureView extends StatefulWidget {
-  const CameraCaptureView({super.key});
+  final bool requiresLocation;
+
+  const CameraCaptureView({
+    super.key,
+    this.requiresLocation = false,
+  });
 
   @override
   State<CameraCaptureView> createState() => _CameraCaptureViewState();
@@ -15,12 +22,15 @@ class CameraCaptureView extends StatefulWidget {
 class _CameraCaptureViewState extends State<CameraCaptureView>
     with WidgetsBindingObserver {
   late final CameraCaptureViewModel _vm;
+  bool _isShowingLocationServicesDialog = false;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _vm = CameraCaptureViewModel()..initialize();
+    _vm = CameraCaptureViewModel(
+      requiresLocation: widget.requiresLocation,
+    )..initialize();
   }
 
   @override
@@ -44,6 +54,8 @@ class _CameraCaptureViewState extends State<CameraCaptureView>
     return ListenableBuilder(
       listenable: _vm,
       builder: (context, _) {
+        _showLocationServicesDisabledDialogIfNeeded();
+
         if (_vm.capturedImagePath != null) {
           return ImagePreviewView(viewModel: _vm);
         }
@@ -58,14 +70,42 @@ class _CameraCaptureViewState extends State<CameraCaptureView>
               if (_vm.isInitialized)
                 IconButton(
                   icon: Icon(_vm.isFlashOn ? Icons.flash_on : Icons.flash_off),
-                  onPressed: _vm.toggleFlash,
+                  onPressed: _vm.isPreparingPreview ? null : _vm.toggleFlash,
                 ),
             ],
           ),
-          body: _buildBody(),
+          body: Stack(
+            fit: StackFit.expand,
+            children: [
+              _buildBody(),
+              if (_vm.isPreparingPreview)
+                CameraPreviewLoader(
+                  backgroundColor: Colors.black.withValues(alpha: 0.78),
+                ),
+            ],
+          ),
         );
       },
     );
+  }
+
+  void _showLocationServicesDisabledDialogIfNeeded() {
+    if (!_vm.shouldShowLocationServicesDisabledDialog ||
+        _isShowingLocationServicesDialog) {
+      return;
+    }
+
+    _isShowingLocationServicesDialog = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted) {
+        _isShowingLocationServicesDialog = false;
+        return;
+      }
+
+      _vm.acknowledgeLocationServicesDisabledDialog();
+      await showLocationServicesDisabledDialog(context);
+      _isShowingLocationServicesDialog = false;
+    });
   }
 
   Widget _buildBody() {
@@ -177,7 +217,7 @@ class _CameraCaptureViewState extends State<CameraCaptureView>
 
   Widget _buildCaptureButton() {
     return FloatingActionButton(
-      onPressed: _vm.captureImage,
+      onPressed: _vm.isPreparingPreview ? null : _vm.captureImage,
       backgroundColor: AppColors.primary,
       child: const Icon(
         Icons.camera_alt,

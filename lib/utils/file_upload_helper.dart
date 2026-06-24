@@ -25,7 +25,10 @@ enum FileUploadSource {
   files,
 }
 
-Future<List<String>> pickDynamicUploadFiles(BuildContext context) async {
+Future<List<String>> pickDynamicUploadFiles(
+  BuildContext context, {
+  bool requiresLocationForCamera = false,
+}) async {
   final source = await showModalBottomSheet<FileUploadSource>(
     context: context,
     backgroundColor: Colors.transparent,
@@ -62,8 +65,12 @@ Future<List<String>> pickDynamicUploadFiles(BuildContext context) async {
 
   switch (source) {
     case FileUploadSource.camera:
-      final localPath =
-          await Navigator.pushNamed(context, '/camera-capture') as String?;
+      final localPath = await Navigator.pushNamed(
+        context,
+        '/camera-capture',
+        arguments:
+            requiresLocationForCamera ? const {'requiresLocation': true} : null,
+      ) as String?;
       return localPath == null || localPath.trim().isEmpty
           ? <String>[]
           : <String>[localPath.trim()];

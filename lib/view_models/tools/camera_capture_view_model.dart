@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:camera/camera.dart';
 import 'package:flutter/foundation.dart';
 import 'package:intl/intl.dart';
@@ -7,13 +9,18 @@ import '../../services/location_service.dart';
 import '../../services/image_processing_service.dart';
 
 class CameraCaptureViewModel extends ChangeNotifier {
+  CameraCaptureViewModel({this.requiresLocation = false}) {
+    locationText = requiresLocation ? 'Fetching location...' : '';
+  }
+
+  final bool requiresLocation;
   CameraController? cameraController;
   final CameraCaptureService _cameraService = CameraCaptureService();
   final LocationService _locationService = LocationService();
   final ImageProcessingService _imageService = ImageProcessingService();
 
   bool isInitialized = false;
-  String locationText = 'Fetching location...';
+  String locationText = '';
   String latLngText = '';
   String timestampText = '';
 
@@ -21,8 +28,10 @@ class CameraCaptureViewModel extends ChangeNotifier {
 
   String? capturedImagePath;
   bool isProcessing = false;
+  bool isPreparingPreview = false;
   bool isFetchingLocation = false;
   bool shouldShowCameraSettings = false;
+  bool shouldShowLocationServicesDisabledDialog = false;
   String? processingError;
 
   DateTime? _locationFetchedAt;
@@ -73,8 +82,10 @@ class CameraCaptureViewModel extends ChangeNotifier {
       isInitialized = true;
       notifyListeners();
 
-      // Start fetching location in background so it's ready before capture
-      _fetchLocation();
+      if (requiresLocation) {
+        // Start fetching location in background so it's ready before capture.
+        unawaited(_fetchLocation());
+      }
     } catch (e) {
       processingError = 'Failed to initialize camera: $e';
       notifyListeners();
@@ -86,6 +97,8 @@ class CameraCaptureViewModel extends ChangeNotifier {
   }
 
   Future<void> _fetchLocation() async {
+    if (!requiresLocation) return;
+
     if (_locationFetchFuture != null) {
       return _locationFetchFuture;
     }
@@ -116,6 +129,7 @@ class CameraCaptureViewModel extends ChangeNotifier {
 
       latLngText = 'Lat: $latitude, Lng: $longitude';
       locationText = 'GPS location captured';
+      shouldShowLocationServicesDisabledDialog = false;
       _locationFetchedAt = DateTime.now();
       notifyListeners();
 
@@ -142,12 +156,26 @@ class CameraCaptureViewModel extends ChangeNotifier {
       } catch (e) {
         debugPrint('Reverse geocode error: $e');
       }
+    } on LocationException catch (e) {
+      debugPrint('Location error: $e');
+      locationText = 'Location unavailable';
+      latLngText = '';
+      _locationFetchedAt = null;
+      if (e.isServiceDisabled) {
+        shouldShowLocationServicesDisabledDialog = true;
+      }
     } catch (e) {
       debugPrint('Location error: $e');
       locationText = 'Location unavailable';
       latLngText = '';
       _locationFetchedAt = null;
     }
+  }
+
+  void acknowledgeLocationServicesDisabledDialog() {
+    if (!shouldShowLocationServicesDisabledDialog) return;
+    shouldShowLocationServicesDisabledDialog = false;
+    notifyListeners();
   }
 
   Future<void> toggleFlash() async {
@@ -168,11 +196,15 @@ class CameraCaptureViewModel extends ChangeNotifier {
   Future<void> captureImage() async {
     if (cameraController == null ||
         !cameraController!.value.isInitialized ||
-        cameraController!.value.isTakingPicture) {
+        cameraController!.value.isTakingPicture ||
+        isPreparingPreview) {
       return;
     }
 
     try {
+      isPreparingPreview = true;
+      notifyListeners();
+
       final file = await cameraController!.takePicture();
 
       // Automatically turn off flash/torch after capture
@@ -188,16 +220,14 @@ class CameraCaptureViewModel extends ChangeNotifier {
       // Reuse cached location if it's fresh (within 2 minutes).
       // Trigger background re-fetch if location was never obtained or has gone stale.
       capturedImagePath = file.path;
+      isPreparingPreview = false;
       notifyListeners();
 
-      final hadLocationFetchInProgress = _locationFetchFuture != null;
-      if (!_hasFreshLocation) {
-        await _fetchLocation();
-        if (hadLocationFetchInProgress && !_hasFreshLocation) {
-          await _fetchLocation();
-        }
+      if (requiresLocation && !_hasFreshLocation) {
+        unawaited(_fetchLocation());
       }
     } catch (e) {
+      isPreparingPreview = false;
       isFetchingLocation = false;
       _locationFetchFuture = null;
       debugPrint('Capture error: $e');
