@@ -35,6 +35,7 @@ class _LandMeasurementViewState extends State<LandMeasurementView> {
   bool _didAutoLocate = false;
   bool _hasLocationPermission = false;
   bool _isLocationServicesDialogVisible = false;
+  bool _isLocationPermissionSettingsPromptVisible = false;
 
   static const CameraPosition _defaultCamera = CameraPosition(
     target: LatLng(20.5937, 78.9629), // India center
@@ -122,14 +123,14 @@ class _LandMeasurementViewState extends State<LandMeasurementView> {
       permission = await Geolocator.requestPermission();
       if (permission == LocationPermission.denied) {
         _setLocationPermissionGranted(false);
-        if (mounted) context.showSnack('Location permission denied.');
+        if (mounted) unawaited(_showLocationPermissionSettingsPrompt());
         return false;
       }
     }
 
     if (permission == LocationPermission.deniedForever) {
       _setLocationPermissionGranted(false);
-      if (mounted) context.showSnack('Location permission permanently denied.');
+      if (mounted) unawaited(_showLocationPermissionSettingsPrompt());
       return false;
     }
 
@@ -144,6 +145,21 @@ class _LandMeasurementViewState extends State<LandMeasurementView> {
       await showLocationServicesDisabledDialog(context);
     } finally {
       _isLocationServicesDialogVisible = false;
+    }
+  }
+
+  Future<void> _showLocationPermissionSettingsPrompt() async {
+    if (_isLocationPermissionSettingsPromptVisible || !mounted) return;
+    _isLocationPermissionSettingsPromptVisible = true;
+    try {
+      await showLocationPermissionSettingsPrompt(
+        context,
+        onOpenSettings: () async {
+          await Geolocator.openAppSettings();
+        },
+      );
+    } finally {
+      _isLocationPermissionSettingsPromptVisible = false;
     }
   }
 

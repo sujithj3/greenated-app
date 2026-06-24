@@ -154,6 +154,10 @@ class LocationService {
     );
   }
 
+  Future<bool> openAppSettings() {
+    return Geolocator.openAppSettings();
+  }
+
   String _firstMatchingComponent(
     List<dynamic> components,
     List<String> preferredTypes,
@@ -189,6 +193,9 @@ class LocationException implements Exception {
   });
 
   bool get isServiceDisabled => type == LocationFailureType.servicesDisabled;
+  bool get isPermissionDenied =>
+      type == LocationFailureType.permissionDenied ||
+      type == LocationFailureType.permissionDeniedForever;
 
   @override
   String toString() => message;

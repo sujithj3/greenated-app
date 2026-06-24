@@ -32,6 +32,7 @@ class CameraCaptureViewModel extends ChangeNotifier {
   bool isFetchingLocation = false;
   bool shouldShowCameraSettings = false;
   bool shouldShowLocationServicesDisabledDialog = false;
+  bool shouldShowLocationPermissionSettingsPrompt = false;
   String? processingError;
 
   DateTime? _locationFetchedAt;
@@ -130,6 +131,7 @@ class CameraCaptureViewModel extends ChangeNotifier {
       latLngText = 'Lat: $latitude, Lng: $longitude';
       locationText = 'GPS location captured';
       shouldShowLocationServicesDisabledDialog = false;
+      shouldShowLocationPermissionSettingsPrompt = false;
       _locationFetchedAt = DateTime.now();
       notifyListeners();
 
@@ -163,6 +165,8 @@ class CameraCaptureViewModel extends ChangeNotifier {
       _locationFetchedAt = null;
       if (e.isServiceDisabled) {
         shouldShowLocationServicesDisabledDialog = true;
+      } else if (e.isPermissionDenied) {
+        shouldShowLocationPermissionSettingsPrompt = true;
       }
     } catch (e) {
       debugPrint('Location error: $e');
@@ -176,6 +180,16 @@ class CameraCaptureViewModel extends ChangeNotifier {
     if (!shouldShowLocationServicesDisabledDialog) return;
     shouldShowLocationServicesDisabledDialog = false;
     notifyListeners();
+  }
+
+  void acknowledgeLocationPermissionSettingsPrompt() {
+    if (!shouldShowLocationPermissionSettingsPrompt) return;
+    shouldShowLocationPermissionSettingsPrompt = false;
+    notifyListeners();
+  }
+
+  Future<void> openLocationSettings() async {
+    await _locationService.openAppSettings();
   }
 
   Future<void> toggleFlash() async {

@@ -23,6 +23,7 @@ class _CameraCaptureViewState extends State<CameraCaptureView>
     with WidgetsBindingObserver {
   late final CameraCaptureViewModel _vm;
   bool _isShowingLocationServicesDialog = false;
+  bool _isShowingLocationPermissionSettingsPrompt = false;
 
   @override
   void initState() {
@@ -55,6 +56,7 @@ class _CameraCaptureViewState extends State<CameraCaptureView>
       listenable: _vm,
       builder: (context, _) {
         _showLocationServicesDisabledDialogIfNeeded();
+        _showLocationPermissionSettingsPromptIfNeeded();
 
         if (_vm.capturedImagePath != null) {
           return ImagePreviewView(viewModel: _vm);
@@ -105,6 +107,28 @@ class _CameraCaptureViewState extends State<CameraCaptureView>
       _vm.acknowledgeLocationServicesDisabledDialog();
       await showLocationServicesDisabledDialog(context);
       _isShowingLocationServicesDialog = false;
+    });
+  }
+
+  void _showLocationPermissionSettingsPromptIfNeeded() {
+    if (!_vm.shouldShowLocationPermissionSettingsPrompt ||
+        _isShowingLocationPermissionSettingsPrompt) {
+      return;
+    }
+
+    _isShowingLocationPermissionSettingsPrompt = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted) {
+        _isShowingLocationPermissionSettingsPrompt = false;
+        return;
+      }
+
+      _vm.acknowledgeLocationPermissionSettingsPrompt();
+      await showLocationPermissionSettingsPrompt(
+        context,
+        onOpenSettings: _vm.openLocationSettings,
+      );
+      _isShowingLocationPermissionSettingsPrompt = false;
     });
   }
 
