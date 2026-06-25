@@ -30,11 +30,20 @@ class ApiEndpoints {
   static String formEdit(int subcategoryId) =>
       'subcategories/$subcategoryId/form-edit';
 
+  static String landForm(int subcategoryId) =>
+      'subcategories/$subcategoryId/land-form';
+
+  static String formLandEdit(int subcategoryId) =>
+      'subcategories/$subcategoryId/formland-edit';
+
   // ── Image Upload ────────────────────────────────────────────────────
   static const String imageUpload = 'image/upload';
+  static const String filesUpload = 'file/upload';
+  static const String deleteFile = 'delete';
 
   // ── Farmers ──────────────────────────────────────────────────────────────
   static const String listFarmers = 'list-farmers';
   static const String registerFarmer = 'register-farmer';
+  static const String registerLand = 'register-land';
   static String farmerById(String id) => 'farmer/$id';
 }

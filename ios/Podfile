@@ -8,6 +8,15 @@ project 'Runner', {
   'Debug' => :debug,
   'Profile' => :release,
   'Release' => :release,
+  'Debug-development' => :debug,
+  'Profile-development' => :release,
+  'Release-development' => :release,
+  'Debug-staging' => :debug,
+  'Profile-staging' => :release,
+  'Release-staging' => :release,
+  'Debug-production' => :debug,
+  'Profile-production' => :release,
+  'Release-production' => :release,
 }
 
 def flutter_root
@@ -39,5 +48,13 @@ end
 post_install do |installer|
   installer.pods_project.targets.each do |target|
     flutter_additional_ios_build_settings(target)
+
+    target.build_configurations.each do |config|
+      definitions = config.build_settings['GCC_PREPROCESSOR_DEFINITIONS'] ||= [
+        '$(inherited)',
+      ]
+
+      definitions << 'PERMISSION_CAMERA=1' unless definitions.include?('PERMISSION_CAMERA=1')
+    end
   end
 end

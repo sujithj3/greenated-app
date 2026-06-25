@@ -4,8 +4,20 @@ import 'package:permission_handler/permission_handler.dart';
 class CameraCaptureService {
   /// Checks and requests camera permissions
   Future<bool> requestCameraPermission() async {
-    final status = await Permission.camera.request();
+    final status = await requestCameraPermissionStatus();
     return status.isGranted;
+  }
+
+  Future<PermissionStatus> requestCameraPermissionStatus() {
+    return Permission.camera.request();
+  }
+
+  Future<PermissionStatus> checkCameraPermissionStatus() {
+    return Permission.camera.status;
+  }
+
+  Future<bool> openCameraSettings() {
+    return openAppSettings();
   }
 
   /// Gets the list of available cameras

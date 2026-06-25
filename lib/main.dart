@@ -1,4 +1,5 @@
 import 'package:flutter/cupertino.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter/foundation.dart'
     show defaultTargetPlatform, TargetPlatform;
 import 'package:flutter/material.dart';
@@ -13,9 +14,11 @@ import 'core/network/interceptor/logging_interceptor.dart';
 import 'repositories/category_repository.dart';
 import 'services/auth_service.dart';
 import 'services/category_api_service.dart';
+import 'services/file_upload_service.dart';
 import 'services/form_config_service.dart';
 import 'services/image_upload_service.dart';
 import 'services/registration_form_service.dart';
+import 'services/upload_compression_service.dart';
 import 'utils/app_colors.dart';
 import 'views/auth/splash_view.dart';
 import 'views/auth/login_view.dart';
@@ -23,19 +26,30 @@ import 'views/dashboard/dashboard_view.dart';
 import 'views/category/category_view.dart';
 import 'views/category/subcategory_view.dart';
 import 'views/farmer/farmer_form_view.dart';
-import 'views/farmer/farmer_list_view.dart';
 import 'views/farmer/farmer_detail_view.dart';
 import 'views/farmer/edit_farmer_details_view.dart';
+import 'views/farmer/add_land_detail_form.dart';
+import 'views/farmer/land_detail_view.dart';
+import 'views/farmer/edit_land_detail_view.dart';
 import 'views/tools/land_measurement_view.dart';
 import 'views/tools/camera_capture_view.dart';
 import 'repositories/registered_list_repository.dart';
 import 'view_models/registered_list_view_model.dart';
 import 'views/farmer/registered_list_view.dart';
 import 'models/flow_type.dart';
+import 'models/api/api_models.dart';
+
+/// Global key for the root ScaffoldMessenger. Ensures SnackBars render above
+/// all routes, bottom sheets, and dialogs — not behind them.
+final rootScaffoldMessengerKey = GlobalKey<ScaffoldMessengerState>();
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await dotenv.load();
+  const appEnvironment = String.fromEnvironment(
+    'APP_ENV',
+    defaultValue: 'development',
+  );
+  await dotenv.load(fileName: '.env.$appEnvironment');
 
   // Pre-initialize AuthService to ensure SharedPreferences is ready
   final authService = AuthService();
@@ -78,9 +92,19 @@ class FarmerRegistrationApp extends StatelessWidget {
             apiClient: context.read<ApiClient>(),
           ),
         ),
+        Provider<UploadCompressionService>(
+          create: (_) => const UploadCompressionService(),
+        ),
         Provider<ImageUploadService>(
           create: (context) => ImageUploadService(
             apiClient: context.read<ApiClient>(),
+            uploadCompressionService: context.read<UploadCompressionService>(),
+          ),
+        ),
+        Provider<FileUploadService>(
+          create: (context) => FileUploadService(
+            apiClient: context.read<ApiClient>(),
+            uploadCompressionService: context.read<UploadCompressionService>(),
           ),
         ),
         ChangeNotifierProvider(
@@ -104,7 +128,16 @@ class FarmerRegistrationApp extends StatelessWidget {
       child: MaterialApp(
         title: 'Greenated',
         debugShowCheckedModeBanner: false,
+        scaffoldMessengerKey: rootScaffoldMessengerKey,
         theme: AppTheme.theme,
+        localizationsDelegates: const [
+          GlobalMaterialLocalizations.delegate,
+          GlobalWidgetsLocalizations.delegate,
+          GlobalCupertinoLocalizations.delegate,
+        ],
+        supportedLocales: const [
+          Locale('en', 'GB'),
+        ],
         builder: (context, child) {
           return Stack(
             children: [
@@ -156,9 +189,12 @@ class FarmerRegistrationApp extends StatelessWidget {
             case '/land-measurement':
               page = const LandMeasurementView();
             case '/camera-capture':
-              page = const CameraCaptureView();
-            case '/farmer-list':
-              page = const FarmerListView();
+              final cameraArgs =
+                  settings.arguments as Map<String, dynamic>? ?? {};
+              page = CameraCaptureView(
+                requiresLocation:
+                    cameraArgs['requiresLocation'] as bool? ?? false,
+              );
             case '/registered-farmers':
               final args = settings.arguments as Map<String, dynamic>? ?? {};
               page = RegisteredListView(
@@ -172,14 +208,37 @@ class FarmerRegistrationApp extends StatelessWidget {
                   settings.arguments as Map<String, dynamic>? ?? {};
               page = FarmerDetailView(
                 subcategoryId: detailArgs['subcategoryId'] as int? ?? 0,
-                submissionId: detailArgs['submissionId'] as int? ?? 0,
+                farmerId: detailArgs['farmerId'] as int? ?? 0,
               );
             case '/edit-farmer-details':
               final editArgs =
                   settings.arguments as Map<String, dynamic>? ?? {};
               page = EditFarmerDetailsView(
                 subcategoryId: editArgs['subcategoryId'] as int? ?? 0,
-                submissionId: editArgs['submissionId'] as int? ?? 0,
+                farmerId: editArgs['farmerId'] as int? ?? 0,
+              );
+            case '/land-detail':
+              final landArgs =
+                  settings.arguments as Map<String, dynamic>? ?? {};
+              page = LandDetailView(
+                land: landArgs['land'] as LandDetail,
+                title: landArgs['title'] as String? ?? 'Land Detail',
+              );
+            case '/edit-land-detail':
+              final landArgs =
+                  settings.arguments as Map<String, dynamic>? ?? {};
+              page = EditLandDetailView(
+                land: landArgs['land'] as LandDetail,
+                title: landArgs['title'] as String? ?? 'Land Detail',
+                subcategoryId: landArgs['subcategoryId'] as int?,
+                submissionId: landArgs['submissionId'] as int?,
+              );
+            case '/add-land-detail':
+              final addLandArgs =
+                  settings.arguments as Map<String, dynamic>? ?? {};
+              page = AddLandDetailForm(
+                landFormData: addLandArgs['landFormData'] as LandFormData,
+                farmerId: addLandArgs['farmerId'] as int?,
               );
             default:
               page = const SplashView();

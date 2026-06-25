@@ -37,11 +37,9 @@ class _CategoryViewState extends State<CategoryView> {
   @override
   Widget build(BuildContext context) {
     final args = ModalRoute.of(context)?.settings.arguments as Map? ?? {};
-    final selectionMode = args['selectionMode'] as bool? ?? false;
     final flowType = args['flowType'] as FlowType? ?? FlowType.listing;
     final isRegistration = flowType == FlowType.registration;
-    final title =
-        (isRegistration || selectionMode) ? 'Select Category' : 'Farm Categories';
+    final title = isRegistration ? 'Select Category' : 'VCM Projects';
 
     return Scaffold(
       appBar: AppBar(title: Text(title)),
@@ -49,7 +47,6 @@ class _CategoryViewState extends State<CategoryView> {
         listenable: _vm,
         builder: (context, _) => _buildBody(
           context: context,
-          selectionMode: selectionMode,
           flowType: flowType,
         ),
       ),
@@ -58,7 +55,6 @@ class _CategoryViewState extends State<CategoryView> {
 
   Widget _buildBody({
     required BuildContext context,
-    required bool selectionMode,
     required FlowType flowType,
   }) {
     if (_vm.isLoading && _vm.categories.isEmpty) {
@@ -104,11 +100,6 @@ class _CategoryViewState extends State<CategoryView> {
             category: category,
             data: data,
             onTap: () {
-              if (selectionMode) {
-                Navigator.pop(context, category.categoryName);
-                return;
-              }
-
               Navigator.pushNamed(
                 context,
                 '/subcategories',

@@ -36,4 +36,17 @@ abstract class ApiClient {
     Map<String, String> fields = const {},
     T? Function(Object? rawData)? decoder,
   });
+
+  /// Uploads multiple files as multipart/form-data and returns a typed
+  /// [ApiResponse].
+  ///
+  /// [filePaths] are absolute paths to files on disk.
+  /// [fileKey] is used for every file part, e.g. "file".
+  Future<ApiResponse<T>> uploadFiles<T>(
+    String path, {
+    required List<String> filePaths,
+    required String fileKey,
+    Map<String, String> fields = const {},
+    T? Function(Object? rawData)? decoder,
+  });
 }

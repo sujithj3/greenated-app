@@ -3,9 +3,19 @@ import '../models/api/api_models.dart';
 
 /// Holds the data returned by [RegistrationFormService.fetchFormDetail].
 class FormDetailResult {
-  const FormDetailResult({required this.formName, required this.fields});
+  const FormDetailResult({
+    required this.formName,
+    required this.fields,
+    this.farmerDetails,
+    this.landDetails = const [],
+    this.resolvedSubmissionId,
+  });
+
   final String formName;
   final List<DynamicFieldModel> fields;
+  final FarmerDetails? farmerDetails;
+  final List<LandDetail> landDetails;
+  final int? resolvedSubmissionId;
 }
 
 class RegistrationFormService {
@@ -51,14 +61,14 @@ class RegistrationFormService {
   /// [submitRegistration].
   ///
   /// Throws [ApiException] on non-success responses or network errors.
-  Future<void> submitEditForm(int subcategoryId, int submissionId, int userId,
+  Future<void> submitEditForm(int subcategoryId, int farmerId, int userId,
       Map<String, dynamic> payload) async {
     final response = await _apiClient.send<Map<String, dynamic>>(
       ApiRequest(
         method: ApiMethod.post,
         path: ApiEndpoints.formEdit(subcategoryId),
         queryParameters: {
-          'submissionId': submissionId.toString(),
+          'farmerId': farmerId.toString(),
           'userId': userId.toString(),
         },
         body: payload,
@@ -81,18 +91,81 @@ class RegistrationFormService {
     }
   }
 
+  Future<void> submitLandRegistration(
+      int farmerId, Map<String, dynamic> payload) async {
+    final response = await _apiClient.send<Map<String, dynamic>>(
+      ApiRequest(
+        method: ApiMethod.post,
+        path: ApiEndpoints.registerLand,
+        queryParameters: {
+          'farmerId': farmerId.toString(),
+        },
+        body: payload,
+      ),
+      decoder: (raw) {
+        if (raw is Map) {
+          return Map<String, dynamic>.from(raw);
+        }
+        return {};
+      },
+    );
+
+    if (!response.isSuccess) {
+      throw ApiException(
+        response.message.isNotEmpty
+            ? response.message
+            : 'Something went wrong. Please try again.',
+        statusCode: response.statusCode,
+      );
+    }
+  }
+
+  Future<void> submitEditLandRegistration({
+    required int subcategoryId,
+    required int submissionId,
+    required int userId,
+    required Map<String, dynamic> payload,
+  }) async {
+    final response = await _apiClient.send<Map<String, dynamic>>(
+      ApiRequest(
+        method: ApiMethod.post,
+        path: ApiEndpoints.formLandEdit(subcategoryId),
+        queryParameters: {
+          'submissionId': submissionId.toString(),
+          'userId': userId.toString(),
+        },
+        body: payload,
+      ),
+      decoder: (raw) {
+        if (raw is Map) {
+          return Map<String, dynamic>.from(raw);
+        }
+        return {};
+      },
+    );
+
+    if (!response.isSuccess) {
+      throw ApiException(
+        response.message.isNotEmpty
+            ? response.message
+            : 'Something went wrong. Please try again.',
+        statusCode: response.statusCode,
+      );
+    }
+  }
+
   /// Fetches a submitted form with pre-filled field values for display.
   ///
   /// Returns a [FormDetailResult] with the form name and populated fields.
   /// Throws [ApiException] on non-success responses or network errors.
   Future<FormDetailResult> fetchFormDetail(
-      int subcategoryId, int submissionId, int userId) async {
+      int subcategoryId, int farmerId, int userId) async {
     final response = await _apiClient.send<Map<String, dynamic>>(
       ApiRequest(
         method: ApiMethod.get,
         path: ApiEndpoints.formDetail(subcategoryId),
         queryParameters: {
-          'submissionId': submissionId.toString(),
+          'farmerId': farmerId.toString(),
           'userId': userId.toString(),
         },
       ),
@@ -122,14 +195,7 @@ class RegistrationFormService {
       return const FormDetailResult(formName: '', fields: []);
     }
     final formData = _normalizeJsonKeys(Map<String, dynamic>.from(formJson));
-    final formName = formData['formName']?.toString() ?? '';
-    final rawFields = formData['fields'] as List<dynamic>? ?? const [];
-    final fields = rawFields
-        .whereType<Map>()
-        .map((f) => DynamicFieldModel.fromJson(Map<String, dynamic>.from(f)))
-        .toList();
-
-    return FormDetailResult(formName: formName, fields: fields);
+    return _parseFormDetailResult(formData);
   }
 
   /// Fetches a submitted form with pre-filled values for editing.
@@ -138,13 +204,13 @@ class RegistrationFormService {
   /// structure as [fetchFormDetail].
   /// Throws [ApiException] on non-success responses or network errors.
   Future<FormDetailResult> fetchFormEdit(
-      int subcategoryId, int submissionId, int userId) async {
+      int subcategoryId, int farmerId, int userId) async {
     final response = await _apiClient.send<Map<String, dynamic>>(
       ApiRequest(
         method: ApiMethod.get,
         path: ApiEndpoints.formEdit(subcategoryId),
         queryParameters: {
-          'submissionId': submissionId.toString(),
+          'farmerId': farmerId.toString(),
           'userId': userId.toString(),
         },
       ),
@@ -174,14 +240,7 @@ class RegistrationFormService {
       return const FormDetailResult(formName: '', fields: []);
     }
     final formData = _normalizeJsonKeys(Map<String, dynamic>.from(formJson));
-    final formName = formData['formName']?.toString() ?? '';
-    final rawFields = formData['fields'] as List<dynamic>? ?? const [];
-    final fields = rawFields
-        .whereType<Map>()
-        .map((f) => DynamicFieldModel.fromJson(Map<String, dynamic>.from(f)))
-        .toList();
-
-    return FormDetailResult(formName: formName, fields: fields);
+    return _parseFormDetailResult(formData);
   }
 
   Future<ApiForm?> fetchRegistrationForm(int subcategoryId) async {
@@ -219,6 +278,109 @@ class RegistrationFormService {
     }
     return ApiForm.fromJson(Map<String, dynamic>.from(formJson));
   }
+
+  Future<LandFormData> fetchLandForm(int subcategoryId) async {
+    final response = await _apiClient.send<LandFormData>(
+      ApiRequest(
+        method: ApiMethod.get,
+        path: ApiEndpoints.landForm(subcategoryId),
+      ),
+      decoder: (raw) {
+        if (raw is Map) {
+          return LandFormData.fromJson(Map<String, dynamic>.from(raw));
+        }
+        return null;
+      },
+    );
+
+    if (!response.isSuccess || response.data == null) {
+      throw ApiException(
+        response.message.isEmpty
+            ? 'Failed to load land form.'
+            : response.message,
+        statusCode: response.statusCode,
+      );
+    }
+
+    return response.data!;
+  }
+}
+
+FormDetailResult _parseFormDetailResult(Map<String, dynamic> formData) {
+  final formName = formData['formName']?.toString() ?? '';
+  final oldRawFields = formData['fields'] as List<dynamic>? ?? const [];
+  final oldFields = oldRawFields
+      .whereType<Map>()
+      .map((field) =>
+          DynamicFieldModel.fromJson(Map<String, dynamic>.from(field)))
+      .toList();
+
+  final farmerDetails = formData['farmerDetails'] is Map
+      ? FarmerDetails.fromJson(
+          Map<String, dynamic>.from(formData['farmerDetails'] as Map),
+        )
+      : null;
+  final farmerFields = farmerDetails?.fields.isNotEmpty == true
+      ? farmerDetails!.fields
+      : oldFields;
+
+  final rawLandDetails = formData['landDetails'] as List<dynamic>? ?? const [];
+  final landDetails = rawLandDetails
+      .whereType<Map>()
+      .map((land) => LandDetail.fromJson(Map<String, dynamic>.from(land)))
+      .toList();
+
+  return FormDetailResult(
+    formName: formName,
+    fields: farmerFields,
+    farmerDetails: farmerDetails,
+    landDetails: landDetails,
+    resolvedSubmissionId: _resolveSubmissionId(formData, landDetails),
+  );
+}
+
+int? _resolveSubmissionId(
+  Map<String, dynamic> formData,
+  List<LandDetail> landDetails,
+) {
+  for (final land in landDetails) {
+    final submissionId = land.submissionId;
+    if (submissionId != null && submissionId > 0) {
+      return submissionId;
+    }
+  }
+
+  return _findSubmissionId(formData);
+}
+
+int? _findSubmissionId(Object? value) {
+  if (value is Map) {
+    final normalized = _normalizeJsonKeys(Map<String, dynamic>.from(value));
+    final direct = _asPositiveInt(normalized['submissionId']);
+    if (direct != null) return direct;
+
+    for (final entryValue in normalized.values) {
+      final found = _findSubmissionId(entryValue);
+      if (found != null) return found;
+    }
+  } else if (value is List) {
+    for (final item in value) {
+      final found = _findSubmissionId(item);
+      if (found != null) return found;
+    }
+  }
+
+  return null;
+}
+
+int? _asPositiveInt(Object? value) {
+  final parsed = switch (value) {
+    int() => value,
+    num() => value.toInt(),
+    String() => int.tryParse(value),
+    _ => null,
+  };
+  return parsed != null && parsed > 0 ? parsed : null;
 }
 
 Map<String, dynamic> _normalizeJsonKeys(Map<String, dynamic> json) {

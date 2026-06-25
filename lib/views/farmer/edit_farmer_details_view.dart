@@ -3,13 +3,21 @@ import 'package:provider/provider.dart';
 
 import '../../core/network/api_client.dart';
 import '../../models/api/api_models.dart';
+import '../../utils/field_fill_state.dart';
 import '../../services/auth_service.dart';
+import '../../services/file_upload_service.dart';
 import '../../services/image_upload_service.dart';
 import '../../services/registration_form_service.dart';
 import '../../utils/app_colors.dart';
+import '../../utils/file_upload_helper.dart';
+import '../../utils/form_validator.dart';
 import '../../utils/snack_bar_helper.dart';
+import '../../view_models/farmer/add_land_detail_view_model.dart';
+import '../../view_models/farmer/dynamic_field_form_view_model.dart';
 import '../../view_models/farmer/edit_farmer_details_view_model.dart';
 import '../../widgets/dynamic_field_builder.dart';
+import '../../widgets/land_details_widgets.dart';
+import '../../widgets/popup_form.dart';
 import '../../widgets/shimmer_loading.dart';
 
 /// Edit view for a previously submitted farmer registration.
@@ -19,12 +27,12 @@ import '../../widgets/shimmer_loading.dart';
 /// create and detail flows.
 class EditFarmerDetailsView extends StatefulWidget {
   final int subcategoryId;
-  final int submissionId;
+  final int farmerId;
 
   const EditFarmerDetailsView({
     super.key,
     required this.subcategoryId,
-    required this.submissionId,
+    required this.farmerId,
   });
 
   @override
@@ -32,9 +40,13 @@ class EditFarmerDetailsView extends StatefulWidget {
 }
 
 class _EditFarmerDetailsViewState extends State<EditFarmerDetailsView> {
+  final _formKey = GlobalKey<FormState>();
   late final EditFarmerDetailsViewModel _vm;
+  late final AddLandDetailViewModel _landVm;
   final Map<String, TextEditingController> _textCtrl = {};
   bool _isInit = false;
+  bool _shouldRefreshOnPop = false;
+  final AutovalidateMode _autoValidateMode = AutovalidateMode.disabled;
 
   @override
   void initState() {
@@ -44,6 +56,14 @@ class _EditFarmerDetailsViewState extends State<EditFarmerDetailsView> {
       authService: context.read<AuthService>(),
       apiClient: context.read<ApiClient>(),
       imageUploadService: context.read<ImageUploadService>(),
+      fileUploadService: context.read<FileUploadService>(),
+    );
+    _landVm = AddLandDetailViewModel(
+      service: context.read<RegistrationFormService>(),
+      authService: context.read<AuthService>(),
+      apiClient: context.read<ApiClient>(),
+      imageUploadService: context.read<ImageUploadService>(),
+      fileUploadService: context.read<FileUploadService>(),
     );
   }
 
@@ -54,11 +74,12 @@ class _EditFarmerDetailsViewState extends State<EditFarmerDetailsView> {
     _isInit = true;
 
     _vm.addListener(_onVmChanged);
+    _landVm.addListener(_onVmChanged);
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (mounted) {
         await _vm.loadEditForm(
           subcategoryId: widget.subcategoryId,
-          submissionId: widget.submissionId,
+          farmerId: widget.farmerId,
         );
       }
     });
@@ -85,7 +106,10 @@ class _EditFarmerDetailsViewState extends State<EditFarmerDetailsView> {
       if (f.fieldStyle == FieldStyle.text ||
           f.fieldStyle == FieldStyle.number ||
           f.fieldStyle == FieldStyle.date) {
-        final initial = df.value?.toString() ?? '';
+        var initial = df.value?.toString() ?? '';
+        if (f.fieldStyle == FieldStyle.date && initial.isNotEmpty) {
+          initial = formatDateForDisplay(initial);
+        }
         if (!_textCtrl.containsKey(f.key)) {
           _textCtrl[f.key] = TextEditingController(text: initial);
         } else if (initial.isNotEmpty && _textCtrl[f.key]!.text.isEmpty) {
@@ -105,28 +129,118 @@ class _EditFarmerDetailsViewState extends State<EditFarmerDetailsView> {
   @override
   void dispose() {
     _vm.removeListener(_onVmChanged);
+    _landVm.removeListener(_onVmChanged);
     for (final c in _textCtrl.values) {
       c.dispose();
     }
     _vm.dispose();
+    _landVm.dispose();
     super.dispose();
   }
 
   // ── Camera capture + upload ─────────────────────────────────────────────
 
   Future<void> _captureAndUpload(String fieldKey) async {
-    final localPath =
-        await Navigator.pushNamed(context, '/camera-capture') as String?;
+    final localPath = await Navigator.pushNamed(
+      context,
+      '/camera-capture',
+      arguments: const {'requiresLocation': true},
+    ) as String?;
     if (localPath == null || !mounted) return;
 
-    final url = await _vm.uploadCameraImage(fieldKey, localPath);
+    final result = await _vm.uploadCameraImage(fieldKey, localPath);
     if (!mounted) return;
 
-    if (url != null) {
+    if (result != null) {
       context.showSnack('Photo uploaded successfully', success: true);
     } else {
-      context.showSnack('Photo upload failed. Please try again.');
+      context.showSnack(
+        _vm.lastUploadErrorMessage ?? 'Photo upload failed. Please try again.',
+      );
     }
+  }
+
+  Future<void> _pickAndUploadFiles(DynamicFieldModel df) async {
+    final localPaths = await pickDynamicUploadFiles(
+      context,
+      requiresLocationForCamera: true,
+    );
+    if (localPaths.isEmpty || !mounted) return;
+
+    final result = await _vm.uploadFilesForField(df.field.key, localPaths);
+    if (!mounted) return;
+
+    if (result == null) {
+      context.showSnack(
+        _vm.lastUploadErrorMessage ?? 'File upload failed. Please try again.',
+      );
+    } else if (result.hasIncompleteData) {
+      context.showSnack('Files uploaded, but some previews are unavailable.',
+          success: true);
+    } else {
+      context.showSnack('Files uploaded successfully', success: true);
+    }
+  }
+
+  Future<void> _deleteFile(DynamicFieldModel df, AppFileItem file) async {
+    await _vm.deleteFileForField(df, file);
+    if (!mounted) return;
+    _markShouldRefreshOnPop();
+  }
+
+  Future<void> _reloadEditFormAfterDelete() async {
+    _markShouldRefreshOnPop();
+    await _vm.loadEditForm(
+      subcategoryId: widget.subcategoryId,
+      farmerId: widget.farmerId,
+    );
+  }
+
+  Future<void> _deleteCameraPhoto(DynamicFieldModel df) async {
+    final confirmed = await showPopupConfirm(
+      context,
+      title: 'Remove photo?',
+      message: 'Remove this photo? This action cannot be undone.',
+      confirmLabel: 'Remove',
+      confirmColor: AppColors.error,
+      icon: Icons.delete_outline,
+    );
+    if (confirmed != true || !mounted) return;
+
+    final path = df.value?.toString().trim() ?? '';
+    try {
+      await _vm.deleteFileOnly(
+        df.field.key,
+        path,
+        fieldId: df.field.fieldId,
+        submissionId: _vm.editSubmissionId,
+      );
+      if (!mounted) return;
+
+      _vm.clearCameraImage(df.field.key);
+      await _reloadEditFormAfterDelete();
+      if (!mounted) return;
+      context.showSnack('Photo removed successfully', success: true);
+    } catch (_) {
+      if (mounted) {
+        context.showSnack('Unable to remove photo. Please try again.');
+      }
+    }
+  }
+
+  void _markShouldRefreshOnPop() {
+    if (_shouldRefreshOnPop || !mounted) return;
+    setState(() => _shouldRefreshOnPop = true);
+  }
+
+  void _popWithRefreshResult() {
+    if (!mounted) return;
+    setState(() => _shouldRefreshOnPop = false);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        Navigator.pop(context, true);
+      }
+    });
   }
 
   // ── Popup Form Sheet (view + edit) ──────────────────────────────────────
@@ -137,10 +251,18 @@ class _EditFarmerDetailsViewState extends State<EditFarmerDetailsView> {
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (_) => _EditPopupFormSheet(
+      builder: (_) => EditPopupFormSheet(
         parentField: df.field,
         initialFields: currentValues,
-        onSaved: (result) => _vm.updateFieldValue(df.field.key, result),
+        onSaved: (result) {
+          _vm.updateFieldValue(df.field.key, result);
+          // Clear parent error after popup is saved
+          df.clearError();
+          if (mounted) setState(() {});
+        },
+        onFileDeleted: _markShouldRefreshOnPop,
+        onCameraPhotoDeleted: _reloadEditFormAfterDelete,
+        viewModel: _vm,
       ),
     );
   }
@@ -166,25 +288,32 @@ class _EditFarmerDetailsViewState extends State<EditFarmerDetailsView> {
     }
   }
 
-  // ── Save ──────────────────────────────────────────────────────────────────
+  Future<void> _openAddLandDetailForm() async {
+    final landFormData =
+        await _landVm.loadLandForm(subcategoryId: widget.subcategoryId);
+    if (!mounted) return;
 
-  Future<void> _save() async {
-    final textValues = Map.fromEntries(
-      _textCtrl.entries.map((e) => MapEntry(e.key, e.value.text)),
+    if (landFormData == null) {
+      context.showSnack(
+        _landVm.landFormError ?? 'Unable to load land form. Please try again.',
+      );
+      return;
+    }
+
+    final result = await Navigator.pushNamed(
+      context,
+      '/add-land-detail',
+      arguments: {
+        'farmerId': widget.farmerId,
+        'landFormData': landFormData,
+      },
     );
 
-    try {
-      final success = await _vm.save(
-        textValues: textValues,
+    if (result == true && mounted) {
+      await _vm.loadEditForm(
         subcategoryId: widget.subcategoryId,
-        submissionId: widget.submissionId,
+        farmerId: widget.farmerId,
       );
-      if (success && mounted) {
-        context.showSnack('Registration updated!', success: true);
-        Navigator.pop(context, true);
-      }
-    } catch (e) {
-      if (mounted) context.showSnack('Error: ${e.toString()}');
     }
   }
 
@@ -195,35 +324,48 @@ class _EditFarmerDetailsViewState extends State<EditFarmerDetailsView> {
     return ListenableBuilder(
       listenable: _vm,
       builder: (context, _) {
-        final isBlocked = _vm.isSaving ||
-            _vm.fields.any((df) => _vm.isFieldUploading(df.field.key)) ||
+        final isUploading =
+            _vm.fields.any((df) => _vm.isFieldUploading(df.field.key));
+        final showOverlay = _vm.isSaving ||
+            _landVm.isLoadingLandForm ||
             _vm.fields.any((df) => df.isLoadingOptions);
+        final isBlocked = showOverlay || isUploading;
 
-        return Stack(
-          children: [
-            Scaffold(
-              appBar: AppBar(
-                title: Text(
-                    _vm.formName.isNotEmpty ? 'Edit ${_vm.formName}' : 'Edit'),
-              ),
-              body: _buildBody(isBlocked),
-            ),
-            if (isBlocked)
-              AbsorbPointer(
-                absorbing: true,
-                child: Container(
-                  color: Colors.black.withValues(alpha: 0.45),
-                  child: const Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        CircularProgressIndicator(color: Colors.white),
-                      ],
-                    ),
-                  ),
+        return PopScope<Object?>(
+          canPop: !_shouldRefreshOnPop,
+          onPopInvokedWithResult: (didPop, _) {
+            if (didPop) return;
+            _popWithRefreshResult();
+          },
+          child: Stack(
+            children: [
+              Scaffold(
+                appBar: AppBar(
+                  title: Text(_vm.formName.isNotEmpty
+                      ? 'Edit ${_vm.formName}'
+                      : 'Edit'),
                 ),
+                body: _buildBody(isBlocked),
               ),
-          ],
+              if (isBlocked)
+                AbsorbPointer(
+                  absorbing: true,
+                  child: showOverlay
+                      ? Container(
+                          color: Colors.black.withValues(alpha: 0.45),
+                          child: const Center(
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                CircularProgressIndicator(color: Colors.white),
+                              ],
+                            ),
+                          ),
+                        )
+                      : const SizedBox.shrink(),
+                ),
+            ],
+          ),
         );
       },
     );
@@ -260,7 +402,7 @@ class _EditFarmerDetailsViewState extends State<EditFarmerDetailsView> {
               ElevatedButton(
                 onPressed: () => _vm.loadEditForm(
                   subcategoryId: widget.subcategoryId,
-                  submissionId: widget.submissionId,
+                  farmerId: widget.farmerId,
                 ),
                 child: const Text('Retry'),
               ),
@@ -270,7 +412,7 @@ class _EditFarmerDetailsViewState extends State<EditFarmerDetailsView> {
       );
     }
 
-    if (_vm.fields.isEmpty) {
+    if (_vm.fields.isEmpty && _vm.landDetails.isEmpty) {
       return const Center(
         child: Text('No data available',
             style: TextStyle(color: AppColors.textMedium, fontSize: 16)),
@@ -280,18 +422,61 @@ class _EditFarmerDetailsViewState extends State<EditFarmerDetailsView> {
     final visibleFields =
         _vm.fields.where((df) => _vm.isFieldVisible(df)).toList();
 
-    return Column(
-      children: [
-        Expanded(
-          child: ListView.separated(
-            padding: const EdgeInsets.all(16),
-            itemCount: visibleFields.length,
-            separatorBuilder: (_, __) => const SizedBox(height: 12),
-            itemBuilder: (context, index) => _buildField(visibleFields[index]),
+    return Form(
+      key: _formKey,
+      autovalidateMode: _autoValidateMode,
+      child: Column(
+        children: [
+          Expanded(
+            child: Stack(
+              children: [
+                ListView(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 112),
+                  children: [
+                    ...visibleFields.map(
+                      (field) => Padding(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: _buildField(field),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    LandDetailsSection(
+                      lands: _vm.landDetails,
+                      onLandTap: (land, _, title) async {
+                        final result = await Navigator.pushNamed(
+                          context,
+                          '/edit-land-detail',
+                          arguments: {
+                            'land': land,
+                            'title': title,
+                            'subcategoryId': widget.subcategoryId,
+                            'submissionId': land.submissionId,
+                          },
+                        );
+                        if (result == true && mounted) {
+                          await _vm.loadEditForm(
+                            subcategoryId: widget.subcategoryId,
+                            farmerId: widget.farmerId,
+                          );
+                        }
+                      },
+                    ),
+                  ],
+                ),
+                Positioned(
+                  right: 16,
+                  bottom: 24,
+                  child: AddNewLandButton(
+                    onPressed:
+                        isBlocked ? () {} : () => _openAddLandDetailForm(),
+                  ),
+                ),
+              ],
+            ),
           ),
-        ),
-        _buildSubmitButton(isBlocked),
-      ],
+          _buildSubmitButton(isBlocked),
+        ],
+      ),
     );
   }
 
@@ -302,19 +487,20 @@ class _EditFarmerDetailsViewState extends State<EditFarmerDetailsView> {
     int? popupFormTotal;
     if (f.isPopupForm) {
       final subFields = df.value as List<DynamicFieldModel>? ?? [];
-      popupFormTotal = subFields.length;
-      popupFormFilled =
-          subFields.where((e) => e.value != null && e.value != '').length;
+      popupFormTotal = getTotalCount(subFields);
+      popupFormFilled = getFilledCount(subFields);
     }
 
-    final isCameraField = f.fieldStyle == FieldStyle.camera ||
-        f.fieldStyle == FieldStyle.cameraFile;
+    final isCameraField = f.fieldStyle == FieldStyle.camera;
+    final isFileField = f.fieldStyle == FieldStyle.file;
 
     return DynamicFieldBuilder(
       field: f,
       value: _textCtrl.containsKey(f.key) ? _textCtrl[f.key]!.text : df.value,
       textController: _textCtrl[f.key],
       accentColor: AppColors.primary,
+      hasError: df.hasError,
+      errorMessage: df.errorMessage,
       onChanged: (val) {
         _vm.updateFieldValue(f.key, val);
       },
@@ -322,9 +508,14 @@ class _EditFarmerDetailsViewState extends State<EditFarmerDetailsView> {
       popupFormFilledCount: popupFormFilled,
       popupFormTotalCount: popupFormTotal,
       // Camera field wiring
-      isUploading: isCameraField ? _vm.isFieldUploading(f.key) : false,
+      isUploading:
+          (isCameraField || isFileField) ? _vm.isFieldUploading(f.key) : false,
       onCapturePhoto: isCameraField ? () => _captureAndUpload(f.key) : null,
       onClearPhoto: isCameraField ? () => _vm.clearCameraImage(f.key) : null,
+      onDeleteCameraPhoto: isCameraField ? () => _deleteCameraPhoto(df) : null,
+      onAddFiles: isFileField ? () => _pickAndUploadFiles(df) : null,
+      onDeleteFile: isFileField ? (file) => _deleteFile(df, file) : null,
+      previewUrl: (isCameraField || isFileField) ? df.previewUrl : null,
       onMapPolygonPressed: f.fieldStyle == FieldStyle.mapPolygon
           ? () => _openMapForField(df)
           : null,
@@ -341,50 +532,87 @@ class _EditFarmerDetailsViewState extends State<EditFarmerDetailsView> {
     );
   }
 
+  Future<void> _save() async {
+    final isFormValid = _formKey.currentState?.validate() ?? true;
+
+    final textValues = Map.fromEntries(
+      _textCtrl.entries.map((e) => MapEntry(e.key, e.value.text)),
+    );
+
+    final visibleFields =
+        _vm.fields.where((df) => _vm.isFieldVisible(df)).toList();
+    final validationResult = validateFields(
+      visibleFields,
+      textValues: textValues,
+    );
+
+    if (!validationResult.isValid) {
+      if (mounted) {
+        context.showSnack(
+          'Please fill the required field: ${validationResult.firstInvalidLabel}',
+        );
+      }
+      return;
+    }
+
+    if (!isFormValid) {
+      if (mounted) {
+        context.showSnack('Please fix the errors in the form.');
+      }
+      return;
+    }
+
+    try {
+      final success = await _vm.save(
+        textValues: textValues,
+        subcategoryId: widget.subcategoryId,
+        farmerId: widget.farmerId,
+      );
+      if (success && mounted) {
+        context.showSnack('Farmer details updated!', success: true);
+        Navigator.pop(context, true);
+      }
+    } catch (e) {
+      if (mounted) context.showSnack('Error: ${e.toString()}');
+    }
+  }
+
   Widget _buildSubmitButton(bool isBlocked) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-      decoration: BoxDecoration(
-        color: Theme.of(context).scaffoldBackgroundColor,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.06),
-            blurRadius: 8,
-            offset: const Offset(0, -2),
-          ),
-        ],
-      ),
-      child: ElevatedButton.icon(
-        onPressed: isBlocked ? null : _save,
-        icon: const Icon(Icons.cloud_upload_outlined),
-        label: const Text('Update Registration'),
-        style: ElevatedButton.styleFrom(
-          minimumSize: const Size(double.infinity, 48),
-        ),
-      ),
+    return BottomUpdateButton(
+      label: 'Update Data',
+      icon: Icons.cloud_upload_outlined,
+      onPressed: isBlocked ? null : _save,
     );
   }
 }
 
 // ─── Edit Popup Form Sheet ──────────────────────────────────────────────────
 
-class _EditPopupFormSheet extends StatefulWidget {
+class EditPopupFormSheet extends StatefulWidget {
   final ApiField parentField;
   final List<DynamicFieldModel> initialFields;
   final void Function(List<DynamicFieldModel> updated) onSaved;
+  final VoidCallback? onFileDeleted;
+  final Future<void> Function()? onCameraPhotoDeleted;
+  final DynamicFieldFormViewModel viewModel;
 
-  const _EditPopupFormSheet({
+  const EditPopupFormSheet({
+    super.key,
     required this.parentField,
     required this.initialFields,
     required this.onSaved,
+    this.onFileDeleted,
+    this.onCameraPhotoDeleted,
+    required this.viewModel,
   });
 
   @override
-  State<_EditPopupFormSheet> createState() => _EditPopupFormSheetState();
+  State<EditPopupFormSheet> createState() => _EditPopupFormSheetState();
 }
 
-class _EditPopupFormSheetState extends State<_EditPopupFormSheet> {
+class _EditPopupFormSheetState extends State<EditPopupFormSheet> {
+  final _popupFormKey = GlobalKey<FormState>();
+  AutovalidateMode _autoValidateMode = AutovalidateMode.disabled;
   final Map<String, TextEditingController> _textCtrl = {};
   late List<DynamicFieldModel> _fields;
 
@@ -398,8 +626,11 @@ class _EditPopupFormSheetState extends State<_EditPopupFormSheet> {
       if (f.fieldStyle == FieldStyle.text ||
           f.fieldStyle == FieldStyle.number ||
           f.fieldStyle == FieldStyle.date) {
-        _textCtrl[f.key] =
-            TextEditingController(text: df.value?.toString() ?? '');
+        var initText = df.value?.toString() ?? '';
+        if (f.fieldStyle == FieldStyle.date && initText.isNotEmpty) {
+          initText = formatDateForDisplay(initText);
+        }
+        _textCtrl[f.key] = TextEditingController(text: initText);
       }
     }
   }
@@ -419,6 +650,7 @@ class _EditPopupFormSheetState extends State<_EditPopupFormSheet> {
       df.value = val;
       _resetHiddenSubFieldDependents(df.field.key);
     });
+    widget.viewModel.handleSubfieldDependencyChange(df.field.key, _fields);
   }
 
   void _resetHiddenSubFieldDependents(String parentKey) {
@@ -426,6 +658,7 @@ class _EditPopupFormSheetState extends State<_EditPopupFormSheet> {
       if (df.field.dependsOn == parentKey && df.field.hasVisibilityCondition) {
         if (!shouldShowField(df, _fields)) {
           df.value = null;
+          df.previewUrl = null;
           _textCtrl[df.field.key]?.clear();
           _resetHiddenSubFieldDependents(df.field.key);
         }
@@ -433,10 +666,25 @@ class _EditPopupFormSheetState extends State<_EditPopupFormSheet> {
     }
   }
 
+  void _showLocalSnack(String msg, {bool success = false}) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+      ..clearSnackBars()
+      ..showSnackBar(SnackBar(
+        content: Text(msg),
+        backgroundColor: success ? AppColors.primary : AppColors.error,
+        behavior: SnackBarBehavior.floating,
+      ));
+  }
+
   void _save() {
+    final isFormValid = _popupFormKey.currentState?.validate() ?? true;
+
+    // Sync text controller values into field models before validation
     for (final df in _fields) {
       if (!_isSubFieldVisible(df)) {
         df.value = null;
+        df.previewUrl = null;
         continue;
       }
       if (_textCtrl.containsKey(df.field.key)) {
@@ -444,85 +692,235 @@ class _EditPopupFormSheetState extends State<_EditPopupFormSheet> {
         df.value = text.isNotEmpty ? text : null;
       }
     }
+
+    // Recursive validation including nested popup children
+    final textValues = Map.fromEntries(
+      _textCtrl.entries.map((e) => MapEntry(e.key, e.value.text)),
+    );
+    final validationResult = validateFields(_fields, textValues: textValues);
+
+    if (!validationResult.isValid) {
+      setState(() => _autoValidateMode = AutovalidateMode.always);
+      _showLocalSnack(
+        'Please fill the required field: ${validationResult.firstInvalidLabel}',
+      );
+      return;
+    }
+
+    if (!isFormValid) {
+      setState(() => _autoValidateMode = AutovalidateMode.always);
+      _showLocalSnack('Please fix the errors in the form.');
+      return;
+    }
+
     widget.onSaved(_fields);
     Navigator.pop(context);
   }
 
   @override
   Widget build(BuildContext context) {
-    return DraggableScrollableSheet(
-      initialChildSize: 0.55,
-      maxChildSize: 0.92,
-      minChildSize: 0.35,
-      builder: (_, ctrl) => Container(
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-        ),
-        child: Column(
-          children: [
-            Container(
-              margin: const EdgeInsets.only(top: 12),
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(
-                color: AppColors.divider,
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 16, 8, 8),
-              child: Row(
-                children: [
-                  const Icon(Icons.edit_outlined,
-                      color: AppColors.primary, size: 20),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      widget.parentField.label,
-                      style: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w700,
-                          color: AppColors.primary),
-                    ),
+    return ListenableBuilder(
+      listenable: widget.viewModel,
+      builder: (context, _) => DraggableScrollableSheet(
+        initialChildSize: 0.75,
+        maxChildSize: 0.92,
+        minChildSize: 0.4,
+        builder: (_, ctrl) => ClipRRect(
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+          child: Scaffold(
+            backgroundColor: Colors.white,
+            body: Column(
+              children: [
+                Container(
+                  margin: const EdgeInsets.only(top: 12),
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: AppColors.divider,
+                    borderRadius: BorderRadius.circular(2),
                   ),
-                  IconButton(
-                    onPressed: () => Navigator.pop(context),
-                    icon: const Icon(Icons.close, color: AppColors.textMedium),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 16, 8, 8),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.edit_outlined,
+                          color: AppColors.primary, size: 20),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          widget.parentField.label,
+                          style: const TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.primary),
+                        ),
+                      ),
+                      IconButton(
+                        onPressed: () => Navigator.pop(context),
+                        icon: const Icon(Icons.close,
+                            color: AppColors.textMedium),
+                      ),
+                    ],
                   ),
-                ],
-              ),
-            ),
-            const Divider(height: 1),
-            Expanded(
-              child: SingleChildScrollView(
-                controller: ctrl,
-                padding: const EdgeInsets.all(20),
-                child: Column(
-                  children: [
-                    ..._fields
-                        .where((df) => _isSubFieldVisible(df))
-                        .map((df) => Padding(
-                              padding: const EdgeInsets.only(bottom: 14),
-                              child: _buildSubField(df),
-                            )),
-                    const SizedBox(height: 8),
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton.icon(
-                        onPressed: _save,
-                        icon: const Icon(Icons.check),
-                        label: const Text('Done'),
+                ),
+                const Divider(height: 1),
+                Expanded(
+                  child: Form(
+                    key: _popupFormKey,
+                    autovalidateMode: _autoValidateMode,
+                    child: SingleChildScrollView(
+                      controller: ctrl,
+                      padding: const EdgeInsets.all(20),
+                      child: Column(
+                        children: [
+                          ..._fields
+                              .where((df) => _isSubFieldVisible(df))
+                              .map((df) => Padding(
+                                    padding: const EdgeInsets.only(bottom: 14),
+                                    child: _buildSubField(df),
+                                  )),
+                          const SizedBox(height: 8),
+                          SizedBox(
+                            width: double.infinity,
+                            child: ElevatedButton.icon(
+                              onPressed: _save,
+                              icon: const Icon(Icons.check),
+                              label: const Text('Done'),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                  ],
+                  ),
                 ),
-              ),
+              ],
             ),
-          ],
+          ),
         ),
       ),
     );
+  }
+
+  Future<void> _captureAndUploadSubField(DynamicFieldModel df) async {
+    final localPath = await Navigator.pushNamed(
+      context,
+      '/camera-capture',
+      arguments: const {'requiresLocation': true},
+    ) as String?;
+    if (localPath == null || !mounted) return;
+
+    final result =
+        await widget.viewModel.uploadImageOnly(df.field.key, localPath);
+    if (!mounted) return;
+
+    if (result != null) {
+      setState(() {
+        df.value = result.imagePath;
+        df.previewUrl = result.previewUrl;
+      });
+      _showLocalSnack('Photo uploaded successfully', success: true);
+    } else {
+      _showLocalSnack(
+        widget.viewModel.lastUploadErrorMessage ??
+            'Photo upload failed. Please try again.',
+      );
+    }
+  }
+
+  Future<void> _pickAndUploadSubFieldFiles(DynamicFieldModel df) async {
+    final localPaths = await pickDynamicUploadFiles(
+      context,
+      requiresLocationForCamera: true,
+    );
+    if (localPaths.isEmpty || !mounted) return;
+
+    final result =
+        await widget.viewModel.uploadFilesOnly(df.field.key, localPaths);
+    if (!mounted) return;
+
+    if (result == null) {
+      _showLocalSnack(
+        widget.viewModel.lastUploadErrorMessage ??
+            'File upload failed. Please try again.',
+      );
+      return;
+    }
+
+    setState(() {
+      df.appendFileReferences(
+        paths: result.paths,
+        previewUrls: result.previewUrls,
+      );
+    });
+    if (result.hasIncompleteData) {
+      _showLocalSnack('Files uploaded, but some previews are unavailable.',
+          success: true);
+    } else {
+      _showLocalSnack('Files uploaded successfully', success: true);
+    }
+  }
+
+  Future<void> _deleteSubFieldFile(
+    DynamicFieldModel df,
+    AppFileItem file,
+  ) async {
+    final path = file.remotePath?.trim() ?? '';
+    await widget.viewModel.deleteFileOnly(
+      df.field.key,
+      path,
+      fieldId: df.field.fieldId,
+    );
+    if (!mounted) return;
+
+    setState(() {
+      df.removeFileReferenceByPath(path);
+    });
+    widget.onSaved(_fields);
+    widget.onFileDeleted?.call();
+  }
+
+  Future<void> _deleteSubFieldPhoto(DynamicFieldModel df) async {
+    final confirmed = await showPopupConfirm(
+      context,
+      title: 'Remove photo?',
+      message: 'Remove this photo? This action cannot be undone.',
+      confirmLabel: 'Remove',
+      confirmColor: AppColors.error,
+      icon: Icons.delete_outline,
+    );
+    if (confirmed != true || !mounted) return;
+
+    final path = df.value?.toString().trim() ?? '';
+    try {
+      await widget.viewModel.deleteFileOnly(
+        df.field.key,
+        path,
+        fieldId: df.field.fieldId,
+      );
+      if (!mounted) return;
+
+      setState(() {
+        df.value = null;
+        df.previewUrl = null;
+      });
+      widget.onSaved(_fields);
+      widget.onFileDeleted?.call();
+      await widget.onCameraPhotoDeleted?.call();
+      if (!mounted) return;
+      _showLocalSnack('Photo removed successfully', success: true);
+    } catch (_) {
+      if (mounted) {
+        _showLocalSnack('Unable to remove photo. Please try again.');
+      }
+    }
+  }
+
+  void _clearSubFieldPhoto(DynamicFieldModel df) {
+    setState(() {
+      df.value = null;
+      df.previewUrl = null;
+    });
   }
 
   Widget _buildSubField(DynamicFieldModel df) {
@@ -532,21 +930,26 @@ class _EditPopupFormSheetState extends State<_EditPopupFormSheet> {
     int? popupFormTotal;
     if (f.isPopupForm) {
       final subFields = df.value as List<DynamicFieldModel>? ?? [];
-      popupFormTotal = subFields.length;
-      popupFormFilled =
-          subFields.where((e) => e.value != null && e.value != '').length;
+      popupFormTotal = getTotalCount(subFields);
+      popupFormFilled = getFilledCount(subFields);
     }
+
+    final isCameraField = f.fieldStyle == FieldStyle.camera;
+    final isFileField = f.fieldStyle == FieldStyle.file;
 
     return DynamicFieldBuilder(
       field: f,
       value: _textCtrl.containsKey(f.key) ? _textCtrl[f.key]!.text : df.value,
       textController: _textCtrl[f.key],
       accentColor: AppColors.primary,
+      hasError: df.hasError,
+      errorMessage: df.errorMessage,
       onChanged: (val) {
         if (!_textCtrl.containsKey(f.key)) {
           _onSubFieldChanged(df, val);
         } else {
-          setState(() {}); // text controller manages value; rebuild for visibility
+          setState(
+              () {}); // text controller manages value; rebuild for visibility
         }
       },
       onPopupFormPressed: f.isPopupForm ? () => _openNestedPopupForm(df) : null,
@@ -555,6 +958,28 @@ class _EditPopupFormSheetState extends State<_EditPopupFormSheet> {
       onMapPolygonPressed: f.fieldStyle == FieldStyle.mapPolygon
           ? () => _openMapForNested(df)
           : null,
+      previewUrl: (isCameraField || isFileField) ? df.previewUrl : null,
+      isUploading: (isCameraField || isFileField)
+          ? widget.viewModel.isFieldUploading(f.key)
+          : false,
+      onCapturePhoto:
+          isCameraField ? () => _captureAndUploadSubField(df) : null,
+      onClearPhoto: isCameraField ? () => _clearSubFieldPhoto(df) : null,
+      onDeleteCameraPhoto:
+          isCameraField ? () => _deleteSubFieldPhoto(df) : null,
+      onAddFiles: isFileField ? () => _pickAndUploadSubFieldFiles(df) : null,
+      onDeleteFile:
+          isFileField ? (file) => _deleteSubFieldFile(df, file) : null,
+      resolvedOptions:
+          f.fieldStyle == FieldStyle.dropdown ? df.resolvedOptions : null,
+      isLoadingOptions:
+          f.fieldStyle == FieldStyle.dropdown ? df.isLoadingOptions : false,
+      optionsError:
+          f.fieldStyle == FieldStyle.dropdown ? df.optionsError : null,
+      onRetryOptions:
+          f.fieldStyle == FieldStyle.dropdown && df.optionsError != null
+              ? () => widget.viewModel.retrySubfieldOptions(f.key, _fields)
+              : null,
     );
   }
 
@@ -583,10 +1008,16 @@ class _EditPopupFormSheetState extends State<_EditPopupFormSheet> {
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (_) => _EditPopupFormSheet(
+      builder: (_) => EditPopupFormSheet(
         parentField: df.field,
         initialFields: currentValues,
-        onSaved: (result) => setState(() => df.value = result),
+        onSaved: (result) {
+          setState(() => df.value = result);
+          df.clearError();
+        },
+        onFileDeleted: widget.onFileDeleted,
+        onCameraPhotoDeleted: widget.onCameraPhotoDeleted,
+        viewModel: widget.viewModel,
       ),
     );
   }

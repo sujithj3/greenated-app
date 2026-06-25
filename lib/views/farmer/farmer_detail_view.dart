@@ -1,22 +1,31 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+import 'package:package_info_plus/package_info_plus.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
+import 'package:share_plus/share_plus.dart';
 
 import '../../models/api/api_models.dart';
 import '../../services/auth_service.dart';
+import '../../utils/field_fill_state.dart';
 import '../../services/registration_form_service.dart';
 import '../../utils/app_colors.dart';
+import '../../utils/snack_bar_helper.dart';
 import '../../view_models/farmer/farmer_detail_view_model.dart';
 import '../../widgets/dynamic_field_builder.dart';
+import '../../widgets/land_details_widgets.dart';
 import '../../widgets/shimmer_loading.dart';
 
 class FarmerDetailView extends StatefulWidget {
   final int subcategoryId;
-  final int submissionId;
+  final int farmerId;
 
   const FarmerDetailView({
     super.key,
     required this.subcategoryId,
-    required this.submissionId,
+    required this.farmerId,
   });
 
   @override
@@ -48,7 +57,7 @@ class _FarmerDetailViewState extends State<FarmerDetailView> {
       if (mounted) {
         await _vm.loadFormDetail(
           subcategoryId: widget.subcategoryId,
-          submissionId: widget.submissionId,
+          farmerId: widget.farmerId,
         );
       }
     });
@@ -75,10 +84,13 @@ class _FarmerDetailViewState extends State<FarmerDetailView> {
       if (f.fieldStyle == FieldStyle.text ||
           f.fieldStyle == FieldStyle.number ||
           f.fieldStyle == FieldStyle.date) {
-        final initial = df.value?.toString() ?? '';
+        var initial = df.value?.toString() ?? '';
+        if (f.fieldStyle == FieldStyle.date && initial.isNotEmpty) {
+          initial = formatDateForDisplay(initial);
+        }
         if (!_textCtrl.containsKey(f.key)) {
           _textCtrl[f.key] = TextEditingController(text: initial);
-        } else if (initial.isNotEmpty && _textCtrl[f.key]!.text.isEmpty) {
+        } else if (_textCtrl[f.key]!.text != initial) {
           _textCtrl[f.key]!.text = initial;
         }
       }
@@ -103,6 +115,7 @@ class _FarmerDetailViewState extends State<FarmerDetailView> {
       builder: (_) => _ViewOnlyPopupSheet(
         parentField: df.field,
         fields: df.value as List<DynamicFieldModel>? ?? [],
+        onGenerateKml: (subDf) => _generateAndShareKml(subDf),
       ),
     );
   }
@@ -116,6 +129,89 @@ class _FarmerDetailViewState extends State<FarmerDetailView> {
         'viewOnly': true,
       },
     );
+  }
+
+  Future<void> _generateAndShareKml(DynamicFieldModel df) async {
+    try {
+      final rawList = df.value is List ? df.value as List : null;
+      if (rawList == null || rawList.isEmpty) {
+        if (mounted) context.showSnack('Unable to generate kml file');
+        return;
+      }
+
+      final coords = rawList
+          .whereType<Map>()
+          .map((e) {
+            final lat = (e['lat'] as num?)?.toDouble();
+            final lng = (e['lng'] as num?)?.toDouble();
+            if (lat == null || lng == null) return null;
+            return (lat: lat, lng: lng);
+          })
+          .whereType<({double lat, double lng})>()
+          .toList();
+
+      if (coords.isEmpty) {
+        if (mounted) context.showSnack('Unable to generate kml file');
+        return;
+      }
+
+      // KML polygons must be closed — repeat first point at end.
+      final closed = [...coords];
+      if (closed.first.lat != closed.last.lat ||
+          closed.first.lng != closed.last.lng) {
+        closed.add(closed.first);
+      }
+
+      final coordLines =
+          closed.map((c) => '              ${c.lng},${c.lat},0').join('\n');
+
+      final now = DateTime.now();
+      final dateStr = DateFormat('dd-MMM-yyyy').format(now);
+
+      final packageInfo = await PackageInfo.fromPlatform();
+      final appName =
+          packageInfo.appName.isNotEmpty ? packageInfo.appName : 'App';
+      final docName = '${appName}_KML_FarmerID(${widget.farmerId})_$dateStr';
+
+      final kmlContent = '''<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2">
+  <Document>
+    <name>$docName</name>
+    <Placemark>
+      <name>Land Polygon</name>
+      <Polygon>
+        <outerBoundaryIs>
+          <LinearRing>
+            <coordinates>
+$coordLines
+            </coordinates>
+          </LinearRing>
+        </outerBoundaryIs>
+      </Polygon>
+    </Placemark>
+  </Document>
+</kml>''';
+
+      final dir = await getApplicationDocumentsDirectory();
+      final file = File('${dir.path}/$docName.kml');
+      await file.writeAsString(kmlContent);
+
+      if (!mounted) return;
+      final box = context.findRenderObject() as RenderBox?;
+
+      await Share.shareXFiles(
+        [
+          XFile(file.path)
+        ], // Removed strict mimeType so iOS auto-infers from .kml
+        subject: docName,
+        sharePositionOrigin: box != null
+            ? box.localToGlobal(Offset.zero) & box.size
+            : null, // Required for iPads so the app doesn't crash
+      );
+    } catch (e) {
+      debugPrint('Error generating KML: $e');
+      if (mounted) context.showSnack('Unable to generate KML file. Try again.');
+    }
   }
 
   @override
@@ -134,7 +230,7 @@ class _FarmerDetailViewState extends State<FarmerDetailView> {
                     '/edit-farmer-details',
                     arguments: {
                       'subcategoryId': widget.subcategoryId,
-                      'submissionId': widget.submissionId,
+                      'farmerId': widget.farmerId,
                     },
                   );
 
@@ -195,7 +291,7 @@ class _FarmerDetailViewState extends State<FarmerDetailView> {
               ElevatedButton(
                 onPressed: () => _vm.loadFormDetail(
                   subcategoryId: widget.subcategoryId,
-                  submissionId: widget.submissionId,
+                  farmerId: widget.farmerId,
                 ),
                 child: const Text('Retry'),
               ),
@@ -205,22 +301,44 @@ class _FarmerDetailViewState extends State<FarmerDetailView> {
       );
     }
 
-    if (_vm.fields.isEmpty) {
+    if (_vm.fields.isEmpty && _vm.landDetails.isEmpty) {
       return const Center(
         child: Text('No data available',
             style: TextStyle(color: AppColors.textMedium, fontSize: 16)),
       );
     }
 
-    final visibleFields = _vm.fields
-        .where((df) => shouldShowField(df, _vm.fields))
-        .toList();
+    final visibleFields =
+        _vm.fields.where((df) => shouldShowField(df, _vm.fields)).toList();
 
-    return ListView.separated(
-      padding: const EdgeInsets.all(16),
-      itemCount: visibleFields.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 12),
-      itemBuilder: (context, index) => _buildField(visibleFields[index]),
+    return Stack(
+      children: [
+        ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            ...visibleFields.map(
+              (field) => Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: _buildField(field),
+              ),
+            ),
+            const SizedBox(height: 16),
+            LandDetailsSection(
+              lands: _vm.landDetails,
+              onLandTap: (land, _, title) {
+                Navigator.pushNamed(
+                  context,
+                  '/land-detail',
+                  arguments: {
+                    'land': land,
+                    'title': title,
+                  },
+                );
+              },
+            ),
+          ],
+        ),
+      ],
     );
   }
 
@@ -231,10 +349,12 @@ class _FarmerDetailViewState extends State<FarmerDetailView> {
     int? popupFormTotal;
     if (f.isPopupForm) {
       final subFields = df.value as List<DynamicFieldModel>? ?? [];
-      popupFormTotal = subFields.length;
-      popupFormFilled =
-          subFields.where((e) => e.value != null && e.value != '').length;
+      popupFormTotal = getTotalCount(subFields);
+      popupFormFilled = getFilledCount(subFields);
     }
+
+    final isCameraField = f.fieldStyle == FieldStyle.camera;
+    final isFileField = f.fieldStyle == FieldStyle.file;
 
     return DynamicFieldBuilder(
       field: f,
@@ -250,8 +370,12 @@ class _FarmerDetailViewState extends State<FarmerDetailView> {
       onMapPolygonPressed: f.fieldStyle == FieldStyle.mapPolygon
           ? () => _openViewOnlyMap(df)
           : null,
+      onGenerateKml: f.fieldStyle == FieldStyle.mapPolygon
+          ? () => _generateAndShareKml(df)
+          : null,
       resolvedOptions:
           f.fieldStyle == FieldStyle.dropdown ? df.resolvedOptions : null,
+      previewUrl: (isCameraField || isFileField) ? df.previewUrl : null,
     );
   }
 }
@@ -261,10 +385,12 @@ class _FarmerDetailViewState extends State<FarmerDetailView> {
 class _ViewOnlyPopupSheet extends StatefulWidget {
   final ApiField parentField;
   final List<DynamicFieldModel> fields;
+  final void Function(DynamicFieldModel df)? onGenerateKml;
 
   const _ViewOnlyPopupSheet({
     required this.parentField,
     required this.fields,
+    this.onGenerateKml,
   });
 
   @override
@@ -282,8 +408,11 @@ class _ViewOnlyPopupSheetState extends State<_ViewOnlyPopupSheet> {
       if (f.fieldStyle == FieldStyle.text ||
           f.fieldStyle == FieldStyle.number ||
           f.fieldStyle == FieldStyle.date) {
-        _textCtrl[f.key] =
-            TextEditingController(text: df.value?.toString() ?? '');
+        var initText = df.value?.toString() ?? '';
+        if (f.fieldStyle == FieldStyle.date && initText.isNotEmpty) {
+          initText = formatDateForDisplay(initText);
+        }
+        _textCtrl[f.key] = TextEditingController(text: initText);
       }
     }
   }
@@ -304,6 +433,7 @@ class _ViewOnlyPopupSheetState extends State<_ViewOnlyPopupSheet> {
       builder: (_) => _ViewOnlyPopupSheet(
         parentField: df.field,
         fields: df.value as List<DynamicFieldModel>? ?? [],
+        onGenerateKml: widget.onGenerateKml,
       ),
     );
   }
@@ -322,9 +452,9 @@ class _ViewOnlyPopupSheetState extends State<_ViewOnlyPopupSheet> {
   @override
   Widget build(BuildContext context) {
     return DraggableScrollableSheet(
-      initialChildSize: 0.55,
+      initialChildSize: 0.75,
       maxChildSize: 0.92,
-      minChildSize: 0.35,
+      minChildSize: 0.4,
       builder: (_, ctrl) => Container(
         decoration: const BoxDecoration(
           color: Colors.white,
@@ -393,10 +523,12 @@ class _ViewOnlyPopupSheetState extends State<_ViewOnlyPopupSheet> {
     int? popupFormTotal;
     if (f.isPopupForm) {
       final subFields = df.value as List<DynamicFieldModel>? ?? [];
-      popupFormTotal = subFields.length;
-      popupFormFilled =
-          subFields.where((e) => e.value != null && e.value != '').length;
+      popupFormTotal = getTotalCount(subFields);
+      popupFormFilled = getFilledCount(subFields);
     }
+
+    final isCameraField = f.fieldStyle == FieldStyle.camera;
+    final isFileField = f.fieldStyle == FieldStyle.file;
 
     return DynamicFieldBuilder(
       field: f,
@@ -411,8 +543,12 @@ class _ViewOnlyPopupSheetState extends State<_ViewOnlyPopupSheet> {
       onMapPolygonPressed: f.fieldStyle == FieldStyle.mapPolygon
           ? () => _openViewOnlyMap(df)
           : null,
+      onGenerateKml: f.fieldStyle == FieldStyle.mapPolygon
+          ? () => widget.onGenerateKml?.call(df)
+          : null,
       resolvedOptions:
           f.fieldStyle == FieldStyle.dropdown ? df.resolvedOptions : null,
+      previewUrl: (isCameraField || isFileField) ? df.previewUrl : null,
     );
   }
 }

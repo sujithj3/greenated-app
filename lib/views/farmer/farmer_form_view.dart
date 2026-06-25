@@ -4,14 +4,19 @@ import 'package:provider/provider.dart';
 import '../../config/app_constants.dart';
 import '../../models/api/api_models.dart';
 import '../../services/auth_service.dart';
+import '../../services/file_upload_service.dart';
+import '../../utils/field_fill_state.dart';
 import '../../services/form_config_service.dart';
 import '../../services/image_upload_service.dart';
 import '../../services/registration_form_service.dart';
 import '../../utils/app_colors.dart';
+import '../../utils/file_upload_helper.dart';
+import '../../utils/form_validator.dart';
 import '../../utils/snack_bar_helper.dart';
 import '../../core/network/api_client.dart';
 import '../../view_models/farmer/farmer_form_view_model.dart';
 import '../../widgets/dynamic_field_builder.dart';
+import '../../widgets/popup_form.dart';
 import '../../widgets/shimmer_loading.dart';
 
 class FarmerFormView extends StatefulWidget {
@@ -26,6 +31,7 @@ class _FarmerFormViewState extends State<FarmerFormView> {
 
   late final FarmerFormViewModel _vm;
   bool _isInit = false;
+  AutovalidateMode _autoValidateMode = AutovalidateMode.disabled;
 
   // ── Flutter-owned controllers (stay in View) ─────────────────────────────
   final _landAreaCtrl = TextEditingController();
@@ -39,6 +45,7 @@ class _FarmerFormViewState extends State<FarmerFormView> {
       context.read<RegistrationFormService>(),
       context.read<AuthService>(),
       context.read<ImageUploadService>(),
+      context.read<FileUploadService>(),
       context.read<ApiClient>(),
     );
   }
@@ -75,8 +82,7 @@ class _FarmerFormViewState extends State<FarmerFormView> {
 
   void _syncTextControllers() {
     // Dispose any old controllers for keys no longer present
-    final currentKeys =
-        _vm.dynamicFields.map((df) => df.field.key).toSet();
+    final currentKeys = _vm.dynamicFields.map((df) => df.field.key).toSet();
     _dynTextCtrl.removeWhere((key, ctrl) {
       if (!currentKeys.contains(key)) {
         ctrl.dispose();
@@ -91,22 +97,18 @@ class _FarmerFormViewState extends State<FarmerFormView> {
       if (f.fieldStyle == FieldStyle.text ||
           f.fieldStyle == FieldStyle.number ||
           f.fieldStyle == FieldStyle.date) {
+        var initial = _vm.initialTextFor(f.key);
+        if (f.fieldStyle == FieldStyle.date && initial.isNotEmpty) {
+          initial = formatDateForDisplay(initial);
+        }
         if (!_dynTextCtrl.containsKey(f.key)) {
-          _dynTextCtrl[f.key] =
-              TextEditingController(text: _vm.initialTextFor(f.key));
+          _dynTextCtrl[f.key] = TextEditingController(text: initial);
         } else {
-          final initial = _vm.initialTextFor(f.key);
           if (initial.isNotEmpty) {
             _dynTextCtrl[f.key]!.text = initial;
           }
         }
       }
-    }
-
-    // Sync land area from edit farmer if present
-    if (_vm.editFarmer != null) {
-      final area = _vm.editFarmer!.landArea;
-      if (area > 0) _landAreaCtrl.text = area.toString();
     }
 
     // Clear text controllers for fields that are now hidden
@@ -123,14 +125,16 @@ class _FarmerFormViewState extends State<FarmerFormView> {
 
   Future<void> _openMap() async {
     final result = await Navigator.pushNamed(
-      context, 
+      context,
       '/land-measurement',
       arguments: {
         'initialPolygon': _vm.landCoordinates,
         'onClear': () {
           _vm.setLandResult({'area': 0.0, 'coordinates': []});
           _landAreaCtrl.clear();
-          if (mounted) context.showSnack('Land measurement removed', success: true);
+          if (mounted) {
+            context.showSnack('Land measurement removed', success: true);
+          }
         }
       },
     ) as Map<String, dynamic>?;
@@ -144,7 +148,8 @@ class _FarmerFormViewState extends State<FarmerFormView> {
       }
       if (mounted) {
         if (area > 0) {
-          context.showSnack('Area: ${area.toStringAsFixed(4)} acres', success: true);
+          context.showSnack('Area: ${area.toStringAsFixed(4)} acres',
+              success: true);
         } else {
           context.showSnack('Land measurement removed', success: true);
         }
@@ -156,7 +161,7 @@ class _FarmerFormViewState extends State<FarmerFormView> {
 
   Future<void> _openMapForDynamicField(DynamicFieldModel df) async {
     final result = await Navigator.pushNamed(
-      context, 
+      context,
       '/land-measurement',
       arguments: {
         'initialPolygon': df.value,
@@ -168,13 +173,15 @@ class _FarmerFormViewState extends State<FarmerFormView> {
     ) as Map<String, dynamic>?;
     if (result != null && mounted) {
       final rawCoords = result['coordinates'] as List<dynamic>? ?? [];
-      final coords = rawCoords.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+      final coords =
+          rawCoords.map((e) => Map<String, dynamic>.from(e as Map)).toList();
       _vm.updateDynamicFieldValue(df.field.key, coords.isEmpty ? null : coords);
       if (mounted) {
         if (coords.isEmpty) {
           context.showSnack('Polygon removed', success: true);
         } else {
-          context.showSnack('Polygon saved (${coords.length} points)', success: true);
+          context.showSnack('Polygon saved (${coords.length} points)',
+              success: true);
         }
       }
     }
@@ -183,17 +190,77 @@ class _FarmerFormViewState extends State<FarmerFormView> {
   // ── Camera capture + upload (dynamic field driven) ─────────────────────
 
   Future<void> _captureAndUpload(String fieldKey) async {
-    final localPath =
-        await Navigator.pushNamed(context, '/camera-capture') as String?;
+    final localPath = await Navigator.pushNamed(
+      context,
+      '/camera-capture',
+      arguments: const {'requiresLocation': true},
+    ) as String?;
     if (localPath == null || !mounted) return;
 
-    final url = await _vm.uploadCameraImage(fieldKey, localPath);
+    final result = await _vm.uploadCameraImage(fieldKey, localPath);
     if (!mounted) return;
 
-    if (url != null) {
+    if (result != null) {
       context.showSnack('Photo uploaded successfully', success: true);
     } else {
-      context.showSnack('Photo upload failed. Please try again.');
+      context.showSnack(
+        _vm.lastUploadErrorMessage ?? 'Photo upload failed. Please try again.',
+      );
+    }
+  }
+
+  Future<void> _pickAndUploadFiles(DynamicFieldModel df) async {
+    final localPaths = await pickDynamicUploadFiles(
+      context,
+      requiresLocationForCamera: true,
+    );
+    if (localPaths.isEmpty || !mounted) return;
+
+    final result = await _vm.uploadFilesForField(df.field.key, localPaths);
+    if (!mounted) return;
+
+    if (result == null) {
+      context.showSnack(
+        _vm.lastUploadErrorMessage ?? 'File upload failed. Please try again.',
+      );
+    } else if (result.hasIncompleteData) {
+      context.showSnack('Files uploaded, but some previews are unavailable.',
+          success: true);
+    } else {
+      context.showSnack('Files uploaded successfully', success: true);
+    }
+  }
+
+  Future<void> _deleteFile(DynamicFieldModel df, AppFileItem file) {
+    return _vm.deleteFileForField(df, file);
+  }
+
+  Future<void> _deleteCameraPhoto(DynamicFieldModel df) async {
+    final confirmed = await showPopupConfirm(
+      context,
+      title: 'Remove photo?',
+      message: 'Remove this photo? This action cannot be undone.',
+      confirmLabel: 'Remove',
+      confirmColor: AppColors.error,
+      icon: Icons.delete_outline,
+    );
+    if (confirmed != true || !mounted) return;
+
+    final path = df.value?.toString().trim() ?? '';
+    try {
+      await _vm.deleteFileOnly(
+        df.field.key,
+        path,
+        fieldId: df.field.fieldId,
+      );
+      if (!mounted) return;
+
+      _vm.clearCameraImage(df.field.key);
+      context.showSnack('Photo removed successfully', success: true);
+    } catch (_) {
+      if (mounted) {
+        context.showSnack('Unable to remove photo. Please try again.');
+      }
     }
   }
 
@@ -209,7 +276,13 @@ class _FarmerFormViewState extends State<FarmerFormView> {
         parentField: df.field,
         catColor: catColor,
         initialFields: currentValues,
-        onSaved: (result) => _vm.updateDynamicFieldValue(df.field.key, result),
+        onSaved: (result) {
+          _vm.updateDynamicFieldValue(df.field.key, result);
+          // Clear parent error after popup is saved
+          df.clearError();
+          if (mounted) setState(() {});
+        },
+        viewModel: _vm,
       ),
     );
   }
@@ -217,7 +290,9 @@ class _FarmerFormViewState extends State<FarmerFormView> {
   // ── Save ──────────────────────────────────────────────────────────────────
 
   Future<void> _save() async {
-    if (!_formKey.currentState!.validate()) return;
+    // 1. Trigger widget-level validation to show inline error text for on-screen fields
+    final isFormValid = _formKey.currentState?.validate() ?? true;
+
     if (_vm.selectedCategory.isEmpty) {
       context.showSnack('Select a category.');
       return;
@@ -226,18 +301,32 @@ class _FarmerFormViewState extends State<FarmerFormView> {
       context.showSnack('Select a subcategory.');
       return;
     }
-    if (_vm.editFarmer != null) {
-      context.showSnack('Edit not yet supported via API.');
-      return;
-    }
 
     final textValues = Map.fromEntries(
       _dynTextCtrl.entries.map((e) => MapEntry(e.key, e.value.text)),
     );
 
+    // 2. Recursive validation for all visible fields including popup children
+    final visibleFields =
+        _vm.dynamicFields.where((df) => _vm.isFieldVisible(df)).toList();
+    final validationResult = validateFields(
+      visibleFields,
+      textValues: textValues,
+    );
+
+    if (!validationResult.isValid) {
+      if (mounted) {
+        setState(() => _autoValidateMode = AutovalidateMode.always);
+        context.showSnack(
+          'Please fill the required field: ${validationResult.firstInvalidLabel}',
+        );
+      }
+      return;
+    }
+
+    // 3. Check that any data exists at all
     bool hasData = false;
-    for (final df in _vm.dynamicFields) {
-      if (!_vm.isFieldVisible(df)) continue;
+    for (final df in visibleFields) {
       dynamic v;
       if (textValues.containsKey(df.field.key)) {
         v = textValues[df.field.key]!.trim();
@@ -245,14 +334,14 @@ class _FarmerFormViewState extends State<FarmerFormView> {
       } else {
         v = df.value;
       }
-
       if (v != null) {
         if (v is String && v.isNotEmpty) hasData = true;
         if (v is num || v is bool) hasData = true;
         if (v is List && v.isNotEmpty) {
           if (df.field.isPopupForm && v is List<DynamicFieldModel>) {
             for (final subDf in v) {
-              if (subDf.value != null && subDf.value.toString().trim().isNotEmpty) {
+              if (subDf.value != null &&
+                  subDf.value.toString().trim().isNotEmpty) {
                 hasData = true;
                 break;
               }
@@ -262,15 +351,33 @@ class _FarmerFormViewState extends State<FarmerFormView> {
           }
         }
       }
-      if (hasData) break;
     }
 
-    if (_vm.geoRequired && _landAreaCtrl.text.trim().isNotEmpty) {
-      hasData = true;
+    if (_vm.geoRequired) {
+      if (_landAreaCtrl.text.trim().isEmpty) {
+        if (mounted) {
+          setState(() => _autoValidateMode = AutovalidateMode.always);
+          context.showSnack('Please complete the required field: Land Area');
+        }
+        return;
+      } else {
+        hasData = true;
+      }
     }
 
-    if (!hasData && _vm.dynamicFields.isNotEmpty) {
-      context.showSnack('Please fill at least one field to submit.');
+    if (!hasData && visibleFields.isNotEmpty) {
+      if (mounted) {
+        setState(() => _autoValidateMode = AutovalidateMode.always);
+        context.showSnack('Please fill at least one field to submit.');
+      }
+      return;
+    }
+
+    if (!isFormValid) {
+      if (mounted) {
+        setState(() => _autoValidateMode = AutovalidateMode.always);
+        context.showSnack('Please fix the errors in the form.');
+      }
       return;
     }
 
@@ -299,18 +406,17 @@ class _FarmerFormViewState extends State<FarmerFormView> {
         final catData = AppCategories.styleFor(_vm.selectedCategory);
         final catColor = catData?.color ?? AppColors.primary;
 
-        final isBlocked = _vm.isSaving ||
-            _vm.dynamicFields.any(
-                (df) => _vm.isFieldUploading(df.field.key)) ||
-            _vm.dynamicFields.any((df) => df.isLoadingOptions);
+        final isUploading =
+            _vm.dynamicFields.any((df) => _vm.isFieldUploading(df.field.key));
+        final showOverlay =
+            _vm.isSaving || _vm.dynamicFields.any((df) => df.isLoadingOptions);
+        final isBlocked = showOverlay || isUploading;
 
         return Stack(
           children: [
             Scaffold(
               appBar: AppBar(
-                title: Text(_vm.editFarmer != null
-                    ? 'Edit Registration'
-                    : 'New Registration'),
+                title: const Text('New Registration'),
               ),
               body: _vm.isLoadingForm
                   ? const ShimmerFormSkeleton()
@@ -321,6 +427,7 @@ class _FarmerFormViewState extends State<FarmerFormView> {
                         )
                       : Form(
                           key: _formKey,
+                          autovalidateMode: _autoValidateMode,
                           child: ListView(
                             padding: const EdgeInsets.all(16),
                             children: [
@@ -343,9 +450,7 @@ class _FarmerFormViewState extends State<FarmerFormView> {
                                 child: ElevatedButton.icon(
                                   onPressed: isBlocked ? null : _save,
                                   icon: const Icon(Icons.how_to_reg),
-                                  label: Text(_vm.editFarmer != null
-                                      ? 'Update Registration'
-                                      : 'Complete Registration'),
+                                  label: const Text('Complete Registration'),
                                 ),
                               ),
                               const SizedBox(height: 32),
@@ -356,17 +461,19 @@ class _FarmerFormViewState extends State<FarmerFormView> {
             if (isBlocked)
               AbsorbPointer(
                 absorbing: true,
-                child: Container(
-                  color: Colors.black.withValues(alpha: 0.45),
-                  child: const Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        CircularProgressIndicator(color: Colors.white),
-                      ],
-                    ),
-                  ),
-                ),
+                child: showOverlay
+                    ? Container(
+                        color: Colors.black.withValues(alpha: 0.45),
+                        child: const Center(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              CircularProgressIndicator(color: Colors.white),
+                            ],
+                          ),
+                        ),
+                      )
+                    : const SizedBox.shrink(),
               ),
           ],
         );
@@ -441,28 +548,34 @@ class _FarmerFormViewState extends State<FarmerFormView> {
     int? popupFormTotal;
     if (f.isPopupForm) {
       final subFieldsList = df.value as List<DynamicFieldModel>? ?? [];
-      popupFormTotal = subFieldsList.length;
-      popupFormFilled =
-          subFieldsList.where((e) => e.value != null && e.value != '').length;
+      popupFormTotal = getTotalCount(subFieldsList);
+      popupFormFilled = getFilledCount(subFieldsList);
     }
 
-    final isCameraField =
-        f.fieldStyle == FieldStyle.camera || f.fieldStyle == FieldStyle.cameraFile;
+    final isCameraField = f.fieldStyle == FieldStyle.camera;
+    final isFileField = f.fieldStyle == FieldStyle.file;
 
     return DynamicFieldBuilder(
       field: f,
       value: df.value,
       textController: _dynTextCtrl[f.key],
       accentColor: catColor,
+      hasError: df.hasError,
+      errorMessage: df.errorMessage,
       onChanged: (val) => _vm.updateDynamicFieldValue(f.key, val),
       onPopupFormPressed:
           f.isPopupForm ? () => _openPopupFormSheet(df, catColor) : null,
       popupFormFilledCount: popupFormFilled,
       popupFormTotalCount: popupFormTotal,
       // Camera field wiring
-      isUploading: isCameraField ? _vm.isFieldUploading(f.key) : false,
+      isUploading:
+          (isCameraField || isFileField) ? _vm.isFieldUploading(f.key) : false,
       onCapturePhoto: isCameraField ? () => _captureAndUpload(f.key) : null,
       onClearPhoto: isCameraField ? () => _vm.clearCameraImage(f.key) : null,
+      onDeleteCameraPhoto: isCameraField ? () => _deleteCameraPhoto(df) : null,
+      onAddFiles: isFileField ? () => _pickAndUploadFiles(df) : null,
+      onDeleteFile: isFileField ? (file) => _deleteFile(df, file) : null,
+      previewUrl: (isCameraField || isFileField) ? df.previewUrl : null,
       onMapPolygonPressed: f.fieldStyle == FieldStyle.mapPolygon
           ? () => _openMapForDynamicField(df)
           : null,
@@ -530,7 +643,6 @@ class _FarmerFormViewState extends State<FarmerFormView> {
     ];
   }
 }
-
 
 // ─── Error State ──────────────────────────────────────────────────────────────
 
@@ -605,12 +717,14 @@ class _PopupFormSheet extends StatefulWidget {
   final Color catColor;
   final List<DynamicFieldModel> initialFields;
   final void Function(List<DynamicFieldModel> updated) onSaved;
+  final FarmerFormViewModel viewModel;
 
   const _PopupFormSheet({
     required this.parentField,
     required this.catColor,
     required this.initialFields,
     required this.onSaved,
+    required this.viewModel,
   });
 
   @override
@@ -618,6 +732,8 @@ class _PopupFormSheet extends StatefulWidget {
 }
 
 class _PopupFormSheetState extends State<_PopupFormSheet> {
+  final _popupFormKey = GlobalKey<FormState>();
+  AutovalidateMode _autoValidateMode = AutovalidateMode.disabled;
   final Map<String, TextEditingController> _textCtrl = {};
   late List<DynamicFieldModel> _fields;
 
@@ -628,12 +744,14 @@ class _PopupFormSheetState extends State<_PopupFormSheet> {
 
     for (final df in _fields) {
       final f = df.field;
-      final init = df.value;
+      var initText = df.value?.toString() ?? '';
+      if (f.fieldStyle == FieldStyle.date && initText.isNotEmpty) {
+        initText = formatDateForDisplay(initText);
+      }
       if (f.fieldStyle == FieldStyle.text ||
           f.fieldStyle == FieldStyle.number ||
           f.fieldStyle == FieldStyle.date) {
-        _textCtrl[f.key] =
-            TextEditingController(text: init?.toString() ?? '');
+        _textCtrl[f.key] = TextEditingController(text: initText);
       }
     }
   }
@@ -653,6 +771,7 @@ class _PopupFormSheetState extends State<_PopupFormSheet> {
       df.value = val;
       _resetHiddenSubFieldDependents(df.field.key);
     });
+    widget.viewModel.handleSubfieldDependencyChange(df.field.key, _fields);
   }
 
   void _resetHiddenSubFieldDependents(String parentKey) {
@@ -660,6 +779,7 @@ class _PopupFormSheetState extends State<_PopupFormSheet> {
       if (df.field.dependsOn == parentKey && df.field.hasVisibilityCondition) {
         if (!shouldShowField(df, _fields)) {
           df.value = null;
+          df.previewUrl = null;
           _textCtrl[df.field.key]?.clear();
           _resetHiddenSubFieldDependents(df.field.key);
         }
@@ -667,10 +787,25 @@ class _PopupFormSheetState extends State<_PopupFormSheet> {
     }
   }
 
+  void _showLocalSnack(String msg, {bool success = false}) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+      ..clearSnackBars()
+      ..showSnackBar(SnackBar(
+        content: Text(msg),
+        backgroundColor: success ? AppColors.primary : AppColors.error,
+        behavior: SnackBarBehavior.floating,
+      ));
+  }
+
   void _save() {
+    final isFormValid = _popupFormKey.currentState?.validate() ?? true;
+
+    // Sync text controller values into field models before validation
     for (final df in _fields) {
       if (!_isSubFieldVisible(df)) {
         df.value = null;
+        df.previewUrl = null;
         continue;
       }
       if (_textCtrl.containsKey(df.field.key)) {
@@ -678,6 +813,27 @@ class _PopupFormSheetState extends State<_PopupFormSheet> {
         df.value = text.isNotEmpty ? text : null;
       }
     }
+
+    // Recursive validation including nested popup children
+    final textValues = Map.fromEntries(
+      _textCtrl.entries.map((e) => MapEntry(e.key, e.value.text)),
+    );
+    final validationResult = validateFields(_fields, textValues: textValues);
+
+    if (!validationResult.isValid) {
+      setState(() => _autoValidateMode = AutovalidateMode.always);
+      _showLocalSnack(
+        'Please fill the required field: ${validationResult.firstInvalidLabel}',
+      );
+      return;
+    }
+
+    if (!isFormValid) {
+      setState(() => _autoValidateMode = AutovalidateMode.always);
+      _showLocalSnack('Please fix the errors in the form.');
+      return;
+    }
+
     widget.onSaved(_fields);
     Navigator.pop(context);
   }
@@ -685,81 +841,201 @@ class _PopupFormSheetState extends State<_PopupFormSheet> {
   @override
   Widget build(BuildContext context) {
     final color = widget.catColor;
-    return DraggableScrollableSheet(
-      initialChildSize: 0.55,
-      maxChildSize: 0.92,
-      minChildSize: 0.35,
-      builder: (_, ctrl) => Container(
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-        ),
-        child: Column(
-          children: [
-            Container(
-              margin: const EdgeInsets.only(top: 12),
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(
-                color: AppColors.divider,
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 16, 8, 8),
-              child: Row(
-                children: [
-                  Icon(Icons.tune, color: color, size: 20),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      widget.parentField.label,
-                      style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w700,
-                          color: color),
-                    ),
+    return ListenableBuilder(
+      listenable: widget.viewModel,
+      builder: (context, _) => DraggableScrollableSheet(
+        initialChildSize: 0.75,
+        maxChildSize: 0.92,
+        minChildSize: 0.4,
+        builder: (_, ctrl) => ClipRRect(
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+          child: Scaffold(
+            backgroundColor: Colors.white,
+            body: Column(
+              children: [
+                Container(
+                  margin: const EdgeInsets.only(top: 12),
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: AppColors.divider,
+                    borderRadius: BorderRadius.circular(2),
                   ),
-                  IconButton(
-                    onPressed: () => Navigator.pop(context),
-                    icon:
-                        const Icon(Icons.close, color: AppColors.textMedium),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 16, 8, 8),
+                  child: Row(
+                    children: [
+                      Icon(Icons.tune, color: color, size: 20),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          widget.parentField.label,
+                          style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w700,
+                              color: color),
+                        ),
+                      ),
+                      IconButton(
+                        onPressed: () => Navigator.pop(context),
+                        icon: const Icon(Icons.close,
+                            color: AppColors.textMedium),
+                      ),
+                    ],
                   ),
-                ],
-              ),
-            ),
-            const Divider(height: 1),
-            Expanded(
-              child: SingleChildScrollView(
-                controller: ctrl,
-                padding: const EdgeInsets.all(20),
-                child: Column(
-                  children: [
-                    ..._fields
-                        .where((df) => _isSubFieldVisible(df))
-                        .map((df) => Padding(
-                              padding: const EdgeInsets.only(bottom: 14),
-                              child: _buildSubField(df, color),
-                            )),
-                    const SizedBox(height: 8),
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton.icon(
-                        onPressed: _save,
-                        icon: const Icon(Icons.check),
-                        label: const Text('Done'),
-                        style: ElevatedButton.styleFrom(
-                            backgroundColor: color),
+                ),
+                const Divider(height: 1),
+                Expanded(
+                  child: Form(
+                    key: _popupFormKey,
+                    autovalidateMode: _autoValidateMode,
+                    child: SingleChildScrollView(
+                      controller: ctrl,
+                      padding: const EdgeInsets.all(20),
+                      child: Column(
+                        children: [
+                          ..._fields
+                              .where((df) => _isSubFieldVisible(df))
+                              .map((df) => Padding(
+                                    padding: const EdgeInsets.only(bottom: 14),
+                                    child: _buildSubField(df, color),
+                                  )),
+                          const SizedBox(height: 8),
+                          SizedBox(
+                            width: double.infinity,
+                            child: ElevatedButton.icon(
+                              onPressed: _save,
+                              icon: const Icon(Icons.check),
+                              label: const Text('Done'),
+                              style: ElevatedButton.styleFrom(
+                                  backgroundColor: color),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                  ],
+                  ),
                 ),
-              ),
+              ],
             ),
-          ],
+          ),
         ),
       ),
     );
+  }
+
+  Future<void> _captureAndUploadSubField(DynamicFieldModel df) async {
+    final localPath = await Navigator.pushNamed(
+      context,
+      '/camera-capture',
+      arguments: const {'requiresLocation': true},
+    ) as String?;
+    if (localPath == null || !mounted) return;
+
+    final result =
+        await widget.viewModel.uploadImageOnly(df.field.key, localPath);
+    if (!mounted) return;
+
+    if (result != null) {
+      setState(() {
+        df.value = result.imagePath;
+        df.previewUrl = result.previewUrl;
+      });
+      _showLocalSnack('Photo uploaded successfully', success: true);
+    } else {
+      _showLocalSnack(
+        widget.viewModel.lastUploadErrorMessage ??
+            'Photo upload failed. Please try again.',
+      );
+    }
+  }
+
+  Future<void> _pickAndUploadSubFieldFiles(DynamicFieldModel df) async {
+    final localPaths = await pickDynamicUploadFiles(
+      context,
+      requiresLocationForCamera: true,
+    );
+    if (localPaths.isEmpty || !mounted) return;
+
+    final result =
+        await widget.viewModel.uploadFilesOnly(df.field.key, localPaths);
+    if (!mounted) return;
+
+    if (result == null) {
+      _showLocalSnack(
+        widget.viewModel.lastUploadErrorMessage ??
+            'File upload failed. Please try again.',
+      );
+      return;
+    }
+
+    setState(() {
+      df.appendFileReferences(
+        paths: result.paths,
+        previewUrls: result.previewUrls,
+      );
+    });
+    if (result.hasIncompleteData) {
+      _showLocalSnack('Files uploaded, but some previews are unavailable.',
+          success: true);
+    } else {
+      _showLocalSnack('Files uploaded successfully', success: true);
+    }
+  }
+
+  Future<void> _deleteSubFieldFile(
+    DynamicFieldModel df,
+    AppFileItem file,
+  ) async {
+    final path = file.remotePath?.trim() ?? '';
+    await widget.viewModel.deleteFileOnly(df.field.key, path);
+    if (!mounted) return;
+
+    setState(() {
+      df.removeFileReferenceByPath(path);
+    });
+    widget.onSaved(_fields);
+  }
+
+  Future<void> _deleteSubFieldPhoto(DynamicFieldModel df) async {
+    final confirmed = await showPopupConfirm(
+      context,
+      title: 'Remove photo?',
+      message: 'Remove this photo? This action cannot be undone.',
+      confirmLabel: 'Remove',
+      confirmColor: AppColors.error,
+      icon: Icons.delete_outline,
+    );
+    if (confirmed != true || !mounted) return;
+
+    final path = df.value?.toString().trim() ?? '';
+    try {
+      await widget.viewModel.deleteFileOnly(
+        df.field.key,
+        path,
+        fieldId: df.field.fieldId,
+      );
+      if (!mounted) return;
+
+      setState(() {
+        df.value = null;
+        df.previewUrl = null;
+      });
+      widget.onSaved(_fields);
+      _showLocalSnack('Photo removed successfully', success: true);
+    } catch (_) {
+      if (mounted) {
+        _showLocalSnack('Unable to remove photo. Please try again.');
+      }
+    }
+  }
+
+  void _clearSubFieldPhoto(DynamicFieldModel df) {
+    setState(() {
+      df.value = null;
+      df.previewUrl = null;
+    });
   }
 
   Widget _buildSubField(DynamicFieldModel df, Color color) {
@@ -768,21 +1044,26 @@ class _PopupFormSheetState extends State<_PopupFormSheet> {
     int? popupFormTotal;
     if (f.isPopupForm) {
       final subFieldsList = df.value as List<DynamicFieldModel>? ?? [];
-      popupFormTotal = subFieldsList.length;
-      popupFormFilled =
-          subFieldsList.where((e) => e.value != null && e.value != '').length;
+      popupFormTotal = getTotalCount(subFieldsList);
+      popupFormFilled = getFilledCount(subFieldsList);
     }
+
+    final isCameraField = f.fieldStyle == FieldStyle.camera;
+    final isFileField = f.fieldStyle == FieldStyle.file;
 
     return DynamicFieldBuilder(
       field: f,
       value: _textCtrl.containsKey(f.key) ? _textCtrl[f.key]!.text : df.value,
       textController: _textCtrl[f.key],
       accentColor: color,
+      hasError: df.hasError,
+      errorMessage: df.errorMessage,
       onChanged: (val) {
         if (!_textCtrl.containsKey(f.key)) {
           _onSubFieldChanged(df, val);
         } else {
-          setState(() {}); // text controller manages value; rebuild for visibility
+          setState(
+              () {}); // text controller manages value; rebuild for visibility
         }
       },
       onPopupFormPressed:
@@ -792,12 +1073,34 @@ class _PopupFormSheetState extends State<_PopupFormSheet> {
       onMapPolygonPressed: f.fieldStyle == FieldStyle.mapPolygon
           ? () => _openMapForNestedDynamicField(df)
           : null,
+      previewUrl: (isCameraField || isFileField) ? df.previewUrl : null,
+      isUploading: (isCameraField || isFileField)
+          ? widget.viewModel.isFieldUploading(f.key)
+          : false,
+      onCapturePhoto:
+          isCameraField ? () => _captureAndUploadSubField(df) : null,
+      onClearPhoto: isCameraField ? () => _clearSubFieldPhoto(df) : null,
+      onDeleteCameraPhoto:
+          isCameraField ? () => _deleteSubFieldPhoto(df) : null,
+      onAddFiles: isFileField ? () => _pickAndUploadSubFieldFiles(df) : null,
+      onDeleteFile:
+          isFileField ? (file) => _deleteSubFieldFile(df, file) : null,
+      resolvedOptions:
+          f.fieldStyle == FieldStyle.dropdown ? df.resolvedOptions : null,
+      isLoadingOptions:
+          f.fieldStyle == FieldStyle.dropdown ? df.isLoadingOptions : false,
+      optionsError:
+          f.fieldStyle == FieldStyle.dropdown ? df.optionsError : null,
+      onRetryOptions:
+          f.fieldStyle == FieldStyle.dropdown && df.optionsError != null
+              ? () => widget.viewModel.retrySubfieldOptions(f.key, _fields)
+              : null,
     );
   }
 
   Future<void> _openMapForNestedDynamicField(DynamicFieldModel df) async {
     final result = await Navigator.pushNamed(
-      context, 
+      context,
       '/land-measurement',
       arguments: {
         'initialPolygon': df.value,
@@ -808,7 +1111,8 @@ class _PopupFormSheetState extends State<_PopupFormSheet> {
     ) as Map<String, dynamic>?;
     if (result != null && mounted) {
       final rawCoords = result['coordinates'] as List<dynamic>? ?? [];
-      final coords = rawCoords.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+      final coords =
+          rawCoords.map((e) => Map<String, dynamic>.from(e as Map)).toList();
       setState(() => df.value = coords.isEmpty ? null : coords);
     }
   }
@@ -823,7 +1127,11 @@ class _PopupFormSheetState extends State<_PopupFormSheet> {
         parentField: df.field,
         catColor: color,
         initialFields: currentValues,
-        onSaved: (result) => setState(() => df.value = result),
+        onSaved: (result) {
+          setState(() => df.value = result);
+          df.clearError();
+        },
+        viewModel: widget.viewModel,
       ),
     );
   }

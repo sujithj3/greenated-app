@@ -114,14 +114,14 @@ class _DashboardViewState extends State<DashboardView> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         const Text(
-                          'Categories',
+                          'Projects',
                           style: TextStyle(
-                            fontSize: 16,
+                            fontSize: 20,
                             fontWeight: FontWeight.w700,
                             color: AppColors.dark,
                           ),
                         ),
-                        const SizedBox(height: 12),
+                        // const SizedBox(height: 5),
                         _CategoriesGrid(vm: _vm),
                         const SizedBox(height: 24),
                       ],
@@ -183,12 +183,20 @@ class _DashboardViewState extends State<DashboardView> {
             ),
           ),
           _drawerItem(context, Icons.dashboard, 'Dashboard', '/dashboard'),
-          _drawerItem(
-              context, Icons.person_add, 'Register Farmer', '/categories',
-              arguments: {'flowType': FlowType.registration}),
-          _drawerItem(context, Icons.people, 'Farmers List', '/farmer-list'),
-          _drawerItem(context, Icons.category, 'Categories', '/categories',
-              arguments: {'flowType': FlowType.listing}),
+          // _drawerItem(
+          //   context,
+          //   Icons.person_add,
+          //   'Register Farmer',
+          //   '/categories',
+          //   arguments: {'flowType': FlowType.registration},
+          // ),
+          // _drawerItem(
+          //   context,
+          //   Icons.category,
+          //   'Categories',
+          //   '/categories',
+          //   arguments: {'flowType': FlowType.listing},
+          // ),
           _drawerItem(
               context, Icons.map, 'Land Measurement', '/land-measurement'),
           const Divider(),

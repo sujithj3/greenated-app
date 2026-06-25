@@ -1,4 +1,4 @@
-import 'registered_farmer.dart';
+import 'registered_farmers_list.dart';
 
 class PaginationMeta {
   final int page;
@@ -33,28 +33,30 @@ class PaginationMeta {
 }
 
 class RegisteredListResponse {
-  final List<RegisteredFarmer> farmers;
+  final List<RegisteredFarmersList> registeredFarmers;
   final PaginationMeta pagination;
 
   RegisteredListResponse({
-    required this.farmers,
+    required this.registeredFarmers,
     required this.pagination,
   });
 
   factory RegisteredListResponse.fromJson(Map<String, dynamic> json) {
     var farmersJson = (json['registeredFarmers'] as List?) ?? [];
     DetailedPaginationMeta? meta;
-    
+
     if (json['pagination'] != null) {
-      meta = DetailedPaginationMeta.fromJson(json['pagination'] as Map<String, dynamic>);
+      meta = DetailedPaginationMeta.fromJson(
+          json['pagination'] as Map<String, dynamic>);
     } else {
-      meta = DetailedPaginationMeta(page: 1, pageSize: 10, totalItems: farmersJson.length, totalPages: 1);
+      meta = DetailedPaginationMeta(
+          page: 1, pageSize: 10, totalItems: farmersJson.length, totalPages: 1);
     }
-    
+
     return RegisteredListResponse(
-      farmers: farmersJson
+      registeredFarmers: farmersJson
           .whereType<Map>()
-          .map((e) => RegisteredFarmer.fromJson(Map<String, dynamic>.from(e)))
+          .map((e) => RegisteredFarmersList.fromJson(Map<String, dynamic>.from(e)))
           .toList(),
       pagination: meta,
     );
@@ -62,7 +64,7 @@ class RegisteredListResponse {
 
   Map<String, dynamic> toJson() {
     return {
-      'farmers': farmers.map((e) => e.toJson()).toList(),
+      'registeredFarmers': registeredFarmers.map((e) => e.toJson()).toList(),
       'pagination': pagination.toJson(),
     };
   }

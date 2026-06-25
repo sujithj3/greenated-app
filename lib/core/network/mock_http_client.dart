@@ -60,6 +60,32 @@ class MockHttpClient implements ApiClient {
     return ApiResponse<T>.fromJson(json, dataParser: decoder);
   }
 
+  @override
+  Future<ApiResponse<T>> uploadFiles<T>(
+    String path, {
+    required List<String> filePaths,
+    required String fileKey,
+    Map<String, String> fields = const {},
+    T? Function(Object? rawData)? decoder,
+  }) async {
+    await Future<void>.delayed(latency);
+
+    final paths = List<String>.generate(
+      filePaths.length,
+      (index) => 'uploads/mock-file-${index + 1}.jpg',
+    );
+    final json = _success(
+      message: 'Files uploaded successfully.',
+      data: <String, dynamic>{
+        'path': paths,
+        'previewUrl':
+            paths.map((path) => 'https://mock.example.com/$path').toList(),
+      },
+    );
+
+    return ApiResponse<T>.fromJson(json, dataParser: decoder);
+  }
+
   Map<String, dynamic> _route(ApiRequest request) {
     final key = request.routeKey;
 
@@ -67,6 +93,23 @@ class MockHttpClient implements ApiClient {
     if (key == 'POST login/verify-otp') return _mockVerifyOtp();
     if (key == 'GET /list-farmers') return _mockGetFarmers();
     if (key == 'POST /register-farmer') return _mockCreateFarmer(request);
+    if (key == 'POST register-land') return _mockRegisterLand(request);
+    if (request.method.value == 'GET' &&
+        RegExp(r'^subcategories/\d+/form-detail$').hasMatch(request.path)) {
+      return _mockFormDetail(request);
+    }
+    if (request.method.value == 'GET' &&
+        RegExp(r'^subcategories/\d+/form-edit$').hasMatch(request.path)) {
+      return _mockFormDetail(request);
+    }
+    if (request.method.value == 'GET' &&
+        RegExp(r'^subcategories/\d+/land-form$').hasMatch(request.path)) {
+      return _mockLandForm(request);
+    }
+    if (request.method.value == 'POST' &&
+        RegExp(r'^subcategories/\d+/formland-edit$').hasMatch(request.path)) {
+      return _mockEditLandRegistration(request);
+    }
     if (request.method.value == 'GET' &&
         RegExp(r'^/farmer/.*$').hasMatch(request.path)) {
       return _mockGetFarmers();
@@ -105,7 +148,8 @@ class MockHttpClient implements ApiClient {
 
   String _segmentLabel(String path) {
     final segments = path.split('/');
-    final last = segments.lastWhere((s) => s.isNotEmpty, orElse: () => 'Option');
+    final last =
+        segments.lastWhere((s) => s.isNotEmpty, orElse: () => 'Option');
     return '${last[0].toUpperCase()}${last.substring(1)}';
   }
 
@@ -144,6 +188,135 @@ class MockHttpClient implements ApiClient {
       message: 'Farmer registered successfully.',
       data: _bodyAsMap(request.body),
     );
+  }
+
+  Map<String, dynamic> _mockRegisterLand(ApiRequest request) {
+    return _success(
+      statusCode: ApiStatusCode.created,
+      message: 'Land registered successfully.',
+      data: _bodyAsMap(request.body),
+    );
+  }
+
+  Map<String, dynamic> _mockEditLandRegistration(ApiRequest request) {
+    return _success(
+      message: 'Land updated successfully.',
+      data: _bodyAsMap(request.body),
+    );
+  }
+
+  Map<String, dynamic> _mockFormDetail(ApiRequest request) {
+    final farmerId =
+        int.tryParse(request.queryParameters['farmerId'] ?? '') ?? 1;
+    final landSubmissionId = farmerId;
+    final hasLands = farmerId != 0;
+
+    return _success(
+      message: 'Form detail fetched successfully.',
+      data: <String, dynamic>{
+        'forms': [
+          <String, dynamic>{
+            'formId': 1,
+            'formName': 'Agroforestry Farm',
+            'formType': 'FARMER_REGISTRATION',
+            'description': 'Mock farmer detail',
+            'isActive': true,
+            'farmerDetails': <String, dynamic>{
+              'farmerId': farmerId,
+              'farmerCode': 'FRM-$farmerId',
+              'fields': _mockFarmerFields(),
+            },
+            'landDetails': hasLands
+                ? [
+                    <String, dynamic>{
+                      'submissionId': landSubmissionId,
+                      'landId': 201,
+                      'landCode': '482017856932',
+                      'fields': _mockLandFields(),
+                    },
+                    <String, dynamic>{
+                      'submissionId': landSubmissionId,
+                      'landId': 202,
+                      'landCode': '971236045871',
+                      'fields': _mockLandFields(),
+                    },
+                  ]
+                : <Map<String, dynamic>>[],
+          },
+        ],
+      },
+    );
+  }
+
+  Map<String, dynamic> _mockLandForm(ApiRequest request) {
+    final segments = request.path.split('/');
+    final subcategoryId =
+        segments.length > 1 ? int.tryParse(segments[1]) ?? 0 : 0;
+
+    return _success(
+      message: 'Land form fetched successfully',
+      data: <String, dynamic>{
+        'subcategory_id': subcategoryId,
+        'subcategory_name': 'Agroforestry Farm',
+        'forms': [
+          <String, dynamic>{
+            'formId': 4,
+            'formName': 'Land Detail',
+            'prefixCode': null,
+            'formType': 'MAIN',
+            'description': null,
+            'isActive': true,
+            'fields': _mockLandFields(),
+          },
+        ],
+      },
+    );
+  }
+
+  List<Map<String, dynamic>> _mockFarmerFields() {
+    return <Map<String, dynamic>>[
+      <String, dynamic>{
+        'fieldId': 1,
+        'label': 'Farmer Name',
+        'key': 'farmerName',
+        'type': 'STRING',
+        'style': 'TEXT',
+        'required': true,
+        'value': 'Ramesh Kumar',
+      },
+      <String, dynamic>{
+        'fieldId': 2,
+        'label': 'Mobile',
+        'key': 'mobile',
+        'type': 'STRING',
+        'style': 'TEXT',
+        'required': true,
+        'value': '9876543210',
+      },
+      <String, dynamic>{
+        'fieldId': 3,
+        'label': 'Aadhaar Number',
+        'key': 'aadhaarNumber',
+        'type': 'STRING',
+        'style': 'TEXT',
+        'required': false,
+        'value': null,
+      },
+    ];
+  }
+
+  List<Map<String, dynamic>> _mockLandFields() {
+    return <Map<String, dynamic>>[
+      <String, dynamic>{
+        'fieldId': 11,
+        'label': 'Land Area',
+        'key': 'landArea',
+        'type': 'DOUBLE',
+        'style': 'NUMBER',
+        'required': false,
+        'value': 2.5,
+      },
+    ];
   }
 
   Map<String, dynamic> _success({
