@@ -4,20 +4,28 @@ import 'package:camera/camera.dart';
 import 'package:flutter/foundation.dart';
 import 'package:intl/intl.dart';
 import 'package:gal/gal.dart';
+import 'package:permission_handler/permission_handler.dart';
 import '../../services/camera_capture_service.dart';
 import '../../services/location_service.dart';
 import '../../services/image_processing_service.dart';
 
 class CameraCaptureViewModel extends ChangeNotifier {
-  CameraCaptureViewModel({this.requiresLocation = false}) {
+  CameraCaptureViewModel({
+    this.requiresLocation = false,
+    CameraCaptureService? cameraService,
+    LocationService? locationService,
+    ImageProcessingService? imageService,
+  })  : _cameraService = cameraService ?? CameraCaptureService(),
+        _locationService = locationService ?? LocationService(),
+        _imageService = imageService ?? ImageProcessingService() {
     locationText = requiresLocation ? 'Fetching location...' : '';
   }
 
   final bool requiresLocation;
   CameraController? cameraController;
-  final CameraCaptureService _cameraService = CameraCaptureService();
-  final LocationService _locationService = LocationService();
-  final ImageProcessingService _imageService = ImageProcessingService();
+  final CameraCaptureService _cameraService;
+  final LocationService _locationService;
+  final ImageProcessingService _imageService;
 
   bool isInitialized = false;
   String locationText = '';
@@ -37,7 +45,11 @@ class CameraCaptureViewModel extends ChangeNotifier {
 
   DateTime? _locationFetchedAt;
   Future<void>? _locationFetchFuture;
+  Future<void>? _initializeFuture;
+  Future<void>? _cameraSettingsRefreshFuture;
   static const _locationStaleDuration = Duration(minutes: 2);
+  static const _cameraPermissionDeniedMessage =
+      'Camera permission denied. Enable camera access from Settings.';
 
   bool get _hasFreshLocation =>
       _locationFetchedAt != null &&
@@ -50,20 +62,107 @@ class CameraCaptureViewModel extends ChangeNotifier {
   }
 
   Future<void> initialize() async {
-    isInitialized = false;
-    processingError = null;
-    shouldShowCameraSettings = false;
-    notifyListeners();
-
-    final hasPermission = await _cameraService.requestCameraPermission();
-    if (!hasPermission) {
-      processingError =
-          'Camera permission denied. Enable camera access from Settings.';
-      shouldShowCameraSettings = true;
-      notifyListeners();
+    final runningInitialize = _initializeFuture;
+    if (runningInitialize != null) {
+      await runningInitialize;
+      return;
+    }
+    final runningSettingsRefresh = _cameraSettingsRefreshFuture;
+    if (runningSettingsRefresh != null) {
+      await runningSettingsRefresh;
       return;
     }
 
+    final future = _initializeWithPermissionRequest();
+    _initializeFuture = future;
+
+    try {
+      await future;
+    } finally {
+      if (identical(_initializeFuture, future)) {
+        _initializeFuture = null;
+      }
+    }
+  }
+
+  Future<void> refreshCameraPermissionAfterSettings() async {
+    final runningInitialize = _initializeFuture;
+    if (runningInitialize != null) {
+      await runningInitialize;
+      return;
+    }
+    final runningSettingsRefresh = _cameraSettingsRefreshFuture;
+    if (runningSettingsRefresh != null) {
+      await runningSettingsRefresh;
+      return;
+    }
+
+    final future = _refreshCameraPermissionAfterSettings();
+    _cameraSettingsRefreshFuture = future;
+
+    try {
+      await future;
+    } finally {
+      if (identical(_cameraSettingsRefreshFuture, future)) {
+        _cameraSettingsRefreshFuture = null;
+      }
+    }
+  }
+
+  Future<void> _initializeWithPermissionRequest() async {
+    _prepareForCameraStartup();
+
+    final status = await _cameraService.requestCameraPermissionStatus();
+    if (!status.isGranted) {
+      _setCameraPermissionDenied();
+      return;
+    }
+
+    await _initializeCamera();
+  }
+
+  Future<void> _refreshCameraPermissionAfterSettings() async {
+    final status = await _cameraService.checkCameraPermissionStatus();
+    if (!status.isGranted) {
+      _setCameraPermissionDenied();
+      return;
+    }
+
+    _prepareForCameraStartup();
+    await _initializeCamera();
+  }
+
+  void _prepareForCameraStartup() {
+    cameraController?.dispose();
+    cameraController = null;
+    isInitialized = false;
+    processingError = null;
+    shouldShowCameraSettings = false;
+    isFlashOn = false;
+    notifyListeners();
+  }
+
+  void _setCameraPermissionDenied() {
+    final hadController = cameraController != null;
+    final changed = isInitialized ||
+        hadController ||
+        isFlashOn ||
+        processingError != _cameraPermissionDeniedMessage ||
+        !shouldShowCameraSettings;
+
+    cameraController?.dispose();
+    cameraController = null;
+    isInitialized = false;
+    isFlashOn = false;
+    processingError = _cameraPermissionDeniedMessage;
+    shouldShowCameraSettings = true;
+
+    if (changed) {
+      notifyListeners();
+    }
+  }
+
+  Future<void> _initializeCamera() async {
     final camera = await _cameraService.getBackCamera();
     if (camera == null) {
       processingError = 'No camera found.';
@@ -93,8 +192,8 @@ class CameraCaptureViewModel extends ChangeNotifier {
     }
   }
 
-  Future<void> openCameraSettings() async {
-    await _cameraService.openCameraSettings();
+  Future<bool> openCameraSettings() {
+    return _cameraService.openCameraSettings();
   }
 
   Future<void> _fetchLocation() async {

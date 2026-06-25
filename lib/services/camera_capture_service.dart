@@ -12,6 +12,10 @@ class CameraCaptureService {
     return Permission.camera.request();
   }
 
+  Future<PermissionStatus> checkCameraPermissionStatus() {
+    return Permission.camera.status;
+  }
+
   Future<bool> openCameraSettings() {
     return openAppSettings();
   }

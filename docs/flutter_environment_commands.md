@@ -77,6 +77,8 @@ Use these to create installable debug APKs for each flavor:
 # Development debug APK
 flutter build apk --flavor development --debug --dart-define=APP_ENV=development
 
+flutter build apk --flavor development --release --dart-define=APP_ENV=development
+
 flutter build apk --flavor development --debug --dart-define=APP_ENV=development --split-per-abi
 
 # Staging debug APK

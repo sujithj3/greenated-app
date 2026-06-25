@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import '../../utils/app_colors.dart';
@@ -24,6 +26,8 @@ class _CameraCaptureViewState extends State<CameraCaptureView>
   late final CameraCaptureViewModel _vm;
   bool _isShowingLocationServicesDialog = false;
   bool _isShowingLocationPermissionSettingsPrompt = false;
+  bool _waitingForCameraSettingsReturn = false;
+  bool _isOpeningCameraSettings = false;
 
   @override
   void initState() {
@@ -31,23 +35,30 @@ class _CameraCaptureViewState extends State<CameraCaptureView>
     WidgetsBinding.instance.addObserver(this);
     _vm = CameraCaptureViewModel(
       requiresLocation: widget.requiresLocation,
-    )..initialize();
+    );
+    _vm.addListener(_handleViewModelChanged);
+    unawaited(_vm.initialize());
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _vm.removeListener(_handleViewModelChanged);
     _vm.dispose();
     super.dispose();
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed &&
-        _vm.shouldShowCameraSettings &&
-        !_vm.isInitialized) {
-      _vm.initialize();
+    if (state == AppLifecycleState.resumed && _waitingForCameraSettingsReturn) {
+      _waitingForCameraSettingsReturn = false;
+      unawaited(_vm.refreshCameraPermissionAfterSettings());
     }
+  }
+
+  void _handleViewModelChanged() {
+    _showLocationServicesDisabledDialogIfNeeded();
+    _showLocationPermissionSettingsPromptIfNeeded();
   }
 
   @override
@@ -55,9 +66,6 @@ class _CameraCaptureViewState extends State<CameraCaptureView>
     return ListenableBuilder(
       listenable: _vm,
       builder: (context, _) {
-        _showLocationServicesDisabledDialogIfNeeded();
-        _showLocationPermissionSettingsPromptIfNeeded();
-
         if (_vm.capturedImagePath != null) {
           return ImagePreviewView(viewModel: _vm);
         }
@@ -129,6 +137,31 @@ class _CameraCaptureViewState extends State<CameraCaptureView>
         onOpenSettings: _vm.openLocationSettings,
       );
       _isShowingLocationPermissionSettingsPrompt = false;
+    });
+  }
+
+  Future<void> _openCameraSettings() async {
+    if (_isOpeningCameraSettings) return;
+
+    setState(() {
+      _isOpeningCameraSettings = true;
+      _waitingForCameraSettingsReturn = true;
+    });
+
+    var opened = false;
+    try {
+      opened = await _vm.openCameraSettings();
+    } catch (e) {
+      debugPrint('Failed to open camera settings: $e');
+    }
+
+    if (!mounted) return;
+
+    setState(() {
+      _isOpeningCameraSettings = false;
+      if (!opened) {
+        _waitingForCameraSettingsReturn = false;
+      }
     });
   }
 
@@ -220,7 +253,8 @@ class _CameraCaptureViewState extends State<CameraCaptureView>
               ),
               const SizedBox(height: 24),
               ElevatedButton.icon(
-                onPressed: _vm.openCameraSettings,
+                onPressed:
+                    _isOpeningCameraSettings ? null : _openCameraSettings,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.primary,
                   foregroundColor: Colors.white,
