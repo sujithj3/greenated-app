@@ -45,7 +45,7 @@ android {
 
     defaultConfig {
         applicationId = "com.greenated.app"
-        minSdk = 28
+        minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
