@@ -72,7 +72,7 @@ class _SubcategoryViewState extends State<SubcategoryView> {
 
   String _titleForCategory(CategoryModel? category) {
     final headerTitle = _firstHeaderTitle(category);
-    return headerTitle == null ? 'Select Subcategory' : 'Select-$headerTitle';
+    return headerTitle ?? 'Select Subcategory';
   }
 
   String? _firstHeaderTitle(CategoryModel? category) {
