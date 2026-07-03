@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import '../../config/env_config.dart';
 import '../../services/auth_service.dart';
 import '../../utils/app_colors.dart';
 
@@ -58,6 +59,9 @@ class _SplashViewState extends State<SplashView>
       String displayVersion = info.version;
       if (parts.length >= 2) {
         displayVersion = '${parts[0]}.${parts[1]}';
+      }
+      if (EnvConfig.isDevelopment) {
+        displayVersion = '$displayVersion - Development';
       }
       setState(() {
         _appVersion = displayVersion;

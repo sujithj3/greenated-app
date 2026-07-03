@@ -7,11 +7,19 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 class EnvConfig {
   EnvConfig._();
 
-  static String get googleMapsApiKey =>
-      dotenv.env['GOOGLE_MAPS_API_KEY'] ?? '';
+  static const String appEnvironment = String.fromEnvironment(
+    'APP_ENV',
+    defaultValue: 'development',
+  );
+
+  static bool get isDevelopment =>
+      appEnvironment.toLowerCase() == 'development';
+
+  static String get googleMapsApiKey => dotenv.env['GOOGLE_MAPS_API_KEY'] ?? '';
 
   static String get apiBaseUrl =>
-      dotenv.env['API_BASE_URL'] ?? 'http://preprod-marketplace.hrgreenated.com';
+      dotenv.env['API_BASE_URL'] ??
+      'http://preprod-marketplace.hrgreenated.com';
 
   static bool get isDemoMode =>
       (dotenv.env['DEMO_MODE'] ?? 'true').toLowerCase() == 'true';
