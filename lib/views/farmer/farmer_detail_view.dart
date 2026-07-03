@@ -405,6 +405,9 @@ class _ViewOnlyPopupSheetState extends State<_ViewOnlyPopupSheet> {
 
   bool get _usesRepeatableLabels =>
       widget.parentField.isRepeatablePopupForm || widget.showRepeatableLabels;
+  String get _popupTitle => _usesRepeatableLabels
+      ? getRepeatableDisplayLabel(widget.parentField)
+      : widget.parentField.label;
 
   @override
   void initState() {
@@ -478,7 +481,7 @@ class _ViewOnlyPopupSheetState extends State<_ViewOnlyPopupSheet> {
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      widget.parentField.label,
+                      _popupTitle,
                       style: const TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.w700,
@@ -539,7 +542,10 @@ class _ViewOnlyPopupSheetState extends State<_ViewOnlyPopupSheet> {
       accentColor: AppColors.primary,
       onChanged: (_) {},
       isViewMode: true,
-      displayLabel: _usesRepeatableLabels ? getRepeatableDisplayLabel(f) : null,
+      displayLabel: getRepeatableFormContainerDisplayLabel(
+        f,
+        _usesRepeatableLabels,
+      ),
       onPopupFormPressed: f.isFormContainer ? () => _openNestedPopup(df) : null,
       popupFormFilledCount: popupFormFilled,
       popupFormTotalCount: popupFormTotal,

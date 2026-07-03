@@ -261,6 +261,7 @@ class _EditFarmerDetailsViewState extends State<EditFarmerDetailsView> {
           df.clearError();
           if (mounted) setState(() {});
         },
+        onRepeatableSubmitRequested: () => _submitUpdate(popOnSuccess: false),
         onFileDeleted: _markShouldRefreshOnPop,
         onCameraPhotoDeleted: _reloadEditFormAfterDelete,
         viewModel: _vm,
@@ -536,6 +537,12 @@ class _EditFarmerDetailsViewState extends State<EditFarmerDetailsView> {
   }
 
   Future<void> _save() async {
+    await _submitUpdate();
+  }
+
+  Future<bool> _submitUpdate({bool popOnSuccess = true}) async {
+    if (_vm.isSaving) return false;
+
     final isFormValid = _formKey.currentState?.validate() ?? true;
 
     final textValues = Map.fromEntries(
@@ -555,14 +562,14 @@ class _EditFarmerDetailsViewState extends State<EditFarmerDetailsView> {
           'Please fill the required field: ${validationResult.firstInvalidLabel}',
         );
       }
-      return;
+      return false;
     }
 
     if (!isFormValid) {
       if (mounted) {
         context.showSnack('Please fix the errors in the form.');
       }
-      return;
+      return false;
     }
 
     try {
@@ -573,10 +580,16 @@ class _EditFarmerDetailsViewState extends State<EditFarmerDetailsView> {
       );
       if (success && mounted) {
         context.showSnack('Farmer details updated!', success: true);
-        Navigator.pop(context, true);
+        if (popOnSuccess) {
+          Navigator.pop(context, true);
+        } else {
+          _markShouldRefreshOnPop();
+        }
       }
+      return success;
     } catch (e) {
       if (mounted) context.showSnack('Error: ${e.toString()}');
+      return false;
     }
   }
 
@@ -597,6 +610,7 @@ class EditPopupFormSheet extends StatefulWidget {
   final void Function(List<DynamicFieldModel> updated) onSaved;
   final VoidCallback? onFileDeleted;
   final Future<void> Function()? onCameraPhotoDeleted;
+  final Future<bool> Function()? onRepeatableSubmitRequested;
   final DynamicFieldFormViewModel viewModel;
   final bool isEditMode;
   final bool showRepeatableLabels;
@@ -608,6 +622,7 @@ class EditPopupFormSheet extends StatefulWidget {
     required this.onSaved,
     this.onFileDeleted,
     this.onCameraPhotoDeleted,
+    this.onRepeatableSubmitRequested,
     required this.viewModel,
     this.isEditMode = true,
     this.showRepeatableLabels = false,
@@ -624,10 +639,16 @@ class _EditPopupFormSheetState extends State<EditPopupFormSheet> {
   final Set<int> _selectedRepeatableIndexes = {};
   late List<DynamicFieldModel> _fields;
   bool _selectionMode = false;
+  bool _isAutoSubmittingRepeatable = false;
 
   bool get _isRepeatablePopup => widget.parentField.isRepeatablePopupForm;
   bool get _usesRepeatableLabels =>
       _isRepeatablePopup || widget.showRepeatableLabels;
+  bool get _disableRepeatableActions =>
+      _isRepeatablePopup && (_selectionMode || _isAutoSubmittingRepeatable);
+  String get _popupTitle => _usesRepeatableLabels
+      ? getRepeatableDisplayLabel(widget.parentField)
+      : widget.parentField.label;
 
   @override
   void initState() {
@@ -773,7 +794,22 @@ class _EditPopupFormSheetState extends State<EditPopupFormSheet> {
     );
   }
 
-  void _deleteSelectedRepeatableItems() {
+  Future<bool> _submitRepeatableChanges() async {
+    if (!_isRepeatablePopup || !widget.isEditMode) return true;
+    final submit = widget.onRepeatableSubmitRequested;
+    if (submit == null) return true;
+
+    setState(() => _isAutoSubmittingRepeatable = true);
+    final success = await submit();
+    if (mounted) {
+      setState(() => _isAutoSubmittingRepeatable = false);
+    }
+    return success;
+  }
+
+  Future<void> _deleteSelectedRepeatableItems() async {
+    if (_isAutoSubmittingRepeatable) return;
+
     if (_selectedRepeatableIndexes.isEmpty) {
       _showLocalSnack('Select at least one item to delete.');
       return;
@@ -794,9 +830,17 @@ class _EditPopupFormSheetState extends State<EditPopupFormSheet> {
       _selectionMode = false;
       _selectedRepeatableIndexes.clear();
     });
+
+    if (_isRepeatablePopup && widget.isEditMode) {
+      widget.onSaved(_fields);
+      final success = await _submitRepeatableChanges();
+      if (success && mounted) Navigator.pop(context);
+    }
   }
 
-  void _save() {
+  Future<void> _save() async {
+    if (_isAutoSubmittingRepeatable) return;
+
     final isFormValid = _popupFormKey.currentState?.validate() ?? true;
 
     // Sync text controller values into field models before validation
@@ -837,6 +881,12 @@ class _EditPopupFormSheetState extends State<EditPopupFormSheet> {
     }
 
     widget.onSaved(_fields);
+    if (_isRepeatablePopup && widget.isEditMode) {
+      final success = await _submitRepeatableChanges();
+      if (success && mounted) Navigator.pop(context);
+      return;
+    }
+
     Navigator.pop(context);
   }
 
@@ -852,100 +902,141 @@ class _EditPopupFormSheetState extends State<EditPopupFormSheet> {
           borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
           child: Scaffold(
             backgroundColor: Colors.white,
-            body: Column(
+            body: Stack(
               children: [
-                Container(
-                  margin: const EdgeInsets.only(top: 12),
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: AppColors.divider,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 16, 8, 8),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.edit_outlined,
-                          color: AppColors.primary, size: 20),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          widget.parentField.label,
-                          style: const TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.w700,
-                              color: AppColors.primary),
-                        ),
+                Column(
+                  children: [
+                    Container(
+                      margin: const EdgeInsets.only(top: 12),
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: AppColors.divider,
+                        borderRadius: BorderRadius.circular(2),
                       ),
-                      if (_isRepeatablePopup && _selectionMode) ...[
-                        TextButton(
-                          onPressed: _deleteSelectedRepeatableItems,
-                          child: const Text(
-                            'Delete',
-                            style: TextStyle(color: AppColors.error),
-                          ),
-                        ),
-                        TextButton(
-                          onPressed: _cancelSelectionMode,
-                          child: const Text('Cancel'),
-                        ),
-                      ] else if (_isRepeatablePopup)
-                        IconButton(
-                          onPressed: _enterSelectionMode,
-                          icon: const Icon(Icons.delete_outline,
-                              color: AppColors.error),
-                        ),
-                      IconButton(
-                        onPressed: () => Navigator.pop(context),
-                        icon: const Icon(Icons.close,
-                            color: AppColors.textMedium),
-                      ),
-                    ],
-                  ),
-                ),
-                const Divider(height: 1),
-                Expanded(
-                  child: Form(
-                    key: _popupFormKey,
-                    autovalidateMode: _autoValidateMode,
-                    child: SingleChildScrollView(
-                      controller: ctrl,
-                      padding: const EdgeInsets.all(20),
-                      child: Column(
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 16, 8, 8),
+                      child: Row(
                         children: [
-                          ..._fields
-                              .where((df) => _isSubFieldRenderable(df))
-                              .map((df) => Padding(
-                                    padding: const EdgeInsets.only(bottom: 14),
-                                    child: _buildRepeatableShell(df),
-                                  )),
-                          const SizedBox(height: 8),
-                          if (_isRepeatablePopup) ...[
-                            SizedBox(
-                              width: double.infinity,
-                              child: OutlinedButton.icon(
-                                onPressed: _addMoreRepeatableItem,
-                                icon: const Icon(Icons.add),
-                                label: const Text('Add More'),
+                          const Icon(Icons.edit_outlined,
+                              color: AppColors.primary, size: 20),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              _popupTitle,
+                              style: const TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w700,
+                                  color: AppColors.primary),
+                            ),
+                          ),
+                          if (_isRepeatablePopup && _selectionMode) ...[
+                            TextButton(
+                              onPressed: () => _deleteSelectedRepeatableItems(),
+                              child: const Text(
+                                'Delete',
+                                style: TextStyle(color: AppColors.error),
                               ),
                             ),
-                            const SizedBox(height: 8),
-                          ],
-                          SizedBox(
-                            width: double.infinity,
-                            child: ElevatedButton.icon(
-                              onPressed: _save,
-                              icon: const Icon(Icons.check),
-                              label: const Text('Done'),
+                            TextButton(
+                              onPressed: _cancelSelectionMode,
+                              child: const Text('Cancel'),
                             ),
+                          ] else if (_isRepeatablePopup)
+                            IconButton(
+                              onPressed: _enterSelectionMode,
+                              icon: const Icon(Icons.delete_outline,
+                                  color: AppColors.error),
+                            ),
+                          IconButton(
+                            onPressed: () => Navigator.pop(context),
+                            icon: const Icon(Icons.close,
+                                color: AppColors.textMedium),
                           ),
                         ],
                       ),
                     ),
-                  ),
+                    const Divider(height: 1),
+                    Expanded(
+                      child: Form(
+                        key: _popupFormKey,
+                        autovalidateMode: _autoValidateMode,
+                        child: SingleChildScrollView(
+                          controller: ctrl,
+                          padding: const EdgeInsets.all(20),
+                          child: Column(
+                            children: [
+                              ..._fields
+                                  .where((df) => _isSubFieldRenderable(df))
+                                  .map((df) => Padding(
+                                        padding:
+                                            const EdgeInsets.only(bottom: 14),
+                                        child: _buildRepeatableShell(df),
+                                      )),
+                              const SizedBox(height: 8),
+                              if (_isRepeatablePopup) ...[
+                                Padding(
+                                  padding: const EdgeInsets.only(bottom: 2),
+                                  child: Align(
+                                    alignment: Alignment.centerRight,
+                                    child: OutlinedButton.icon(
+                                      onPressed: _disableRepeatableActions
+                                          ? null
+                                          : _addMoreRepeatableItem,
+                                      icon: const Icon(Icons.add),
+                                      label: const Text('Add More'),
+                                      style: OutlinedButton.styleFrom(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 14,
+                                          vertical: 12,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                              ],
+                              SizedBox(
+                                width: double.infinity,
+                                child: ElevatedButton.icon(
+                                  onPressed:
+                                      _disableRepeatableActions ? null : _save,
+                                  icon: const Icon(Icons.check),
+                                  label: const Text('Done'),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
+                if (_isAutoSubmittingRepeatable)
+                  Positioned.fill(
+                    child: AbsorbPointer(
+                      child: Container(
+                        color: Colors.black.withValues(alpha: 0.45),
+                        child: const Center(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              CircularProgressIndicator(color: Colors.white),
+                              SizedBox(height: 12),
+                              Text(
+                                'Updating...',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
               ],
             ),
           ),
@@ -1136,7 +1227,10 @@ class _EditPopupFormSheetState extends State<EditPopupFormSheet> {
       accentColor: AppColors.primary,
       hasError: df.hasError,
       errorMessage: df.errorMessage,
-      displayLabel: _usesRepeatableLabels ? getRepeatableDisplayLabel(f) : null,
+      displayLabel: getRepeatableFormContainerDisplayLabel(
+        f,
+        _usesRepeatableLabels,
+      ),
       onChanged: (val) {
         if (!_textCtrl.containsKey(textKey)) {
           _onSubFieldChanged(df, val);
@@ -1208,6 +1302,10 @@ class _EditPopupFormSheetState extends State<EditPopupFormSheet> {
         onSaved: (result) {
           setState(() => df.value = result);
           df.clearError();
+        },
+        onRepeatableSubmitRequested: () async {
+          widget.onSaved(_fields);
+          return await widget.onRepeatableSubmitRequested?.call() ?? false;
         },
         onFileDeleted: widget.onFileDeleted,
         onCameraPhotoDeleted: widget.onCameraPhotoDeleted,

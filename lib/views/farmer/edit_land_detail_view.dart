@@ -190,6 +190,8 @@ class _EditLandDetailViewState extends State<EditLandDetailView> {
           df.clearError();
           if (mounted) setState(() {});
         },
+        onRepeatableSubmitRequested: () =>
+            _submitLandUpdate(popOnSuccess: false),
         onFileDeleted: _markShouldRefreshOnPop,
         viewModel: _vm,
         isEditMode: true,
@@ -217,6 +219,10 @@ class _EditLandDetailViewState extends State<EditLandDetailView> {
   }
 
   Future<void> _onUpdateLandDetail() async {
+    await _submitLandUpdate();
+  }
+
+  Future<bool> _submitLandUpdate({bool popOnSuccess = true}) async {
     final submissionId = widget.submissionId;
     final subcategoryId = widget.subcategoryId;
     final userId = _vm.currentUserId;
@@ -227,10 +233,10 @@ class _EditLandDetailViewState extends State<EditLandDetailView> {
         userId == null ||
         userId <= 0) {
       context.showSnack('Required details not found. Please try again.');
-      return;
+      return false;
     }
 
-    if (_vm.isSaving) return;
+    if (_vm.isSaving) return false;
 
     final isFormValid = _formKey.currentState?.validate() ?? true;
     final textValues = Map.fromEntries(
@@ -253,19 +259,25 @@ class _EditLandDetailViewState extends State<EditLandDetailView> {
           'Please fill the required field: ${validationResult.firstInvalidLabel}',
         );
       }
-      return;
+      return false;
     }
 
     if (!isFormValid) {
       if (mounted) context.showSnack('Please fix the errors in the form.');
-      return;
+      return false;
     }
 
     try {
       final success = await _vm.submitLandEdit(textValues: textValues);
       if (success && mounted) {
-        Navigator.pop(context, true);
+        if (popOnSuccess) {
+          Navigator.pop(context, true);
+        } else {
+          _markShouldRefreshOnPop();
+          context.showSnack('Land detail updated!', success: true);
+        }
       }
+      return success;
     } catch (e) {
       if (mounted) {
         final message = _cleanErrorMessage(e);
@@ -273,6 +285,7 @@ class _EditLandDetailViewState extends State<EditLandDetailView> {
           message.isEmpty ? 'Something went wrong. Please try again.' : message,
         );
       }
+      return false;
     }
   }
 

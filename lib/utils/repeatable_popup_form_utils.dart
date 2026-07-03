@@ -7,6 +7,11 @@ String getRepeatableDisplayLabel(ApiField field) {
   return '$label $index';
 }
 
+String? getRepeatableFormContainerDisplayLabel(ApiField field, bool enabled) {
+  if (!enabled || !field.isFormContainer) return null;
+  return getRepeatableDisplayLabel(field);
+}
+
 bool isDeletedRepeatableField(DynamicFieldModel field) =>
     field.field.isDeleted == true;
 

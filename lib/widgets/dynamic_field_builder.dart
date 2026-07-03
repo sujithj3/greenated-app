@@ -102,9 +102,11 @@ class DynamicFieldBuilder extends StatelessWidget {
       (field.placeHolder != null && field.placeHolder!.isNotEmpty)
           ? field.placeHolder!
           : _label;
-  String get _keyToken => displayLabel == null
-      ? field.key
-      : '${field.key}_${field.index ?? _label}';
+  String get _keyToken {
+    final index = field.index;
+    if (index == null) return field.key;
+    return '${field.key}_${index}_${field.fieldId}';
+  }
 
   @override
   Widget build(BuildContext context) {

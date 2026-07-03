@@ -745,6 +745,10 @@ class _PopupFormSheetState extends State<_PopupFormSheet> {
   bool get _isRepeatablePopup => widget.parentField.isRepeatablePopupForm;
   bool get _usesRepeatableLabels =>
       _isRepeatablePopup || widget.showRepeatableLabels;
+  bool get _disableRepeatableActions => _isRepeatablePopup && _selectionMode;
+  String get _popupTitle => _usesRepeatableLabels
+      ? getRepeatableDisplayLabel(widget.parentField)
+      : widget.parentField.label;
 
   @override
   void initState() {
@@ -979,7 +983,7 @@ class _PopupFormSheetState extends State<_PopupFormSheet> {
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
-                          widget.parentField.label,
+                          _popupTitle,
                           style: TextStyle(
                               fontSize: 18,
                               fontWeight: FontWeight.w700,
@@ -1030,15 +1034,32 @@ class _PopupFormSheetState extends State<_PopupFormSheet> {
                                   )),
                           const SizedBox(height: 8),
                           if (_isRepeatablePopup) ...[
-                            SizedBox(
-                              width: double.infinity,
-                              child: OutlinedButton.icon(
-                                onPressed: _addMoreRepeatableItem,
-                                icon: const Icon(Icons.add),
-                                label: const Text('Add More'),
-                                style: OutlinedButton.styleFrom(
-                                  foregroundColor: color,
-                                  side: BorderSide(color: color),
+                            Padding(
+                              padding: const EdgeInsets.only(bottom: 2),
+                              child: Align(
+                                alignment: Alignment.centerRight,
+                                child: OutlinedButton.icon(
+                                  onPressed: _disableRepeatableActions
+                                      ? null
+                                      : _addMoreRepeatableItem,
+                                  icon: const Icon(Icons.add),
+                                  label: const Text('Add More'),
+                                  style: OutlinedButton.styleFrom(
+                                    foregroundColor: _disableRepeatableActions
+                                        ? AppColors.textMedium
+                                        : color,
+                                    disabledForegroundColor:
+                                        AppColors.textMedium,
+                                    side: BorderSide(
+                                      color: _disableRepeatableActions
+                                          ? AppColors.light
+                                          : color,
+                                    ),
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 14,
+                                      vertical: 12,
+                                    ),
+                                  ),
                                 ),
                               ),
                             ),
@@ -1047,11 +1068,15 @@ class _PopupFormSheetState extends State<_PopupFormSheet> {
                           SizedBox(
                             width: double.infinity,
                             child: ElevatedButton.icon(
-                              onPressed: _save,
+                              onPressed:
+                                  _disableRepeatableActions ? null : _save,
                               icon: const Icon(Icons.check),
                               label: const Text('Done'),
                               style: ElevatedButton.styleFrom(
-                                  backgroundColor: color),
+                                backgroundColor: color,
+                                disabledBackgroundColor: AppColors.light,
+                                disabledForegroundColor: AppColors.textMedium,
+                              ),
                             ),
                           ),
                         ],
@@ -1238,7 +1263,10 @@ class _PopupFormSheetState extends State<_PopupFormSheet> {
       accentColor: color,
       hasError: df.hasError,
       errorMessage: df.errorMessage,
-      displayLabel: _usesRepeatableLabels ? getRepeatableDisplayLabel(f) : null,
+      displayLabel: getRepeatableFormContainerDisplayLabel(
+        f,
+        _usesRepeatableLabels,
+      ),
       onChanged: (val) {
         if (!_textCtrl.containsKey(textKey)) {
           _onSubFieldChanged(df, val);
