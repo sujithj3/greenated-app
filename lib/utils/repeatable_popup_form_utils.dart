@@ -25,7 +25,7 @@ int nextRepeatableIndex(Iterable<DynamicFieldModel> fields) {
   final indexes = visibleRepeatableFields(fields)
       .map((field) => field.field.index)
       .whereType<int>();
-  var maxIndex = -1;
+  var maxIndex = 0;
   for (final index in indexes) {
     if (index > maxIndex) maxIndex = index;
   }
