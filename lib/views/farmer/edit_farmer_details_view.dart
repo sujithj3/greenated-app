@@ -11,6 +11,7 @@ import '../../services/registration_form_service.dart';
 import '../../utils/app_colors.dart';
 import '../../utils/file_upload_helper.dart';
 import '../../utils/form_validator.dart';
+import '../../utils/repeatable_popup_form_utils.dart';
 import '../../utils/snack_bar_helper.dart';
 import '../../view_models/farmer/add_land_detail_view_model.dart';
 import '../../view_models/farmer/dynamic_field_form_view_model.dart';
@@ -263,6 +264,7 @@ class _EditFarmerDetailsViewState extends State<EditFarmerDetailsView> {
         onFileDeleted: _markShouldRefreshOnPop,
         onCameraPhotoDeleted: _reloadEditFormAfterDelete,
         viewModel: _vm,
+        isEditMode: true,
       ),
     );
   }
@@ -485,7 +487,7 @@ class _EditFarmerDetailsViewState extends State<EditFarmerDetailsView> {
 
     int? popupFormFilled;
     int? popupFormTotal;
-    if (f.isPopupForm) {
+    if (f.isFormContainer) {
       final subFields = df.value as List<DynamicFieldModel>? ?? [];
       popupFormTotal = getTotalCount(subFields);
       popupFormFilled = getFilledCount(subFields);
@@ -504,7 +506,8 @@ class _EditFarmerDetailsViewState extends State<EditFarmerDetailsView> {
       onChanged: (val) {
         _vm.updateFieldValue(f.key, val);
       },
-      onPopupFormPressed: f.isPopupForm ? () => _openEditPopupSheet(df) : null,
+      onPopupFormPressed:
+          f.isFormContainer ? () => _openEditPopupSheet(df) : null,
       popupFormFilledCount: popupFormFilled,
       popupFormTotalCount: popupFormTotal,
       // Camera field wiring
@@ -595,6 +598,8 @@ class EditPopupFormSheet extends StatefulWidget {
   final VoidCallback? onFileDeleted;
   final Future<void> Function()? onCameraPhotoDeleted;
   final DynamicFieldFormViewModel viewModel;
+  final bool isEditMode;
+  final bool showRepeatableLabels;
 
   const EditPopupFormSheet({
     super.key,
@@ -604,6 +609,8 @@ class EditPopupFormSheet extends StatefulWidget {
     this.onFileDeleted,
     this.onCameraPhotoDeleted,
     required this.viewModel,
+    this.isEditMode = true,
+    this.showRepeatableLabels = false,
   });
 
   @override
@@ -614,7 +621,13 @@ class _EditPopupFormSheetState extends State<EditPopupFormSheet> {
   final _popupFormKey = GlobalKey<FormState>();
   AutovalidateMode _autoValidateMode = AutovalidateMode.disabled;
   final Map<String, TextEditingController> _textCtrl = {};
+  final Set<int> _selectedRepeatableIndexes = {};
   late List<DynamicFieldModel> _fields;
+  bool _selectionMode = false;
+
+  bool get _isRepeatablePopup => widget.parentField.isRepeatablePopupForm;
+  bool get _usesRepeatableLabels =>
+      _isRepeatablePopup || widget.showRepeatableLabels;
 
   @override
   void initState() {
@@ -622,16 +635,7 @@ class _EditPopupFormSheetState extends State<EditPopupFormSheet> {
     _fields = widget.initialFields.map((e) => e.copyWith()).toList();
 
     for (final df in _fields) {
-      final f = df.field;
-      if (f.fieldStyle == FieldStyle.text ||
-          f.fieldStyle == FieldStyle.number ||
-          f.fieldStyle == FieldStyle.date) {
-        var initText = df.value?.toString() ?? '';
-        if (f.fieldStyle == FieldStyle.date && initText.isNotEmpty) {
-          initText = formatDateForDisplay(initText);
-        }
-        _textCtrl[f.key] = TextEditingController(text: initText);
-      }
+      _ensureTextController(df);
     }
   }
 
@@ -644,6 +648,33 @@ class _EditPopupFormSheetState extends State<EditPopupFormSheet> {
   }
 
   bool _isSubFieldVisible(DynamicFieldModel df) => shouldShowField(df, _fields);
+
+  bool _isSubFieldRenderable(DynamicFieldModel df) =>
+      !isDeletedRepeatableField(df) && _isSubFieldVisible(df);
+
+  String _textKeyFor(DynamicFieldModel df) {
+    if (!_usesRepeatableLabels) return df.field.key;
+    final index = df.field.index ?? _fields.indexOf(df);
+    return '${df.field.key}#$index#${df.field.fieldId}';
+  }
+
+  void _ensureTextController(DynamicFieldModel df) {
+    final f = df.field;
+    if (f.fieldStyle != FieldStyle.text &&
+        f.fieldStyle != FieldStyle.number &&
+        f.fieldStyle != FieldStyle.date) {
+      return;
+    }
+
+    var initText = df.value?.toString() ?? '';
+    if (f.fieldStyle == FieldStyle.date && initText.isNotEmpty) {
+      initText = formatDateForDisplay(initText);
+    }
+    _textCtrl.putIfAbsent(
+      _textKeyFor(df),
+      () => TextEditingController(text: initText),
+    );
+  }
 
   void _onSubFieldChanged(DynamicFieldModel df, dynamic val) {
     setState(() {
@@ -659,7 +690,7 @@ class _EditPopupFormSheetState extends State<EditPopupFormSheet> {
         if (!shouldShowField(df, _fields)) {
           df.value = null;
           df.previewUrl = null;
-          _textCtrl[df.field.key]?.clear();
+          _textCtrl[_textKeyFor(df)]?.clear();
           _resetHiddenSubFieldDependents(df.field.key);
         }
       }
@@ -677,18 +708,110 @@ class _EditPopupFormSheetState extends State<EditPopupFormSheet> {
       ));
   }
 
+  void _addMoreRepeatableItem() {
+    final visibleFields = _fields.where(_isSubFieldRenderable).toList();
+    final newIndex = nextRepeatableIndex(_fields);
+
+    DynamicFieldModel? sourceModel;
+    if (visibleFields.isNotEmpty) {
+      sourceModel = visibleFields.last;
+    }
+
+    final DynamicFieldModel newField;
+    if (sourceModel != null) {
+      newField = cloneFieldForRepeatable(sourceModel, newIndex);
+    } else {
+      ApiField? template;
+      for (final field in widget.parentField.subFields) {
+        if (field.isDeleted != true) {
+          template = field;
+          break;
+        }
+      }
+      if (template == null) {
+        _showLocalSnack('No field template available to add more.');
+        return;
+      }
+      newField = emptyDynamicFieldForRepeatableTemplate(template, newIndex);
+    }
+
+    setState(() {
+      _fields.add(newField);
+      _ensureTextController(newField);
+      _selectionMode = false;
+      _selectedRepeatableIndexes.clear();
+    });
+  }
+
+  void _enterSelectionMode() {
+    setState(() {
+      _selectionMode = true;
+      _selectedRepeatableIndexes.clear();
+    });
+  }
+
+  void _cancelSelectionMode() {
+    setState(() {
+      _selectionMode = false;
+      _selectedRepeatableIndexes.clear();
+    });
+  }
+
+  void _toggleRepeatableSelection(int index) {
+    setState(() {
+      if (_selectedRepeatableIndexes.contains(index)) {
+        _selectedRepeatableIndexes.remove(index);
+      } else {
+        _selectedRepeatableIndexes.add(index);
+      }
+    });
+  }
+
+  DynamicFieldModel _markRepeatableDeleted(DynamicFieldModel field) {
+    return field.copyWith(
+      field: field.field.copyWith(isDeleted: true),
+    );
+  }
+
+  void _deleteSelectedRepeatableItems() {
+    if (_selectedRepeatableIndexes.isEmpty) {
+      _showLocalSnack('Select at least one item to delete.');
+      return;
+    }
+
+    final indexes = _selectedRepeatableIndexes.toList()
+      ..sort((a, b) => b.compareTo(a));
+    setState(() {
+      for (final index in indexes) {
+        if (index < 0 || index >= _fields.length) continue;
+        if (widget.isEditMode) {
+          _fields[index] = _markRepeatableDeleted(_fields[index]);
+        } else {
+          final removed = _fields.removeAt(index);
+          _textCtrl.remove(_textKeyFor(removed))?.dispose();
+        }
+      }
+      _selectionMode = false;
+      _selectedRepeatableIndexes.clear();
+    });
+  }
+
   void _save() {
     final isFormValid = _popupFormKey.currentState?.validate() ?? true;
 
     // Sync text controller values into field models before validation
     for (final df in _fields) {
+      if (isDeletedRepeatableField(df)) {
+        continue;
+      }
       if (!_isSubFieldVisible(df)) {
         df.value = null;
         df.previewUrl = null;
         continue;
       }
-      if (_textCtrl.containsKey(df.field.key)) {
-        final text = _textCtrl[df.field.key]!.text.trim();
+      final textKey = _textKeyFor(df);
+      if (_textCtrl.containsKey(textKey)) {
+        final text = _textCtrl[textKey]!.text.trim();
         df.value = text.isNotEmpty ? text : null;
       }
     }
@@ -756,6 +879,24 @@ class _EditPopupFormSheetState extends State<EditPopupFormSheet> {
                               color: AppColors.primary),
                         ),
                       ),
+                      if (_isRepeatablePopup && _selectionMode) ...[
+                        TextButton(
+                          onPressed: _deleteSelectedRepeatableItems,
+                          child: const Text(
+                            'Delete',
+                            style: TextStyle(color: AppColors.error),
+                          ),
+                        ),
+                        TextButton(
+                          onPressed: _cancelSelectionMode,
+                          child: const Text('Cancel'),
+                        ),
+                      ] else if (_isRepeatablePopup)
+                        IconButton(
+                          onPressed: _enterSelectionMode,
+                          icon: const Icon(Icons.delete_outline,
+                              color: AppColors.error),
+                        ),
                       IconButton(
                         onPressed: () => Navigator.pop(context),
                         icon: const Icon(Icons.close,
@@ -775,12 +916,23 @@ class _EditPopupFormSheetState extends State<EditPopupFormSheet> {
                       child: Column(
                         children: [
                           ..._fields
-                              .where((df) => _isSubFieldVisible(df))
+                              .where((df) => _isSubFieldRenderable(df))
                               .map((df) => Padding(
                                     padding: const EdgeInsets.only(bottom: 14),
-                                    child: _buildSubField(df),
+                                    child: _buildRepeatableShell(df),
                                   )),
                           const SizedBox(height: 8),
+                          if (_isRepeatablePopup) ...[
+                            SizedBox(
+                              width: double.infinity,
+                              child: OutlinedButton.icon(
+                                onPressed: _addMoreRepeatableItem,
+                                icon: const Icon(Icons.add),
+                                label: const Text('Add More'),
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                          ],
                           SizedBox(
                             width: double.infinity,
                             child: ElevatedButton.icon(
@@ -923,12 +1075,50 @@ class _EditPopupFormSheetState extends State<EditPopupFormSheet> {
     });
   }
 
+  Widget _buildRepeatableShell(DynamicFieldModel df) {
+    if (!_isRepeatablePopup) return _buildSubField(df);
+
+    final index = _fields.indexOf(df);
+    final selected = _selectedRepeatableIndexes.contains(index);
+    return InkWell(
+      onTap: _selectionMode ? () => _toggleRepeatableSelection(index) : null,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: selected
+              ? AppColors.primary.withValues(alpha: 0.08)
+              : AppColors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: selected ? AppColors.primary : AppColors.light,
+            width: selected ? 1.5 : 1,
+          ),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (_selectionMode) ...[
+              Icon(
+                selected ? Icons.check_circle : Icons.radio_button_unchecked,
+                color: selected ? AppColors.primary : AppColors.textMedium,
+              ),
+              const SizedBox(width: 10),
+            ],
+            Expanded(child: _buildSubField(df)),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildSubField(DynamicFieldModel df) {
     final f = df.field;
 
     int? popupFormFilled;
     int? popupFormTotal;
-    if (f.isPopupForm) {
+    if (f.isFormContainer) {
       final subFields = df.value as List<DynamicFieldModel>? ?? [];
       popupFormTotal = getTotalCount(subFields);
       popupFormFilled = getFilledCount(subFields);
@@ -936,23 +1126,27 @@ class _EditPopupFormSheetState extends State<EditPopupFormSheet> {
 
     final isCameraField = f.fieldStyle == FieldStyle.camera;
     final isFileField = f.fieldStyle == FieldStyle.file;
+    final textKey = _textKeyFor(df);
 
     return DynamicFieldBuilder(
       field: f,
-      value: _textCtrl.containsKey(f.key) ? _textCtrl[f.key]!.text : df.value,
-      textController: _textCtrl[f.key],
+      value:
+          _textCtrl.containsKey(textKey) ? _textCtrl[textKey]!.text : df.value,
+      textController: _textCtrl[textKey],
       accentColor: AppColors.primary,
       hasError: df.hasError,
       errorMessage: df.errorMessage,
+      displayLabel: _usesRepeatableLabels ? getRepeatableDisplayLabel(f) : null,
       onChanged: (val) {
-        if (!_textCtrl.containsKey(f.key)) {
+        if (!_textCtrl.containsKey(textKey)) {
           _onSubFieldChanged(df, val);
         } else {
           setState(
               () {}); // text controller manages value; rebuild for visibility
         }
       },
-      onPopupFormPressed: f.isPopupForm ? () => _openNestedPopupForm(df) : null,
+      onPopupFormPressed:
+          f.isFormContainer ? () => _openNestedPopupForm(df) : null,
       popupFormFilledCount: popupFormFilled,
       popupFormTotalCount: popupFormTotal,
       onMapPolygonPressed: f.fieldStyle == FieldStyle.mapPolygon
@@ -1018,6 +1212,8 @@ class _EditPopupFormSheetState extends State<EditPopupFormSheet> {
         onFileDeleted: widget.onFileDeleted,
         onCameraPhotoDeleted: widget.onCameraPhotoDeleted,
         viewModel: widget.viewModel,
+        isEditMode: widget.isEditMode,
+        showRepeatableLabels: _usesRepeatableLabels,
       ),
     );
   }

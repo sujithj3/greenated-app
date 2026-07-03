@@ -34,6 +34,7 @@ class DynamicFieldBuilder extends StatelessWidget {
     this.previewUrl,
     this.hasError = false,
     this.errorMessage,
+    this.displayLabel,
   });
 
   final ApiField field;
@@ -91,7 +92,19 @@ class DynamicFieldBuilder extends StatelessWidget {
   /// Error message to display below the field (used for POPUP_FORM fields).
   final String? errorMessage;
 
+  /// Optional UI-only label override. The underlying API label is unchanged.
+  final String? displayLabel;
+
   Color get _accent => accentColor ?? AppColors.primary;
+  String get _label => displayLabel ?? field.label;
+  String get _requiredLabel => field.required ? '$_label *' : _label;
+  String get _effectivePlaceHolder =>
+      (field.placeHolder != null && field.placeHolder!.isNotEmpty)
+          ? field.placeHolder!
+          : _label;
+  String get _keyToken => displayLabel == null
+      ? field.key
+      : '${field.key}_${field.index ?? _label}';
 
   @override
   Widget build(BuildContext context) {
@@ -113,6 +126,7 @@ class DynamicFieldBuilder extends StatelessWidget {
       case FieldStyle.file:
         return _buildFileField(context);
       case FieldStyle.popupForm:
+      case FieldStyle.repeatablePopupForm:
         return _buildPopupFormField();
       case FieldStyle.mapPolygon:
         return _buildMapPolygonField(context);
@@ -129,13 +143,13 @@ class DynamicFieldBuilder extends StatelessWidget {
         field.fieldType == FieldType.decimal;
     final isPhone = field.key.contains('phone') ||
         field.key.contains('mobile') ||
-        field.label.toLowerCase().contains('phone') ||
-        field.label.toLowerCase().contains('mobile');
+        _label.toLowerCase().contains('phone') ||
+        _label.toLowerCase().contains('mobile');
 
     if (isViewMode) {
       return InputDecorator(
         decoration: InputDecoration(
-          labelText: field.label,
+          labelText: _label,
           floatingLabelBehavior: FloatingLabelBehavior.always,
           prefixIcon: Icon(
             isNumber
@@ -160,8 +174,8 @@ class DynamicFieldBuilder extends StatelessWidget {
     return TextFormField(
       controller: controller,
       decoration: InputDecoration(
-        labelText: field.required ? '${field.label} *' : field.label,
-        hintText: field.effectiveplaceHolder,
+        labelText: _requiredLabel,
+        hintText: _effectivePlaceHolder,
         floatingLabelBehavior: FloatingLabelBehavior.always,
         prefixIcon: Icon(
           isNumber
@@ -200,7 +214,7 @@ class DynamicFieldBuilder extends StatelessWidget {
       validator: (v) {
         final sanitized = (v ?? '').trim();
         if (field.required && sanitized.isEmpty) {
-          return '${field.label} is required';
+          return '$_label is required';
         }
         if (sanitized.isNotEmpty &&
             isNumber &&
@@ -229,7 +243,7 @@ class DynamicFieldBuilder extends StatelessWidget {
           matched.name.isNotEmpty ? matched.name : (selectedStr ?? '-');
       return InputDecorator(
         decoration: InputDecoration(
-          labelText: field.label,
+          labelText: _label,
           prefixIcon:
               Icon(Icons.arrow_drop_down_circle_outlined, color: _accent),
         ),
@@ -243,7 +257,7 @@ class DynamicFieldBuilder extends StatelessWidget {
     if (isLoadingOptions) {
       return InputDecorator(
         decoration: InputDecoration(
-          labelText: field.required ? '${field.label} *' : field.label,
+          labelText: _requiredLabel,
           prefixIcon:
               Icon(Icons.arrow_drop_down_circle_outlined, color: _accent),
         ),
@@ -265,7 +279,7 @@ class DynamicFieldBuilder extends StatelessWidget {
     if (optionsError != null) {
       return InputDecorator(
         decoration: InputDecoration(
-          labelText: field.required ? '${field.label} *' : field.label,
+          labelText: _requiredLabel,
           prefixIcon:
               Icon(Icons.arrow_drop_down_circle_outlined, color: _accent),
           errorText: optionsError,
@@ -294,15 +308,15 @@ class DynamicFieldBuilder extends StatelessWidget {
       hintText =
           'Select ${parentKey[0].toUpperCase()}${parentKey.substring(1)} first';
     } else {
-      hintText = 'Select ${field.label.isNotEmpty ? field.label : 'an option'}';
+      hintText = 'Select ${_label.isNotEmpty ? _label : 'an option'}';
     }
 
     return DropdownButtonFormField<String>(
-      key: ValueKey('dropdown_${field.key}'),
+      key: ValueKey('dropdown_$_keyToken'),
       initialValue: selected,
       isExpanded: true,
       decoration: InputDecoration(
-        labelText: field.required ? '${field.label} *' : field.label,
+        labelText: _requiredLabel,
         prefixIcon: Icon(Icons.arrow_drop_down_circle_outlined, color: _accent),
       ),
       hint: Text(hintText, overflow: TextOverflow.ellipsis),
@@ -332,7 +346,7 @@ class DynamicFieldBuilder extends StatelessWidget {
       onChanged: isDependentWithNoOptions ? null : (v) => onChanged(v),
       validator: (v) {
         if (field.required && (v == null || v.isEmpty)) {
-          return '${field.label} is required';
+          return '$_label is required';
         }
         return null;
       },
@@ -345,14 +359,14 @@ class DynamicFieldBuilder extends StatelessWidget {
     final checked = value is bool ? value as bool : false;
 
     return FormField<bool>(
-      key: ValueKey('checkbox_${field.key}'),
+      key: ValueKey('checkbox_$_keyToken'),
       initialValue: checked,
       validator: isViewMode
           ? null
           : (v) {
               final val = value is bool ? value as bool : false;
               if (field.required && val != true) {
-                return '${field.label} is required';
+                return '$_label is required';
               }
               return null;
             },
@@ -374,7 +388,7 @@ class DynamicFieldBuilder extends StatelessWidget {
                 controlAffinity: ListTileControlAffinity.leading,
                 activeColor: _accent,
                 title: Text(
-                  field.label,
+                  _label,
                   style: TextStyle(
                     color: isViewMode ? AppColors.textDark : null,
                     fontWeight: isViewMode ? FontWeight.w500 : null,
@@ -417,14 +431,14 @@ class DynamicFieldBuilder extends StatelessWidget {
         options.any((o) => o.id.toString() == selectedStr) ? selectedStr : null;
 
     return FormField<String>(
-      key: ValueKey('radio_${field.key}'),
+      key: ValueKey('radio_$_keyToken'),
       initialValue: selected,
       validator: isViewMode
           ? null
           : (v) {
               final sel = value?.toString();
               if (field.required && (sel == null || sel.isEmpty)) {
-                return '${field.label} is required';
+                return '$_label is required';
               }
               return null;
             },
@@ -446,9 +460,7 @@ class DynamicFieldBuilder extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    isViewMode
-                        ? field.label
-                        : (field.required ? '${field.label} *' : field.label),
+                    isViewMode ? _label : _requiredLabel,
                     style: const TextStyle(
                       color: AppColors.textMedium,
                       fontWeight: FontWeight.w500,
@@ -515,7 +527,7 @@ class DynamicFieldBuilder extends StatelessWidget {
     if (isViewMode) {
       return InputDecorator(
         decoration: InputDecoration(
-          labelText: field.label,
+          labelText: _label,
           floatingLabelBehavior: FloatingLabelBehavior.always,
           prefixIcon: Icon(Icons.calendar_today_outlined, color: _accent),
         ),
@@ -534,8 +546,8 @@ class DynamicFieldBuilder extends StatelessWidget {
       controller: controller,
       readOnly: true,
       decoration: InputDecoration(
-        labelText: field.required ? '${field.label} *' : field.label,
-        hintText: field.effectiveplaceHolder,
+        labelText: _requiredLabel,
+        hintText: _effectivePlaceHolder,
         floatingLabelBehavior: FloatingLabelBehavior.always,
         prefixIcon: Icon(Icons.calendar_today_outlined, color: _accent),
         suffixIcon: controller.text.isNotEmpty
@@ -572,7 +584,7 @@ class DynamicFieldBuilder extends StatelessWidget {
       },
       validator: (v) {
         if (field.required && (v == null || v.trim().isEmpty)) {
-          return '${field.label} is required';
+          return '$_label is required';
         }
         return null;
       },
@@ -603,12 +615,12 @@ class DynamicFieldBuilder extends StatelessWidget {
             : null);
 
     return FormField<dynamic>(
-      key: ValueKey('camera_${field.key}_${imageUrl != null ? 1 : 0}'),
+      key: ValueKey('camera_${_keyToken}_${imageUrl != null ? 1 : 0}'),
       initialValue: value,
       validator: (v) {
         final val = value;
         if (field.required && (val == null || (val is String && val.isEmpty))) {
-          return '${field.label} is required';
+          return '$_label is required';
         }
         return null;
       },
@@ -770,7 +782,7 @@ class DynamicFieldBuilder extends StatelessWidget {
                   children: [
                     Icon(Icons.photo_camera_outlined, color: _accent),
                     const SizedBox(width: 10),
-                    Text(field.label,
+                    Text(_label,
                         style: const TextStyle(color: AppColors.textMedium)),
                     const Spacer(),
                     const Text('No image',
@@ -794,8 +806,8 @@ class DynamicFieldBuilder extends StatelessWidget {
                   isUploading
                       ? 'Uploading...'
                       : field.required
-                          ? '${field.label} *'
-                          : field.label,
+                          ? _requiredLabel
+                          : _label,
                 ),
                 style: OutlinedButton.styleFrom(
                   minimumSize: const Size(double.infinity, 48),
@@ -832,17 +844,17 @@ class DynamicFieldBuilder extends StatelessWidget {
       previewUrl: previewUrl,
     );
     return FormField<List<AppFileItem>>(
-      key: ValueKey('file_${field.key}_${files.length}'),
+      key: ValueKey('file_${_keyToken}_${files.length}'),
       initialValue: files,
       validator: (isViewMode || !field.required)
           ? null
           : (_) {
-              if (files.isEmpty) return '${field.label} is required';
+              if (files.isEmpty) return '$_label is required';
               return null;
             },
       builder: (state) {
         return FileUploadField(
-          field: field,
+          field: displayLabel == null ? field : field.copyWith(label: _label),
           files: files,
           accentColor: _accent,
           isViewMode: isViewMode,
@@ -868,8 +880,8 @@ class DynamicFieldBuilder extends StatelessWidget {
         icon: Icon(Icons.visibility_outlined, color: _accent),
         label: Text(
           filled > 0
-              ? 'View ${field.label}  ($filled / $total filled)'
-              : 'View ${field.label}',
+              ? 'View $_label  ($filled / $total filled)'
+              : 'View $_label',
           style: TextStyle(color: _accent),
         ),
         style: OutlinedButton.styleFrom(
@@ -904,9 +916,7 @@ class DynamicFieldBuilder extends StatelessWidget {
                     : AppColors.textMedium,
           ),
           label: Text(
-            filled > 0
-                ? '${field.label}  ($filled / $total filled)'
-                : field.label,
+            filled > 0 ? '$_label  ($filled / $total filled)' : _label,
             style: TextStyle(
               color: hasError
                   ? AppColors.error
@@ -945,24 +955,22 @@ class DynamicFieldBuilder extends StatelessWidget {
     final int ptsCount = hasData ? asList.length : 0;
 
     return FormField<dynamic>(
-      key: ValueKey('mappolygon_${field.key}_${hasData ? ptsCount : 0}'),
+      key: ValueKey('mappolygon_${_keyToken}_${hasData ? ptsCount : 0}'),
       initialValue: value,
       validator: (isViewMode || !field.required)
           ? null
           : (v) {
               final val = value is List ? value as List : null;
               if (val == null || val.isEmpty) {
-                return '${field.label} is required';
+                return '$_label is required';
               }
               return null;
             },
       builder: (state) {
         final pairLabel = hasData ? 'View Land Map' : 'No polygon data';
         final soloLabel = isViewMode
-            ? (hasData
-                ? 'View ${field.label} ($ptsCount pts)'
-                : 'No polygon data')
-            : (hasData ? '${field.label} ($ptsCount pts)' : field.label);
+            ? (hasData ? 'View $_label ($ptsCount pts)' : 'No polygon data')
+            : (hasData ? '$_label ($ptsCount pts)' : _label);
 
         final viewMapButton = OutlinedButton.icon(
           onPressed: (isViewMode && !hasData) ? null : onMapPolygonPressed,

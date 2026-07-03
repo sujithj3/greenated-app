@@ -351,7 +351,7 @@ class FarmerFormViewModel extends ChangeNotifier {
       final v = df.value;
       if (v == null) continue;
 
-      if (df.field.isPopupForm && v is List<DynamicFieldModel>) {
+      if (df.field.isFormContainer && v is List<DynamicFieldModel>) {
         final asMap = <String, dynamic>{};
         for (final subDf in v) {
           if (subDf.value != null && subDf.value != '') {

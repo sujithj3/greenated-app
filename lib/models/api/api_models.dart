@@ -38,6 +38,7 @@ enum FieldStyle {
   camera,
   file,
   popupForm,
+  repeatablePopupForm,
   mapPolygon,
   unknown;
 
@@ -54,6 +55,7 @@ enum FieldStyle {
       'FILE' => FieldStyle.file,
       'POPUP_FORM' => FieldStyle.popupForm,
       'BUTTON' => FieldStyle.popupForm,
+      'REPEATABLE_POPUP_FORM' => FieldStyle.repeatablePopupForm,
       'MAP_POLYGON' => FieldStyle.mapPolygon,
       _ => FieldStyle.unknown,
     };
@@ -136,6 +138,8 @@ class ApiField {
     this.dependsOn,
     this.dataSource,
     this.showWhen,
+    this.index,
+    this.isDeleted,
   });
 
   final int fieldId;
@@ -150,8 +154,13 @@ class ApiField {
   final String? dependsOn;
   final FieldDataSource? dataSource;
   final List<dynamic>? showWhen;
+  final int? index;
+  final bool? isDeleted;
 
   bool get isPopupForm => fieldStyle == FieldStyle.popupForm;
+  bool get isRepeatablePopupForm =>
+      fieldStyle == FieldStyle.repeatablePopupForm;
+  bool get isFormContainer => isPopupForm || isRepeatablePopupForm;
 
   /// Returns [placeHolder] if non-null and non-empty, otherwise falls back to [label].
   String get effectiveplaceHolder =>
@@ -172,7 +181,8 @@ class ApiField {
     List<ApiOption> options = const [];
     List<ApiField> subFields = const [];
 
-    if (resolvedFieldStyle == FieldStyle.popupForm) {
+    if (resolvedFieldStyle == FieldStyle.popupForm ||
+        resolvedFieldStyle == FieldStyle.repeatablePopupForm) {
       final rawNested = data['fields'] as List<dynamic>? ?? rawOptions;
       subFields = rawNested
           .whereType<Map>()
@@ -201,6 +211,9 @@ class ApiField {
               Map<String, dynamic>.from(data['dataSource'] as Map))
           : null,
       showWhen: _parseShowWhen(data['showWhen']),
+      index: data.containsKey('index') ? _asInt(data['index']) : null,
+      isDeleted:
+          data.containsKey('isDeleted') ? _asBool(data['isDeleted']) : null,
     );
   }
 
@@ -227,11 +240,12 @@ class ApiField {
       FieldStyle.camera => 'CAMERA',
       FieldStyle.file => 'FILE',
       FieldStyle.popupForm => 'POPUP_FORM',
+      FieldStyle.repeatablePopupForm => 'REPEATABLE_POPUP_FORM',
       FieldStyle.mapPolygon => 'MAP_POLYGON',
       FieldStyle.unknown => 'UNKNOWN',
     };
 
-    return <String, dynamic>{
+    final json = <String, dynamic>{
       'fieldId': fieldId,
       'label': label,
       'key': key,
@@ -239,13 +253,53 @@ class ApiField {
       'style': styleValue,
       'required': required,
       if (placeHolder != null) 'placeHolder': placeHolder,
-      'options': isPopupForm
-          ? subFields.map((field) => field.toJson()).toList()
-          : options.map((option) => option.toJson()).toList(),
+      if (isRepeatablePopupForm)
+        'fields': subFields.map((field) => field.toJson()).toList()
+      else
+        'options': isPopupForm
+            ? subFields.map((field) => field.toJson()).toList()
+            : options.map((option) => option.toJson()).toList(),
       if (dependsOn != null) 'dependsOn': dependsOn,
       if (dataSource != null) 'dataSource': dataSource!.toJson(),
       if (showWhen != null) 'showWhen': showWhen,
+      if (index != null) 'index': index,
+      if (isDeleted != null) 'isDeleted': isDeleted,
     };
+    return json;
+  }
+
+  ApiField copyWith({
+    int? fieldId,
+    String? label,
+    String? key,
+    FieldType? fieldType,
+    FieldStyle? fieldStyle,
+    bool? required,
+    String? placeHolder,
+    List<ApiOption>? options,
+    List<ApiField>? subFields,
+    String? dependsOn,
+    FieldDataSource? dataSource,
+    List<dynamic>? showWhen,
+    int? index,
+    bool? isDeleted,
+  }) {
+    return ApiField(
+      fieldId: fieldId ?? this.fieldId,
+      label: label ?? this.label,
+      key: key ?? this.key,
+      fieldType: fieldType ?? this.fieldType,
+      fieldStyle: fieldStyle ?? this.fieldStyle,
+      required: required ?? this.required,
+      placeHolder: placeHolder ?? this.placeHolder,
+      options: options ?? this.options,
+      subFields: subFields ?? this.subFields,
+      dependsOn: dependsOn ?? this.dependsOn,
+      dataSource: dataSource ?? this.dataSource,
+      showWhen: showWhen ?? this.showWhen,
+      index: index ?? this.index,
+      isDeleted: isDeleted ?? this.isDeleted,
+    );
   }
 }
 
@@ -292,7 +346,7 @@ class DynamicFieldModel {
 
   factory DynamicFieldModel.fromApiField(ApiField field) {
     dynamic initialValue;
-    if (field.isPopupForm) {
+    if (field.isFormContainer) {
       initialValue = field.subFields
           .map((subField) => DynamicFieldModel.fromApiField(subField))
           .toList();
@@ -313,7 +367,7 @@ class DynamicFieldModel {
     final apiField = ApiField.fromJson(data);
     dynamic resolvedValue;
 
-    if (apiField.isPopupForm) {
+    if (apiField.isFormContainer) {
       final rawFields = data['fields'] as List<dynamic>? ?? const [];
       resolvedValue = rawFields
           .whereType<Map>()
@@ -343,7 +397,7 @@ class DynamicFieldModel {
 
   Map<String, dynamic> toJson() {
     final json = field.toJson();
-    if (field.isPopupForm) {
+    if (field.isFormContainer) {
       json.remove('options');
       if (value is List<DynamicFieldModel>) {
         json['fields'] = (value as List<DynamicFieldModel>)

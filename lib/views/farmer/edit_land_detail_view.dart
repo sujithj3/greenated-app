@@ -192,6 +192,7 @@ class _EditLandDetailViewState extends State<EditLandDetailView> {
         },
         onFileDeleted: _markShouldRefreshOnPop,
         viewModel: _vm,
+        isEditMode: true,
       ),
     );
   }
@@ -369,7 +370,7 @@ class _EditLandDetailViewState extends State<EditLandDetailView> {
 
     int? popupFormFilled;
     int? popupFormTotal;
-    if (f.isPopupForm) {
+    if (f.isFormContainer) {
       final subFields = df.value as List<DynamicFieldModel>? ?? [];
       popupFormTotal = getTotalCount(subFields);
       popupFormFilled = getFilledCount(subFields);
@@ -388,7 +389,8 @@ class _EditLandDetailViewState extends State<EditLandDetailView> {
       onChanged: (val) {
         _vm.updateFieldValue(f.key, val);
       },
-      onPopupFormPressed: f.isPopupForm ? () => _openEditPopupSheet(df) : null,
+      onPopupFormPressed:
+          f.isFormContainer ? () => _openEditPopupSheet(df) : null,
       popupFormFilledCount: popupFormFilled,
       popupFormTotalCount: popupFormTotal,
       isUploading:

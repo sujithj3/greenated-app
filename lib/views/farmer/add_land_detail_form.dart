@@ -167,6 +167,7 @@ class _AddLandDetailFormState extends State<AddLandDetailForm> {
           if (mounted) setState(() {});
         },
         viewModel: _vm,
+        isEditMode: false,
       ),
     );
   }
@@ -331,7 +332,7 @@ class _AddLandDetailFormState extends State<AddLandDetailForm> {
 
     int? popupFormFilled;
     int? popupFormTotal;
-    if (f.isPopupForm) {
+    if (f.isFormContainer) {
       final subFields = df.value as List<DynamicFieldModel>? ?? [];
       popupFormTotal = getTotalCount(subFields);
       popupFormFilled = getFilledCount(subFields);
@@ -350,7 +351,7 @@ class _AddLandDetailFormState extends State<AddLandDetailForm> {
       onChanged: (val) {
         _vm.updateFieldValue(f.key, val);
       },
-      onPopupFormPressed: f.isPopupForm ? () => _openPopupSheet(df) : null,
+      onPopupFormPressed: f.isFormContainer ? () => _openPopupSheet(df) : null,
       popupFormFilledCount: popupFormFilled,
       popupFormTotalCount: popupFormTotal,
       isUploading:
