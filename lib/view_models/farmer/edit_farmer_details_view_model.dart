@@ -5,9 +5,13 @@ import '../../core/network/api_method.dart';
 import '../../core/network/api_request.dart';
 import '../../models/api/api_models.dart';
 import '../../services/auth_service.dart';
+import '../../services/file_upload_service.dart'
+    show FileUploadService, FileUploadResult;
 import '../../services/image_upload_service.dart'
     show ImageUploadService, ImageUploadResult;
 import '../../services/registration_form_service.dart';
+import '../../services/upload_compression_service.dart'
+    show UploadValidationException;
 import 'dynamic_field_form_view_model.dart';
 
 /// ViewModel for the Edit Farmer Details flow.
@@ -25,23 +29,29 @@ class EditFarmerDetailsViewModel extends DynamicFieldFormViewModel {
     required AuthService authService,
     required ApiClient apiClient,
     required ImageUploadService imageUploadService,
+    required FileUploadService fileUploadService,
   })  : _service = service,
         _authService = authService,
         _apiClient = apiClient,
-        _imageUploadService = imageUploadService;
+        _imageUploadService = imageUploadService,
+        _fileUploadService = fileUploadService;
 
   final RegistrationFormService _service;
   final AuthService _authService;
   final ApiClient _apiClient;
   final ImageUploadService _imageUploadService;
+  final FileUploadService _fileUploadService;
 
   // ── State ────────────────────────────────────────────────────────────────
   bool isLoading = false;
   bool isSaving = false;
   String? error;
+  @override
+  String? lastUploadErrorMessage;
   String formName = '';
   List<DynamicFieldModel> fields = [];
   List<LandDetail> landDetails = [];
+  int? editSubmissionId;
 
   /// Guards dependency handling: stays `false` until the initial load
   /// completes, so prefilled values don't trigger cascading API calls.
@@ -53,6 +63,15 @@ class EditFarmerDetailsViewModel extends DynamicFieldFormViewModel {
   /// Whether a specific camera field is currently uploading.
   @override
   bool isFieldUploading(String key) => _uploadingFields[key] ?? false;
+
+  void _clearUploadError() {
+    lastUploadErrorMessage = null;
+  }
+
+  void _recordUploadError(Object error) {
+    lastUploadErrorMessage =
+        error is UploadValidationException ? error.message : null;
+  }
 
   int? get currentUserId => _authService.userId;
 
@@ -88,10 +107,12 @@ class EditFarmerDetailsViewModel extends DynamicFieldFormViewModel {
       formName = result.formName;
       fields = result.fields;
       landDetails = result.landDetails;
+      editSubmissionId = result.resolvedSubmissionId;
     } catch (e) {
       error = e.toString();
       fields = [];
       landDetails = [];
+      editSubmissionId = null;
     } finally {
       isLoading = false;
       // Enable dependency handling AFTER the initial load finishes.
@@ -138,6 +159,7 @@ class EditFarmerDetailsViewModel extends DynamicFieldFormViewModel {
   /// Returns the [ImageUploadResult] on success, or null on failure.
   Future<ImageUploadResult?> uploadCameraImage(
       String fieldKey, String localFilePath) async {
+    _clearUploadError();
     _uploadingFields[fieldKey] = true;
     notifyListeners();
 
@@ -151,6 +173,7 @@ class EditFarmerDetailsViewModel extends DynamicFieldFormViewModel {
       }
       return result;
     } catch (e) {
+      _recordUploadError(e);
       debugPrint('Image upload failed for field "$fieldKey": $e');
       return null;
     } finally {
@@ -175,17 +198,153 @@ class EditFarmerDetailsViewModel extends DynamicFieldFormViewModel {
   @override
   Future<ImageUploadResult?> uploadImageOnly(
       String fieldKey, String localFilePath) async {
+    _clearUploadError();
     _uploadingFields[fieldKey] = true;
     notifyListeners();
     try {
       return await _imageUploadService.uploadImage(localFilePath);
     } catch (e) {
+      _recordUploadError(e);
       debugPrint('Image upload failed for field "$fieldKey": $e');
       return null;
     } finally {
       _uploadingFields[fieldKey] = false;
       notifyListeners();
     }
+  }
+
+  Future<FileUploadResult?> uploadFilesForField(
+    String fieldKey,
+    List<String> localFilePaths,
+  ) async {
+    _clearUploadError();
+    _uploadingFields[fieldKey] = true;
+    notifyListeners();
+
+    try {
+      final result = await _fileUploadService.uploadFiles(
+        fieldKey: fieldKey,
+        filePaths: localFilePaths,
+      );
+      final idx = fields.indexWhere((df) => df.field.key == fieldKey);
+      if (idx != -1) {
+        fields[idx].appendFileReferences(
+          paths: result.paths,
+          previewUrls: result.previewUrls,
+        );
+        notifyListeners();
+      }
+      return result;
+    } catch (e) {
+      _recordUploadError(e);
+      debugPrint('File upload failed for field "$fieldKey": $e');
+      return null;
+    } finally {
+      _uploadingFields[fieldKey] = false;
+      notifyListeners();
+    }
+  }
+
+  @override
+  Future<FileUploadResult?> uploadFilesOnly(
+    String fieldKey,
+    List<String> localFilePaths,
+  ) async {
+    _clearUploadError();
+    _uploadingFields[fieldKey] = true;
+    notifyListeners();
+    try {
+      return await _fileUploadService.uploadFiles(
+        fieldKey: fieldKey,
+        filePaths: localFilePaths,
+      );
+    } catch (e) {
+      _recordUploadError(e);
+      debugPrint('File upload failed for field "$fieldKey": $e');
+      return null;
+    } finally {
+      _uploadingFields[fieldKey] = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> deleteFileForField(
+    DynamicFieldModel fieldModel,
+    AppFileItem file,
+  ) async {
+    final path = file.remotePath?.trim() ?? '';
+    final fieldKey = fieldModel.field.key;
+    await deleteFileOnly(
+      fieldKey,
+      path,
+      fieldId: fieldModel.field.fieldId,
+    );
+
+    final idx = fields.indexWhere((df) => df.field.key == fieldKey);
+    if (idx == -1) return;
+    if (fields[idx].removeFileReferenceByPath(path)) {
+      notifyListeners();
+    }
+  }
+
+  @override
+  Future<void> deleteFileOnly(
+    String fieldKey,
+    String path, {
+    int? fieldId,
+    int? submissionId,
+  }) async {
+    _clearUploadError();
+    _uploadingFields[fieldKey] = true;
+    notifyListeners();
+
+    try {
+      await _fileUploadService.deleteFileByPath(
+        path,
+        fieldId: fieldId,
+        submissionId:
+            submissionId ?? _submissionIdForFilePath(path) ?? editSubmissionId,
+      );
+    } catch (e) {
+      debugPrint('File delete failed for field "$fieldKey": $e');
+      rethrow;
+    } finally {
+      _uploadingFields[fieldKey] = false;
+      notifyListeners();
+    }
+  }
+
+  int? _submissionIdForFilePath(String path) {
+    final trimmedPath = path.trim();
+    if (trimmedPath.isEmpty) return null;
+
+    for (final land in landDetails) {
+      final submissionId = land.submissionId;
+      if (submissionId == null || submissionId <= 0) continue;
+      if (_fieldsContainFilePath(land.fields, trimmedPath)) {
+        return submissionId;
+      }
+    }
+
+    return null;
+  }
+
+  bool _fieldsContainFilePath(
+    List<DynamicFieldModel> fieldList,
+    String path,
+  ) {
+    for (final df in fieldList) {
+      if (df.fileValueList.any((item) => item.trim() == path)) {
+        return true;
+      }
+
+      final value = df.value;
+      if (value is List<DynamicFieldModel> &&
+          _fieldsContainFilePath(value, path)) {
+        return true;
+      }
+    }
+    return false;
   }
 
   // ── Save (POST edit) ──────────────────────────────────────────────────────

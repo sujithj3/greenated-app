@@ -60,6 +60,32 @@ class MockHttpClient implements ApiClient {
     return ApiResponse<T>.fromJson(json, dataParser: decoder);
   }
 
+  @override
+  Future<ApiResponse<T>> uploadFiles<T>(
+    String path, {
+    required List<String> filePaths,
+    required String fileKey,
+    Map<String, String> fields = const {},
+    T? Function(Object? rawData)? decoder,
+  }) async {
+    await Future<void>.delayed(latency);
+
+    final paths = List<String>.generate(
+      filePaths.length,
+      (index) => 'uploads/mock-file-${index + 1}.jpg',
+    );
+    final json = _success(
+      message: 'Files uploaded successfully.',
+      data: <String, dynamic>{
+        'path': paths,
+        'previewUrl':
+            paths.map((path) => 'https://mock.example.com/$path').toList(),
+      },
+    );
+
+    return ApiResponse<T>.fromJson(json, dataParser: decoder);
+  }
+
   Map<String, dynamic> _route(ApiRequest request) {
     final key = request.routeKey;
 
@@ -71,6 +97,11 @@ class MockHttpClient implements ApiClient {
     if (request.method.value == 'GET' &&
         RegExp(r'^subcategories/\d+/form-detail$').hasMatch(request.path)) {
       return _mockFormDetail(request);
+    }
+    if (request.method.value == 'GET' &&
+        RegExp(r'^subcategories/\d+/registration-list$')
+            .hasMatch(request.path)) {
+      return _mockRegisteredList(request);
     }
     if (request.method.value == 'GET' &&
         RegExp(r'^subcategories/\d+/form-edit$').hasMatch(request.path)) {
@@ -154,6 +185,84 @@ class MockHttpClient implements ApiClient {
       message: 'Farmers fetched successfully.',
       data: <Map<String, dynamic>>[],
     );
+  }
+
+  Map<String, dynamic> _mockRegisteredList(ApiRequest request) {
+    final page = int.tryParse(request.queryParameters['page'] ?? '') ?? 1;
+    final pageSize =
+        int.tryParse(request.queryParameters['pageSize'] ?? '') ?? 10;
+    final query =
+        (request.queryParameters['search'] ?? '').trim().toLowerCase();
+
+    final farmers = _mockRegisteredFarmers().where((farmer) {
+      if (query.isEmpty) return true;
+      final name = (farmer['fullName'] as String).toLowerCase();
+      final code = (farmer['farmerCode'] as String).toLowerCase();
+      final mobile = (farmer['mobileNumber'] as String).toLowerCase();
+      return name.contains(query) ||
+          code.contains(query) ||
+          mobile.contains(query);
+    }).toList();
+
+    final start = (page - 1) * pageSize;
+    final pagedFarmers = start >= farmers.length
+        ? <Map<String, dynamic>>[]
+        : farmers.skip(start).take(pageSize).toList();
+    final totalPages =
+        farmers.isEmpty ? 1 : ((farmers.length + pageSize - 1) ~/ pageSize);
+
+    return _success(
+      message: 'Registered farmers fetched successfully.',
+      data: <String, dynamic>{
+        'registeredFarmers': pagedFarmers,
+        'pagination': <String, dynamic>{
+          'page': page,
+          'pageSize': pageSize,
+          'totalItems': farmers.length,
+          'totalPages': totalPages,
+        },
+      },
+    );
+  }
+
+  List<Map<String, dynamic>> _mockRegisteredFarmers() {
+    const names = <String>[
+      'Ramesh Kumar',
+      'Sita Devi',
+      'Anil Reddy',
+      'Meera Nair',
+      'Joseph Mathew',
+      'Lakshmi Rao',
+      'Arjun Singh',
+      'Divya Menon',
+      'Farooq Ali',
+      'Kavitha Reddy',
+      'Nikhil Das',
+      'Priya Thomas',
+      'Suresh Babu',
+      'Asha George',
+      'Vikram Patel',
+      'Neha Sharma',
+      'Manoj Varma',
+      'Rekha Pillai',
+      'Ajay Krishnan',
+      'Sunita Yadav',
+      'Hari Prasad',
+      'Latha Kumari',
+      'Rahul Nambiar',
+      'Geetha Mohan',
+    ];
+
+    return List<Map<String, dynamic>>.generate(names.length, (index) {
+      final farmerId = index + 1;
+      return <String, dynamic>{
+        'farmerId': farmerId,
+        'farmerCode': 'FRM-${farmerId.toString().padLeft(3, '0')}',
+        'fullName': names[index],
+        'mobileNumber': '98765${(43000 + farmerId).toString()}',
+        'formName': 'Agroforestry Farm',
+      };
+    });
   }
 
   Map<String, dynamic> _mockCreateFarmer(ApiRequest request) {

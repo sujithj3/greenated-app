@@ -13,6 +13,7 @@ import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import '../../utils/app_colors.dart';
+import '../../utils/location_services_dialog.dart';
 import '../../utils/snack_bar_helper.dart';
 import '../../view_models/tools/land_measurement_view_model.dart';
 import '../../widgets/custom_map_pin.dart';
@@ -31,6 +32,10 @@ class _LandMeasurementViewState extends State<LandMeasurementView> {
   MapType _mapType = MapType.hybrid;
 
   late final LandMeasurementViewModel _vm;
+  bool _didAutoLocate = false;
+  bool _hasLocationPermission = false;
+  bool _isLocationServicesDialogVisible = false;
+  bool _isLocationPermissionSettingsPromptVisible = false;
 
   static const CameraPosition _defaultCamera = CameraPosition(
     target: LatLng(20.5937, 78.9629), // India center
@@ -72,6 +77,11 @@ class _LandMeasurementViewState extends State<LandMeasurementView> {
 
   // ─── Location ────────────────────────────────────────────────────────────
 
+  void _setLocationPermissionGranted(bool granted) {
+    if (!mounted || _hasLocationPermission == granted) return;
+    setState(() => _hasLocationPermission = granted);
+  }
+
   Future<void> _goToMyLocation() async {
     if (_vm.isLocating) return;
     _vm.isLocating = true;
@@ -103,7 +113,8 @@ class _LandMeasurementViewState extends State<LandMeasurementView> {
   Future<bool> _ensureLocationAccess() async {
     final serviceEnabled = await Geolocator.isLocationServiceEnabled();
     if (!serviceEnabled) {
-      if (mounted) context.showSnack('Location services are disabled.');
+      _setLocationPermissionGranted(false);
+      if (mounted) unawaited(_showLocationServicesDisabledDialog());
       return false;
     }
 
@@ -111,17 +122,45 @@ class _LandMeasurementViewState extends State<LandMeasurementView> {
     if (permission == LocationPermission.denied) {
       permission = await Geolocator.requestPermission();
       if (permission == LocationPermission.denied) {
-        if (mounted) context.showSnack('Location permission denied.');
+        _setLocationPermissionGranted(false);
+        if (mounted) unawaited(_showLocationPermissionSettingsPrompt());
         return false;
       }
     }
 
     if (permission == LocationPermission.deniedForever) {
-      if (mounted) context.showSnack('Location permission permanently denied.');
+      _setLocationPermissionGranted(false);
+      if (mounted) unawaited(_showLocationPermissionSettingsPrompt());
       return false;
     }
 
+    _setLocationPermissionGranted(true);
     return true;
+  }
+
+  Future<void> _showLocationServicesDisabledDialog() async {
+    if (_isLocationServicesDialogVisible || !mounted) return;
+    _isLocationServicesDialogVisible = true;
+    try {
+      await showLocationServicesDisabledDialog(context);
+    } finally {
+      _isLocationServicesDialogVisible = false;
+    }
+  }
+
+  Future<void> _showLocationPermissionSettingsPrompt() async {
+    if (_isLocationPermissionSettingsPromptVisible || !mounted) return;
+    _isLocationPermissionSettingsPromptVisible = true;
+    try {
+      await showLocationPermissionSettingsPrompt(
+        context,
+        onOpenSettings: () async {
+          await Geolocator.openAppSettings();
+        },
+      );
+    } finally {
+      _isLocationPermissionSettingsPromptVisible = false;
+    }
   }
 
   Future<void> _refreshCurrentLocation({Position? fallbackPosition}) async {
@@ -132,6 +171,10 @@ class _LandMeasurementViewState extends State<LandMeasurementView> {
       );
       _cachedPosition = position;
       _moveCameraToPosition(position, zoom: 18);
+    } on LocationServiceDisabledException {
+      if (fallbackPosition == null && mounted) {
+        unawaited(_showLocationServicesDisabledDialog());
+      }
     } on TimeoutException {
       if (fallbackPosition == null && mounted) {
         context
@@ -236,12 +279,16 @@ class _LandMeasurementViewState extends State<LandMeasurementView> {
                                 ? CameraPosition(target: points.first, zoom: 18)
                                 : _defaultCamera;
                             _vm.updateCamera(initialPos);
+                            if (points.isEmpty && !_didAutoLocate) {
+                              _didAutoLocate = true;
+                              unawaited(_goToMyLocation());
+                            }
                           },
                           initialCameraPosition: points.isNotEmpty
                               ? CameraPosition(target: points.first, zoom: 18)
                               : _defaultCamera,
                           mapType: _mapType,
-                          myLocationEnabled: true,
+                          myLocationEnabled: _hasLocationPermission,
                           myLocationButtonEnabled: false,
                           onTap: _viewOnly ? null : _onTap,
                           onCameraMove: (pos) => _vm.updateCamera(pos),
@@ -371,7 +418,7 @@ class _LandMeasurementViewState extends State<LandMeasurementView> {
           children: [
             Expanded(
               child: Text(
-                'Area ${_vm.areaInHectares.toStringAsFixed(2)} ha',
+                'Area ${_vm.areaInAcres.toStringAsFixed(4)} Acres',
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(

@@ -14,9 +14,11 @@ import 'core/network/interceptor/logging_interceptor.dart';
 import 'repositories/category_repository.dart';
 import 'services/auth_service.dart';
 import 'services/category_api_service.dart';
+import 'services/file_upload_service.dart';
 import 'services/form_config_service.dart';
 import 'services/image_upload_service.dart';
 import 'services/registration_form_service.dart';
+import 'services/upload_compression_service.dart';
 import 'utils/app_colors.dart';
 import 'views/auth/splash_view.dart';
 import 'views/auth/login_view.dart';
@@ -43,11 +45,7 @@ final rootScaffoldMessengerKey = GlobalKey<ScaffoldMessengerState>();
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  const appEnvironment = String.fromEnvironment(
-    'APP_ENV',
-    defaultValue: 'development',
-  );
-  await dotenv.load(fileName: '.env.$appEnvironment');
+  await dotenv.load(fileName: '.env.${EnvConfig.appEnvironment}');
 
   // Pre-initialize AuthService to ensure SharedPreferences is ready
   final authService = AuthService();
@@ -90,9 +88,19 @@ class FarmerRegistrationApp extends StatelessWidget {
             apiClient: context.read<ApiClient>(),
           ),
         ),
+        Provider<UploadCompressionService>(
+          create: (_) => const UploadCompressionService(),
+        ),
         Provider<ImageUploadService>(
           create: (context) => ImageUploadService(
             apiClient: context.read<ApiClient>(),
+            uploadCompressionService: context.read<UploadCompressionService>(),
+          ),
+        ),
+        Provider<FileUploadService>(
+          create: (context) => FileUploadService(
+            apiClient: context.read<ApiClient>(),
+            uploadCompressionService: context.read<UploadCompressionService>(),
           ),
         ),
         ChangeNotifierProvider(
@@ -177,7 +185,12 @@ class FarmerRegistrationApp extends StatelessWidget {
             case '/land-measurement':
               page = const LandMeasurementView();
             case '/camera-capture':
-              page = const CameraCaptureView();
+              final cameraArgs =
+                  settings.arguments as Map<String, dynamic>? ?? {};
+              page = CameraCaptureView(
+                requiresLocation:
+                    cameraArgs['requiresLocation'] as bool? ?? false,
+              );
             case '/registered-farmers':
               final args = settings.arguments as Map<String, dynamic>? ?? {};
               page = RegisteredListView(

@@ -48,6 +48,11 @@ Example/template files:
 
 These files are not used by the app. They only show which variables are required.
 
+## Flutter Clean Logs
+```
+flutter logs | sed -E 's/^I\/flutter \([0-9]+\): //'
+```
+
 ## Development Debug
 
 Use this for normal development with hot reload:
@@ -64,6 +69,11 @@ Use this when staging values are ready:
 flutter run --flavor staging --dart-define=APP_ENV=staging
 ```
 
+## Production Debug
+```bash
+flutter run --flavor production --dart-define=APP_ENV=production
+```
+
 ## Android Debug APKs
 
 Use these to create installable debug APKs for each flavor:
@@ -71,6 +81,10 @@ Use these to create installable debug APKs for each flavor:
 ```bash
 # Development debug APK
 flutter build apk --flavor development --debug --dart-define=APP_ENV=development
+
+flutter build apk --flavor development --release --dart-define=APP_ENV=development
+
+flutter build apk --flavor development --debug --dart-define=APP_ENV=development --split-per-abi
 
 # Staging debug APK
 flutter build apk --flavor staging --debug --dart-define=APP_ENV=staging

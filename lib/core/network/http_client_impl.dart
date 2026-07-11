@@ -277,13 +277,99 @@ class HttpClientImpl implements ApiClient {
         requestHeaders: Map<String, String>.from(request.headers),
         requestBody: const JsonEncoder.withIndent('  ').convert(
           <String, Object>{
-            'fields': fields,
-            'files': <Map<String, Object>>[
-              <String, Object>{
-                'field': fileKey,
-                'path': filePath,
-              },
-            ],
+            ...fields,
+            fileKey: <String>[filePath],
+          },
+        ),
+        response: response,
+      );
+
+      final Map<String, dynamic> json = _decodeResponseBody(response);
+
+      ApiResponse<T> apiResponse = ApiResponse<T>.fromJson(
+        json,
+        dataParser: decoder,
+      );
+
+      for (final ApiInterceptor interceptor in interceptors) {
+        apiResponse = interceptor.onResponse<T>(apiResponse, synthetic);
+      }
+
+      _throwIfError(apiResponse);
+
+      return apiResponse;
+    } on ApiException {
+      rethrow;
+    } on SocketException {
+      _notifyErrorInterceptors(const NetworkException(), synthetic);
+      throw const NetworkException();
+    } on TimeoutException {
+      _notifyErrorInterceptors(const RequestTimeoutException(), synthetic);
+      throw const RequestTimeoutException();
+    } catch (e) {
+      final exception = ApiException('Upload failed: $e');
+      _notifyErrorInterceptors(exception, synthetic);
+      throw exception;
+    }
+  }
+
+  @override
+  Future<ApiResponse<T>> uploadFiles<T>(
+    String path, {
+    required List<String> filePaths,
+    required String fileKey,
+    Map<String, String> fields = const {},
+    T? Function(Object? rawData)? decoder,
+  }) async {
+    ApiRequest synthetic = ApiRequest(
+      method: ApiMethod.post,
+      path: path,
+      body: <String, dynamic>{
+        'fileKey': fileKey,
+        'filePaths': filePaths,
+        if (fields.isNotEmpty) 'fields': fields,
+      },
+    );
+    for (final ApiInterceptor interceptor in interceptors) {
+      synthetic = interceptor.onRequest(synthetic);
+    }
+
+    try {
+      final Uri uri = Uri.parse(
+        '${ApiConfig.versionedBaseUrl}$path',
+      );
+
+      synthetic = synthetic.copyWith(path: uri.toString());
+
+      final request = http.MultipartRequest('POST', uri);
+
+      final Map<String, String> headers = <String, String>{
+        ...ApiConfig.defaultHeaders,
+        ...synthetic.headers,
+      };
+      headers.remove('Content-Type');
+      request.headers.addAll(headers);
+
+      for (final filePath in filePaths) {
+        request.files.add(
+          await http.MultipartFile.fromPath(fileKey, filePath),
+        );
+      }
+
+      request.fields.addAll(fields);
+
+      final streamedResponse =
+          await request.send().timeout(ApiConfig.receiveTimeout);
+      final response = await http.Response.fromStream(streamedResponse);
+
+      _logRawHttpExchange(
+        method: ApiMethod.post,
+        uri: uri,
+        requestHeaders: Map<String, String>.from(request.headers),
+        requestBody: const JsonEncoder.withIndent('  ').convert(
+          <String, Object>{
+            ...fields,
+            fileKey: filePaths,
           },
         ),
         response: response,

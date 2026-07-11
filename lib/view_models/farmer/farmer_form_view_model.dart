@@ -5,16 +5,21 @@ import '../../core/network/api_method.dart';
 import '../../core/network/api_request.dart';
 import '../../models/api/api_models.dart';
 import '../../services/auth_service.dart';
+import '../../services/file_upload_service.dart'
+    show FileUploadService, FileUploadResult;
 import '../../services/form_config_service.dart';
 import '../../services/image_upload_service.dart'
     show ImageUploadService, ImageUploadResult;
 import '../../services/registration_form_service.dart';
+import '../../services/upload_compression_service.dart'
+    show UploadValidationException;
 
 class FarmerFormViewModel extends ChangeNotifier {
   final FormConfigService _formConfigService;
   final RegistrationFormService _registrationService;
   final AuthService _authService;
   final ImageUploadService _imageUploadService;
+  final FileUploadService _fileUploadService;
   final ApiClient _apiClient;
 
   FarmerFormViewModel(
@@ -22,6 +27,7 @@ class FarmerFormViewModel extends ChangeNotifier {
     this._registrationService,
     this._authService,
     this._imageUploadService,
+    this._fileUploadService,
     this._apiClient,
   );
 
@@ -37,6 +43,7 @@ class FarmerFormViewModel extends ChangeNotifier {
   bool isLoadingForm = true;
   bool isSaving = false;
   String? formLoadError;
+  String? lastUploadErrorMessage;
 
   /// Tracks per-field upload state for camera fields (key → isUploading).
   final Map<String, bool> _uploadingFields = {};
@@ -146,6 +153,15 @@ class FarmerFormViewModel extends ChangeNotifier {
   /// Whether a specific camera field is currently uploading.
   bool isFieldUploading(String key) => _uploadingFields[key] ?? false;
 
+  void _clearUploadError() {
+    lastUploadErrorMessage = null;
+  }
+
+  void _recordUploadError(Object error) {
+    lastUploadErrorMessage =
+        error is UploadValidationException ? error.message : null;
+  }
+
   /// Uploads a captured image for a camera-type dynamic field.
   ///
   /// [fieldKey] identifies which dynamic field to store the imagePath in.
@@ -154,6 +170,7 @@ class FarmerFormViewModel extends ChangeNotifier {
   /// Returns the [ImageUploadResult] on success, or null on failure.
   Future<ImageUploadResult?> uploadCameraImage(
       String fieldKey, String localFilePath) async {
+    _clearUploadError();
     _uploadingFields[fieldKey] = true;
     notifyListeners();
 
@@ -168,6 +185,7 @@ class FarmerFormViewModel extends ChangeNotifier {
       }
       return result;
     } catch (e) {
+      _recordUploadError(e);
       debugPrint('Image upload failed for field "$fieldKey": $e');
       return null;
     } finally {
@@ -181,13 +199,111 @@ class FarmerFormViewModel extends ChangeNotifier {
   /// The caller is responsible for applying the result to their own field model.
   Future<ImageUploadResult?> uploadImageOnly(
       String fieldKey, String localFilePath) async {
+    _clearUploadError();
     _uploadingFields[fieldKey] = true;
     notifyListeners();
     try {
       return await _imageUploadService.uploadImage(localFilePath);
     } catch (e) {
+      _recordUploadError(e);
       debugPrint('Image upload failed for field "$fieldKey": $e');
       return null;
+    } finally {
+      _uploadingFields[fieldKey] = false;
+      notifyListeners();
+    }
+  }
+
+  Future<FileUploadResult?> uploadFilesForField(
+    String fieldKey,
+    List<String> localFilePaths,
+  ) async {
+    _clearUploadError();
+    _uploadingFields[fieldKey] = true;
+    notifyListeners();
+
+    try {
+      final result = await _fileUploadService.uploadFiles(
+        fieldKey: fieldKey,
+        filePaths: localFilePaths,
+      );
+      final idx = dynamicFields.indexWhere((df) => df.field.key == fieldKey);
+      if (idx != -1) {
+        dynamicFields[idx].appendFileReferences(
+          paths: result.paths,
+          previewUrls: result.previewUrls,
+        );
+        notifyListeners();
+        _handleDependencyChange(fieldKey);
+      }
+      return result;
+    } catch (e) {
+      _recordUploadError(e);
+      debugPrint('File upload failed for field "$fieldKey": $e');
+      return null;
+    } finally {
+      _uploadingFields[fieldKey] = false;
+      notifyListeners();
+    }
+  }
+
+  Future<FileUploadResult?> uploadFilesOnly(
+    String fieldKey,
+    List<String> localFilePaths,
+  ) async {
+    _clearUploadError();
+    _uploadingFields[fieldKey] = true;
+    notifyListeners();
+    try {
+      return await _fileUploadService.uploadFiles(
+        fieldKey: fieldKey,
+        filePaths: localFilePaths,
+      );
+    } catch (e) {
+      _recordUploadError(e);
+      debugPrint('File upload failed for field "$fieldKey": $e');
+      return null;
+    } finally {
+      _uploadingFields[fieldKey] = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> deleteFileForField(
+    DynamicFieldModel fieldModel,
+    AppFileItem file,
+  ) async {
+    final path = file.remotePath?.trim() ?? '';
+    final fieldKey = fieldModel.field.key;
+    await deleteFileOnly(fieldKey, path);
+
+    final idx = dynamicFields.indexWhere((df) => df.field.key == fieldKey);
+    if (idx == -1) return;
+    if (dynamicFields[idx].removeFileReferenceByPath(path)) {
+      notifyListeners();
+      _handleDependencyChange(fieldKey);
+    }
+  }
+
+  Future<void> deleteFileOnly(
+    String fieldKey,
+    String path, {
+    int? fieldId,
+    int? submissionId,
+  }) async {
+    _clearUploadError();
+    _uploadingFields[fieldKey] = true;
+    notifyListeners();
+
+    try {
+      await _fileUploadService.deleteFileByPath(
+        path,
+        fieldId: fieldId,
+        submissionId: submissionId,
+      );
+    } catch (e) {
+      debugPrint('File delete failed for field "$fieldKey": $e');
+      rethrow;
     } finally {
       _uploadingFields[fieldKey] = false;
       notifyListeners();
@@ -235,7 +351,7 @@ class FarmerFormViewModel extends ChangeNotifier {
       final v = df.value;
       if (v == null) continue;
 
-      if (df.field.isPopupForm && v is List<DynamicFieldModel>) {
+      if (df.field.isFormContainer && v is List<DynamicFieldModel>) {
         final asMap = <String, dynamic>{};
         for (final subDf in v) {
           if (subDf.value != null && subDf.value != '') {

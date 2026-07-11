@@ -56,7 +56,6 @@ class LandMeasurementViewModel extends ChangeNotifier {
 
   List<LatLng> get points => List.unmodifiable(_points);
   double get areaInAcres => _areaInAcres;
-  double get areaInHectares => _areaInAcres * 0.40468564224;
   bool get isLocating => _isLocating;
   bool get canComplete => _points.length >= 3;
   int? get activeIndex => _activeIndex;

@@ -9,8 +9,6 @@ enum FieldType {
   arrayInt,
   arrayDict,
   dict,
-  image,
-  multimedia,
   unknown;
 
   static FieldType fromApiValue(Object? rawValue) {
@@ -24,8 +22,6 @@ enum FieldType {
       'ARRAY-INT' || 'ARRAY_INT' => FieldType.arrayInt,
       'ARRAY-DICT' || 'ARRAY_DICT' => FieldType.arrayDict,
       'DICT' => FieldType.dict,
-      'IMAGE' => FieldType.image,
-      'MULTIMEDIA' => FieldType.multimedia,
       'NUMBER' => FieldType.integer,
       _ => FieldType.unknown,
     };
@@ -41,8 +37,8 @@ enum FieldStyle {
   date,
   camera,
   file,
-  cameraFile,
   popupForm,
+  repeatablePopupForm,
   mapPolygon,
   unknown;
 
@@ -57,9 +53,9 @@ enum FieldStyle {
       'DATE' => FieldStyle.date,
       'CAMERA' => FieldStyle.camera,
       'FILE' => FieldStyle.file,
-      'CAMERA_FILE' => FieldStyle.cameraFile,
       'POPUP_FORM' => FieldStyle.popupForm,
       'BUTTON' => FieldStyle.popupForm,
+      'REPEATABLE_POPUP_FORM' => FieldStyle.repeatablePopupForm,
       'MAP_POLYGON' => FieldStyle.mapPolygon,
       _ => FieldStyle.unknown,
     };
@@ -142,6 +138,8 @@ class ApiField {
     this.dependsOn,
     this.dataSource,
     this.showWhen,
+    this.index,
+    this.isDeleted,
   });
 
   final int fieldId;
@@ -156,8 +154,13 @@ class ApiField {
   final String? dependsOn;
   final FieldDataSource? dataSource;
   final List<dynamic>? showWhen;
+  final int? index;
+  final bool? isDeleted;
 
   bool get isPopupForm => fieldStyle == FieldStyle.popupForm;
+  bool get isRepeatablePopupForm =>
+      fieldStyle == FieldStyle.repeatablePopupForm;
+  bool get isFormContainer => isPopupForm || isRepeatablePopupForm;
 
   /// Returns [placeHolder] if non-null and non-empty, otherwise falls back to [label].
   String get effectiveplaceHolder =>
@@ -178,7 +181,8 @@ class ApiField {
     List<ApiOption> options = const [];
     List<ApiField> subFields = const [];
 
-    if (resolvedFieldStyle == FieldStyle.popupForm) {
+    if (resolvedFieldStyle == FieldStyle.popupForm ||
+        resolvedFieldStyle == FieldStyle.repeatablePopupForm) {
       final rawNested = data['fields'] as List<dynamic>? ?? rawOptions;
       subFields = rawNested
           .whereType<Map>()
@@ -207,6 +211,9 @@ class ApiField {
               Map<String, dynamic>.from(data['dataSource'] as Map))
           : null,
       showWhen: _parseShowWhen(data['showWhen']),
+      index: data.containsKey('index') ? _asInt(data['index']) : null,
+      isDeleted:
+          data.containsKey('isDeleted') ? _asBool(data['isDeleted']) : null,
     );
   }
 
@@ -220,8 +227,6 @@ class ApiField {
       FieldType.arrayInt => 'ARRAY_INT',
       FieldType.arrayDict => 'ARRAY_DICT',
       FieldType.dict => 'DICT',
-      FieldType.image => 'IMAGE',
-      FieldType.multimedia => 'MULTIMEDIA',
       FieldType.unknown => 'UNKNOWN',
     };
 
@@ -234,13 +239,13 @@ class ApiField {
       FieldStyle.date => 'DATE',
       FieldStyle.camera => 'CAMERA',
       FieldStyle.file => 'FILE',
-      FieldStyle.cameraFile => 'CAMERA_FILE',
       FieldStyle.popupForm => 'POPUP_FORM',
+      FieldStyle.repeatablePopupForm => 'REPEATABLE_POPUP_FORM',
       FieldStyle.mapPolygon => 'MAP_POLYGON',
       FieldStyle.unknown => 'UNKNOWN',
     };
 
-    return <String, dynamic>{
+    final json = <String, dynamic>{
       'fieldId': fieldId,
       'label': label,
       'key': key,
@@ -248,13 +253,53 @@ class ApiField {
       'style': styleValue,
       'required': required,
       if (placeHolder != null) 'placeHolder': placeHolder,
-      'options': isPopupForm
-          ? subFields.map((field) => field.toJson()).toList()
-          : options.map((option) => option.toJson()).toList(),
+      if (isRepeatablePopupForm)
+        'fields': subFields.map((field) => field.toJson()).toList()
+      else
+        'options': isPopupForm
+            ? subFields.map((field) => field.toJson()).toList()
+            : options.map((option) => option.toJson()).toList(),
       if (dependsOn != null) 'dependsOn': dependsOn,
       if (dataSource != null) 'dataSource': dataSource!.toJson(),
       if (showWhen != null) 'showWhen': showWhen,
+      if (index != null) 'index': index,
+      if (isDeleted != null) 'isDeleted': isDeleted,
     };
+    return json;
+  }
+
+  ApiField copyWith({
+    int? fieldId,
+    String? label,
+    String? key,
+    FieldType? fieldType,
+    FieldStyle? fieldStyle,
+    bool? required,
+    String? placeHolder,
+    List<ApiOption>? options,
+    List<ApiField>? subFields,
+    String? dependsOn,
+    FieldDataSource? dataSource,
+    List<dynamic>? showWhen,
+    int? index,
+    bool? isDeleted,
+  }) {
+    return ApiField(
+      fieldId: fieldId ?? this.fieldId,
+      label: label ?? this.label,
+      key: key ?? this.key,
+      fieldType: fieldType ?? this.fieldType,
+      fieldStyle: fieldStyle ?? this.fieldStyle,
+      required: required ?? this.required,
+      placeHolder: placeHolder ?? this.placeHolder,
+      options: options ?? this.options,
+      subFields: subFields ?? this.subFields,
+      dependsOn: dependsOn ?? this.dependsOn,
+      dataSource: dataSource ?? this.dataSource,
+      showWhen: showWhen ?? this.showWhen,
+      index: index ?? this.index,
+      isDeleted: isDeleted ?? this.isDeleted,
+    );
   }
 }
 
@@ -271,9 +316,10 @@ class DynamicFieldModel {
   final ApiField field;
   dynamic value;
 
-  /// Presigned S3 URL for displaying camera-field images in the UI.
+  /// Presigned S3 URL(s) for display.
+  /// Camera fields use a single string; FILE fields use a cleaned `List<String>`.
   /// Display-only — never included in form submissions (excluded from toJson).
-  String? previewUrl;
+  dynamic previewUrl;
 
   List<ApiOption> resolvedOptions;
   bool isLoadingOptions;
@@ -300,12 +346,14 @@ class DynamicFieldModel {
 
   factory DynamicFieldModel.fromApiField(ApiField field) {
     dynamic initialValue;
-    if (field.isPopupForm) {
+    if (field.isFormContainer) {
       initialValue = field.subFields
           .map((subField) => DynamicFieldModel.fromApiField(subField))
           .toList();
     } else if (field.fieldStyle == FieldStyle.checkbox) {
       initialValue = false;
+    } else if (field.fieldStyle == FieldStyle.file) {
+      initialValue = <String>[];
     }
     return DynamicFieldModel(
       field: field,
@@ -319,7 +367,7 @@ class DynamicFieldModel {
     final apiField = ApiField.fromJson(data);
     dynamic resolvedValue;
 
-    if (apiField.isPopupForm) {
+    if (apiField.isFormContainer) {
       final rawFields = data['fields'] as List<dynamic>? ?? const [];
       resolvedValue = rawFields
           .whereType<Map>()
@@ -330,7 +378,9 @@ class DynamicFieldModel {
           .toList();
     } else {
       resolvedValue = data['value'];
-      if (resolvedValue is List) {
+      if (apiField.fieldStyle == FieldStyle.file) {
+        resolvedValue = cleanStringList(resolvedValue);
+      } else if (resolvedValue is List) {
         resolvedValue = List<dynamic>.from(resolvedValue);
       }
     }
@@ -338,14 +388,16 @@ class DynamicFieldModel {
     return DynamicFieldModel(
       field: apiField,
       value: resolvedValue,
-      previewUrl: data['previewUrl'] as String?,
+      previewUrl: apiField.fieldStyle == FieldStyle.file
+          ? cleanStringList(data['previewUrl'])
+          : _firstCleanString(data['previewUrl']),
       resolvedOptions: apiField.options,
     );
   }
 
   Map<String, dynamic> toJson() {
     final json = field.toJson();
-    if (field.isPopupForm) {
+    if (field.isFormContainer) {
       json.remove('options');
       if (value is List<DynamicFieldModel>) {
         json['fields'] = (value as List<DynamicFieldModel>)
@@ -355,7 +407,8 @@ class DynamicFieldModel {
         json['fields'] = <Map<String, dynamic>>[];
       }
     } else {
-      json['value'] = value;
+      json['value'] =
+          field.fieldStyle == FieldStyle.file ? fileValueList : value;
     }
     return json;
   }
@@ -363,15 +416,161 @@ class DynamicFieldModel {
   DynamicFieldModel copyWith({
     ApiField? field,
     dynamic value,
-    String? previewUrl,
+    dynamic previewUrl,
   }) {
     return DynamicFieldModel(
       field: field ?? this.field,
-      value: value ?? this.value,
-      previewUrl: previewUrl ?? this.previewUrl,
+      value: value ?? _copyDynamicValue(this.value),
+      previewUrl: previewUrl ?? _copyDynamicValue(this.previewUrl),
       resolvedOptions: resolvedOptions,
     );
   }
+
+  List<String> get fileValueList => cleanStringList(value);
+
+  List<String> get filePreviewUrlList => cleanStringList(previewUrl);
+
+  List<AppFileItem> get fileItems => AppFileItem.fromReferences(
+        value: value,
+        previewUrl: previewUrl,
+      );
+
+  void appendFileReferences({
+    required List<String> paths,
+    required List<String> previewUrls,
+  }) {
+    value = <String>[
+      ...fileValueList,
+      ...cleanStringList(paths),
+    ];
+    previewUrl = <String>[
+      ...filePreviewUrlList,
+      ...cleanStringList(previewUrls),
+    ];
+  }
+
+  bool removeFileReferenceByPath(String path) {
+    final trimmedPath = path.trim();
+    if (trimmedPath.isEmpty) return false;
+
+    final paths = fileValueList;
+    final previews = filePreviewUrlList;
+    final index = paths.indexWhere((item) => item.trim() == trimmedPath);
+    if (index == -1) return false;
+
+    paths.removeAt(index);
+    if (index < previews.length) {
+      previews.removeAt(index);
+    }
+    value = paths;
+    previewUrl = previews;
+    return true;
+  }
+}
+
+class AppFileItem {
+  const AppFileItem({
+    this.id,
+    this.name,
+    this.url,
+    this.localPath,
+    this.remotePath,
+    this.mimeType,
+    this.extension,
+    required this.isRemote,
+  });
+
+  final String? id;
+  final String? name;
+  final String? url;
+  final String? localPath;
+  final String? remotePath;
+  final String? mimeType;
+  final String? extension;
+  final bool isRemote;
+
+  factory AppFileItem.remote({
+    String? path,
+    String? previewUrl,
+  }) {
+    final source = _firstNonEmptyString(<String?>[path, previewUrl]);
+    return AppFileItem(
+      id: path ?? previewUrl,
+      name: _fileNameFrom(source),
+      url: previewUrl?.trim().isNotEmpty == true
+          ? previewUrl!.trim()
+          : (path != null && _isHttpUrl(path) ? path.trim() : null),
+      remotePath: path?.trim().isNotEmpty == true ? path!.trim() : null,
+      extension: _extensionFrom(source),
+      isRemote: true,
+    );
+  }
+
+  factory AppFileItem.local(String path) {
+    return AppFileItem(
+      id: path,
+      name: _fileNameFrom(path),
+      localPath: path,
+      remotePath: null,
+      extension: _extensionFrom(path),
+      isRemote: false,
+    );
+  }
+
+  static List<AppFileItem> fromReferences({
+    required Object? value,
+    required Object? previewUrl,
+  }) {
+    final paths = cleanStringList(value);
+    final previews = cleanStringList(previewUrl);
+    final total =
+        paths.length > previews.length ? paths.length : previews.length;
+    final files = <AppFileItem>[];
+    for (var i = 0; i < total; i++) {
+      final path = i < paths.length ? paths[i] : null;
+      final preview = i < previews.length ? previews[i] : null;
+      if ((path == null || path.trim().isEmpty) &&
+          (preview == null || preview.trim().isEmpty)) {
+        continue;
+      }
+      files.add(AppFileItem.remote(path: path, previewUrl: preview));
+    }
+    return files;
+  }
+
+  String get displayName {
+    final candidate = _firstNonEmptyString(<String?>[
+      name,
+      localPath,
+      id,
+      url,
+    ]);
+    return _fileNameFrom(candidate) ?? 'File';
+  }
+
+  bool get isImage => const <String>{
+        'jpg',
+        'jpeg',
+        'png',
+        'gif',
+        'webp',
+        'bmp',
+        'heic',
+        'heif',
+      }.contains(_normalizedExtension);
+
+  bool get isPdf => _normalizedExtension == 'pdf';
+
+  bool get isDoc => _normalizedExtension == 'doc';
+
+  bool get isDocx => _normalizedExtension == 'docx';
+
+  bool get isTxt => _normalizedExtension == 'txt';
+
+  bool get isPreviewable => isImage || isPdf || isTxt;
+
+  String get _normalizedExtension =>
+      (extension ?? _extensionFrom(localPath ?? url ?? id) ?? '').toLowerCase();
 }
 
 class FarmerDetails {
@@ -583,6 +782,68 @@ Object? _deepCopyJsonValue(Object? value) {
 String? _asNullableString(Object? value) {
   final text = value?.toString().trim();
   return text == null || text.isEmpty ? null : text;
+}
+
+List<String> cleanStringList(Object? raw) {
+  if (raw == null) return <String>[];
+  if (raw is List) {
+    return raw
+        .map((item) => item?.toString().trim() ?? '')
+        .where((item) => item.isNotEmpty)
+        .toList();
+  }
+  final text = raw.toString().trim();
+  return text.isEmpty ? <String>[] : <String>[text];
+}
+
+String? _firstCleanString(Object? raw) {
+  final values = cleanStringList(raw);
+  return values.isEmpty ? null : values.first;
+}
+
+dynamic _copyDynamicValue(dynamic value) {
+  if (value is List<DynamicFieldModel>) {
+    return value.map((field) => field.copyWith()).toList();
+  }
+  if (value is List) {
+    return List<dynamic>.from(value);
+  }
+  if (value is Map) {
+    return Map<dynamic, dynamic>.from(value);
+  }
+  return value;
+}
+
+String? _firstNonEmptyString(List<String?> values) {
+  for (final value in values) {
+    final text = value?.trim();
+    if (text != null && text.isNotEmpty) return text;
+  }
+  return null;
+}
+
+bool _isHttpUrl(String value) {
+  final uri = Uri.tryParse(value.trim());
+  return uri != null && (uri.scheme == 'http' || uri.scheme == 'https');
+}
+
+String? _fileNameFrom(String? raw) {
+  final value = raw?.trim();
+  if (value == null || value.isEmpty) return null;
+  final withoutQuery = value.split('?').first.split('#').first;
+  final normalized = withoutQuery.replaceAll(r'\', '/');
+  final segments = normalized.split('/').where((part) => part.isNotEmpty);
+  if (segments.isEmpty) return value;
+  final last = Uri.decodeComponent(segments.last);
+  return last.isEmpty ? value : last;
+}
+
+String? _extensionFrom(String? raw) {
+  final fileName = _fileNameFrom(raw);
+  if (fileName == null) return null;
+  final dotIndex = fileName.lastIndexOf('.');
+  if (dotIndex < 0 || dotIndex == fileName.length - 1) return null;
+  return fileName.substring(dotIndex + 1).toLowerCase();
 }
 
 List<dynamic>? _parseShowWhen(Object? raw) {

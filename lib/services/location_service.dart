@@ -31,6 +31,7 @@ class LocationService {
     if (!enabled) {
       throw const LocationException(
         'Location services are disabled. Please enable them and try again.',
+        type: LocationFailureType.servicesDisabled,
       );
     }
 
@@ -39,11 +40,15 @@ class LocationService {
       perm = await Geolocator.requestPermission();
     }
     if (perm == LocationPermission.denied) {
-      throw const LocationException('Location permission denied.');
+      throw const LocationException(
+        'Location permission denied.',
+        type: LocationFailureType.permissionDenied,
+      );
     }
     if (perm == LocationPermission.deniedForever) {
       throw const LocationException(
         'Location permission is permanently denied. Enable it from app settings.',
+        type: LocationFailureType.permissionDeniedForever,
       );
     }
 
@@ -60,11 +65,17 @@ class LocationService {
         desiredAccuracy: LocationAccuracy.medium,
         timeLimit: _positionTimeout,
       );
+    } on LocationServiceDisabledException {
+      throw const LocationException(
+        'Location services are disabled. Please enable them and try again.',
+        type: LocationFailureType.servicesDisabled,
+      );
     } on TimeoutException {
       final fallback = await tryLastKnownPosition();
       if (fallback != null) return fallback;
       throw const LocationException(
         'Timed out while fetching your current location. Please try again in an open area.',
+        type: LocationFailureType.timeout,
       );
     } catch (e) {
       final fallback = await tryLastKnownPosition();
@@ -143,6 +154,10 @@ class LocationService {
     );
   }
 
+  Future<bool> openAppSettings() {
+    return Geolocator.openAppSettings();
+  }
+
   String _firstMatchingComponent(
     List<dynamic> components,
     List<String> preferredTypes,
@@ -160,9 +175,28 @@ class LocationService {
   }
 }
 
+enum LocationFailureType {
+  servicesDisabled,
+  permissionDenied,
+  permissionDeniedForever,
+  timeout,
+  unknown,
+}
+
 class LocationException implements Exception {
   final String message;
-  const LocationException(this.message);
+  final LocationFailureType type;
+
+  const LocationException(
+    this.message, {
+    this.type = LocationFailureType.unknown,
+  });
+
+  bool get isServiceDisabled => type == LocationFailureType.servicesDisabled;
+  bool get isPermissionDenied =>
+      type == LocationFailureType.permissionDenied ||
+      type == LocationFailureType.permissionDeniedForever;
+
   @override
   String toString() => message;
 }

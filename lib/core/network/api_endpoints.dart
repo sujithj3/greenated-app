@@ -38,6 +38,8 @@ class ApiEndpoints {
 
   // ── Image Upload ────────────────────────────────────────────────────
   static const String imageUpload = 'image/upload';
+  static const String filesUpload = 'file/upload';
+  static const String deleteFile = 'delete';
 
   // ── Farmers ──────────────────────────────────────────────────────────────
   static const String listFarmers = 'list-farmers';

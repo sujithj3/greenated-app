@@ -64,6 +64,7 @@ class SubcategoryModel {
     this.subcategoryDescription,
     this.landCount,
     required this.farmerCount,
+    this.headerTitle,
   });
 
   final int subcategoryId;
@@ -71,7 +72,7 @@ class SubcategoryModel {
   final String? subcategoryDescription;
   final int? landCount;
   final int farmerCount;
-
+  final String? headerTitle;
   int get id => subcategoryId;
   String get name => subcategoryName;
 
@@ -83,6 +84,7 @@ class SubcategoryModel {
       subcategoryDescription: _asNullableString(data['subcategoryDescription']),
       landCount: _asNullableInt(data['landCount']),
       farmerCount: _asInt(data['farmerCount']),
+      headerTitle: _asNullableString(data['headerTitle']),
     );
   }
 
@@ -92,6 +94,7 @@ class SubcategoryModel {
         'subcategoryDescription': subcategoryDescription,
         'landCount': landCount,
         'farmerCount': farmerCount,
+        'headerTitle': headerTitle,
       };
 }
 

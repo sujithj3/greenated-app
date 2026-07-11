@@ -7,9 +7,14 @@ import '../../core/network/api_method.dart';
 import '../../core/network/api_request.dart';
 import '../../models/api/api_models.dart';
 import '../../services/auth_service.dart';
+import '../../services/file_upload_service.dart'
+    show FileUploadService, FileUploadResult;
 import '../../services/image_upload_service.dart'
     show ImageUploadService, ImageUploadResult;
 import '../../services/registration_form_service.dart';
+import '../../services/upload_compression_service.dart'
+    show UploadValidationException;
+import '../../utils/repeatable_popup_form_utils.dart';
 import 'dynamic_field_form_view_model.dart';
 
 class AddLandDetailViewModel extends DynamicFieldFormViewModel {
@@ -18,19 +23,24 @@ class AddLandDetailViewModel extends DynamicFieldFormViewModel {
     required AuthService authService,
     required ApiClient apiClient,
     required ImageUploadService imageUploadService,
+    required FileUploadService fileUploadService,
   })  : _service = service,
         _authService = authService,
         _apiClient = apiClient,
-        _imageUploadService = imageUploadService;
+        _imageUploadService = imageUploadService,
+        _fileUploadService = fileUploadService;
 
   final RegistrationFormService _service;
   final AuthService _authService;
   final ApiClient _apiClient;
   final ImageUploadService _imageUploadService;
+  final FileUploadService _fileUploadService;
 
   bool isSaving = false;
   bool isLoadingLandForm = false;
   String? landFormError;
+  @override
+  String? lastUploadErrorMessage;
   String formName = '';
   int? farmerId;
   int? subcategoryId;
@@ -45,6 +55,15 @@ class AddLandDetailViewModel extends DynamicFieldFormViewModel {
 
   @override
   bool isFieldUploading(String key) => _uploadingFields[key] ?? false;
+
+  void _clearUploadError() {
+    lastUploadErrorMessage = null;
+  }
+
+  void _recordUploadError(Object error) {
+    lastUploadErrorMessage =
+        error is UploadValidationException ? error.message : null;
+  }
 
   Future<LandFormData?> loadLandForm({required int subcategoryId}) async {
     isLoadingLandForm = true;
@@ -187,6 +206,7 @@ class AddLandDetailViewModel extends DynamicFieldFormViewModel {
     String fieldKey,
     String localFilePath,
   ) async {
+    _clearUploadError();
     _uploadingFields[fieldKey] = true;
     notifyListeners();
 
@@ -200,6 +220,7 @@ class AddLandDetailViewModel extends DynamicFieldFormViewModel {
       }
       return result;
     } catch (e) {
+      _recordUploadError(e);
       debugPrint('Image upload failed for field "$fieldKey": $e');
       return null;
     } finally {
@@ -222,17 +243,129 @@ class AddLandDetailViewModel extends DynamicFieldFormViewModel {
     String fieldKey,
     String localFilePath,
   ) async {
+    _clearUploadError();
     _uploadingFields[fieldKey] = true;
     notifyListeners();
     try {
       return await _imageUploadService.uploadImage(localFilePath);
     } catch (e) {
+      _recordUploadError(e);
       debugPrint('Image upload failed for field "$fieldKey": $e');
       return null;
     } finally {
       _uploadingFields[fieldKey] = false;
       notifyListeners();
     }
+  }
+
+  Future<FileUploadResult?> uploadFilesForField(
+    String fieldKey,
+    List<String> localFilePaths,
+  ) async {
+    _clearUploadError();
+    _uploadingFields[fieldKey] = true;
+    notifyListeners();
+
+    try {
+      final result = await _fileUploadService.uploadFiles(
+        fieldKey: fieldKey,
+        filePaths: localFilePaths,
+      );
+      final idx = fields.indexWhere((df) => df.field.key == fieldKey);
+      if (idx != -1) {
+        fields[idx].appendFileReferences(
+          paths: result.paths,
+          previewUrls: result.previewUrls,
+        );
+        notifyListeners();
+        _handleDependencyChange(fieldKey);
+      }
+      return result;
+    } catch (e) {
+      _recordUploadError(e);
+      debugPrint('File upload failed for field "$fieldKey": $e');
+      return null;
+    } finally {
+      _uploadingFields[fieldKey] = false;
+      notifyListeners();
+    }
+  }
+
+  @override
+  Future<FileUploadResult?> uploadFilesOnly(
+    String fieldKey,
+    List<String> localFilePaths,
+  ) async {
+    _clearUploadError();
+    _uploadingFields[fieldKey] = true;
+    notifyListeners();
+    try {
+      return await _fileUploadService.uploadFiles(
+        fieldKey: fieldKey,
+        filePaths: localFilePaths,
+      );
+    } catch (e) {
+      _recordUploadError(e);
+      debugPrint('File upload failed for field "$fieldKey": $e');
+      return null;
+    } finally {
+      _uploadingFields[fieldKey] = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> deleteFileForField(
+    DynamicFieldModel fieldModel,
+    AppFileItem file,
+  ) async {
+    final path = file.remotePath?.trim() ?? '';
+    final fieldKey = fieldModel.field.key;
+    final deleteSubmissionId = _validSubmissionId;
+    await deleteFileOnly(
+      fieldKey,
+      path,
+      fieldId: deleteSubmissionId == null ? null : fieldModel.field.fieldId,
+      submissionId: deleteSubmissionId,
+    );
+
+    final idx = fields.indexWhere((df) => df.field.key == fieldKey);
+    if (idx == -1) return;
+    if (fields[idx].removeFileReferenceByPath(path)) {
+      notifyListeners();
+      _handleDependencyChange(fieldKey);
+    }
+  }
+
+  @override
+  Future<void> deleteFileOnly(
+    String fieldKey,
+    String path, {
+    int? fieldId,
+    int? submissionId,
+  }) async {
+    _clearUploadError();
+    _uploadingFields[fieldKey] = true;
+    notifyListeners();
+
+    try {
+      final deleteSubmissionId = submissionId ?? _validSubmissionId;
+      await _fileUploadService.deleteFileByPath(
+        path,
+        fieldId: deleteSubmissionId == null ? null : fieldId,
+        submissionId: deleteSubmissionId,
+      );
+    } catch (e) {
+      debugPrint('File delete failed for field "$fieldKey": $e');
+      rethrow;
+    } finally {
+      _uploadingFields[fieldKey] = false;
+      notifyListeners();
+    }
+  }
+
+  int? get _validSubmissionId {
+    final value = submissionId;
+    return value != null && value > 0 ? value : null;
   }
 
   Future<void> retryFetchOptions(String fieldKey) async {
@@ -248,6 +381,10 @@ class AddLandDetailViewModel extends DynamicFieldFormViewModel {
     Map<String, String> textValues,
   ) {
     for (final df in fieldList) {
+      if (isDeletedRepeatableField(df)) {
+        continue;
+      }
+
       if (!shouldShowField(df, fieldList)) {
         df.value = null;
         df.previewUrl = null;

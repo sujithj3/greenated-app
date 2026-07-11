@@ -8,12 +8,14 @@ class FormDetailResult {
     required this.fields,
     this.farmerDetails,
     this.landDetails = const [],
+    this.resolvedSubmissionId,
   });
 
   final String formName;
   final List<DynamicFieldModel> fields;
   final FarmerDetails? farmerDetails;
   final List<LandDetail> landDetails;
+  final int? resolvedSubmissionId;
 }
 
 class RegistrationFormService {
@@ -333,7 +335,52 @@ FormDetailResult _parseFormDetailResult(Map<String, dynamic> formData) {
     fields: farmerFields,
     farmerDetails: farmerDetails,
     landDetails: landDetails,
+    resolvedSubmissionId: _resolveSubmissionId(formData, landDetails),
   );
+}
+
+int? _resolveSubmissionId(
+  Map<String, dynamic> formData,
+  List<LandDetail> landDetails,
+) {
+  for (final land in landDetails) {
+    final submissionId = land.submissionId;
+    if (submissionId != null && submissionId > 0) {
+      return submissionId;
+    }
+  }
+
+  return _findSubmissionId(formData);
+}
+
+int? _findSubmissionId(Object? value) {
+  if (value is Map) {
+    final normalized = _normalizeJsonKeys(Map<String, dynamic>.from(value));
+    final direct = _asPositiveInt(normalized['submissionId']);
+    if (direct != null) return direct;
+
+    for (final entryValue in normalized.values) {
+      final found = _findSubmissionId(entryValue);
+      if (found != null) return found;
+    }
+  } else if (value is List) {
+    for (final item in value) {
+      final found = _findSubmissionId(item);
+      if (found != null) return found;
+    }
+  }
+
+  return null;
+}
+
+int? _asPositiveInt(Object? value) {
+  final parsed = switch (value) {
+    int() => value,
+    num() => value.toInt(),
+    String() => int.tryParse(value),
+    _ => null,
+  };
+  return parsed != null && parsed > 0 ? parsed : null;
 }
 
 Map<String, dynamic> _normalizeJsonKeys(Map<String, dynamic> json) {

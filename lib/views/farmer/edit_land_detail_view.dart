@@ -4,10 +4,12 @@ import 'package:provider/provider.dart';
 import '../../core/network/api_client.dart';
 import '../../models/api/api_models.dart';
 import '../../services/auth_service.dart';
+import '../../services/file_upload_service.dart';
 import '../../services/image_upload_service.dart';
 import '../../services/registration_form_service.dart';
 import '../../utils/app_colors.dart';
 import '../../utils/field_fill_state.dart';
+import '../../utils/file_upload_helper.dart';
 import '../../utils/form_validator.dart';
 import '../../utils/snack_bar_helper.dart';
 import '../../view_models/farmer/add_land_detail_view_model.dart';
@@ -38,6 +40,7 @@ class _EditLandDetailViewState extends State<EditLandDetailView> {
   final Map<String, TextEditingController> _textCtrl = {};
   late final AddLandDetailViewModel _vm;
   bool _isInit = false;
+  bool _shouldRefreshOnPop = false;
   final AutovalidateMode _autoValidateMode = AutovalidateMode.disabled;
 
   @override
@@ -48,6 +51,7 @@ class _EditLandDetailViewState extends State<EditLandDetailView> {
       authService: context.read<AuthService>(),
       apiClient: context.read<ApiClient>(),
       imageUploadService: context.read<ImageUploadService>(),
+      fileUploadService: context.read<FileUploadService>(),
     );
     _vm.addListener(_onVmChanged);
     _vm.useExistingLand(
@@ -110,8 +114,11 @@ class _EditLandDetailViewState extends State<EditLandDetailView> {
   }
 
   Future<void> _captureAndUpload(String fieldKey) async {
-    final localPath =
-        await Navigator.pushNamed(context, '/camera-capture') as String?;
+    final localPath = await Navigator.pushNamed(
+      context,
+      '/camera-capture',
+      arguments: const {'requiresLocation': true},
+    ) as String?;
     if (localPath == null || !mounted) return;
 
     final result = await _vm.uploadCameraImage(fieldKey, localPath);
@@ -120,8 +127,53 @@ class _EditLandDetailViewState extends State<EditLandDetailView> {
     if (result != null) {
       context.showSnack('Photo uploaded successfully', success: true);
     } else {
-      context.showSnack('Photo upload failed. Please try again.');
+      context.showSnack(
+        _vm.lastUploadErrorMessage ?? 'Photo upload failed. Please try again.',
+      );
     }
+  }
+
+  Future<void> _pickAndUploadFiles(DynamicFieldModel df) async {
+    final localPaths = await pickDynamicUploadFiles(
+      context,
+      requiresLocationForCamera: true,
+    );
+    if (localPaths.isEmpty || !mounted) return;
+
+    final result = await _vm.uploadFilesForField(df.field.key, localPaths);
+    if (!mounted) return;
+
+    if (result == null) {
+      context.showSnack(
+        _vm.lastUploadErrorMessage ?? 'File upload failed. Please try again.',
+      );
+    } else if (result.hasIncompleteData) {
+      context.showSnack('Files uploaded, but some previews are unavailable.',
+          success: true);
+    } else {
+      context.showSnack('Files uploaded successfully', success: true);
+    }
+  }
+
+  Future<void> _deleteFile(DynamicFieldModel df, AppFileItem file) async {
+    await _vm.deleteFileForField(df, file);
+    if (!mounted) return;
+    _markShouldRefreshOnPop();
+  }
+
+  void _markShouldRefreshOnPop() {
+    if (_shouldRefreshOnPop || !mounted) return;
+    setState(() => _shouldRefreshOnPop = true);
+  }
+
+  void _popWithRefreshResult() {
+    if (!mounted) return;
+    setState(() => _shouldRefreshOnPop = false);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        Navigator.pop(context, true);
+      }
+    });
   }
 
   Future<void> _openEditPopupSheet(DynamicFieldModel df) async {
@@ -138,7 +190,11 @@ class _EditLandDetailViewState extends State<EditLandDetailView> {
           df.clearError();
           if (mounted) setState(() {});
         },
+        onRepeatableSubmitRequested: () =>
+            _submitLandUpdate(popOnSuccess: false),
+        onFileDeleted: _markShouldRefreshOnPop,
         viewModel: _vm,
+        isEditMode: true,
       ),
     );
   }
@@ -163,6 +219,10 @@ class _EditLandDetailViewState extends State<EditLandDetailView> {
   }
 
   Future<void> _onUpdateLandDetail() async {
+    await _submitLandUpdate();
+  }
+
+  Future<bool> _submitLandUpdate({bool popOnSuccess = true}) async {
     final submissionId = widget.submissionId;
     final subcategoryId = widget.subcategoryId;
     final userId = _vm.currentUserId;
@@ -173,10 +233,10 @@ class _EditLandDetailViewState extends State<EditLandDetailView> {
         userId == null ||
         userId <= 0) {
       context.showSnack('Required details not found. Please try again.');
-      return;
+      return false;
     }
 
-    if (_vm.isSaving) return;
+    if (_vm.isSaving) return false;
 
     final isFormValid = _formKey.currentState?.validate() ?? true;
     final textValues = Map.fromEntries(
@@ -199,19 +259,25 @@ class _EditLandDetailViewState extends State<EditLandDetailView> {
           'Please fill the required field: ${validationResult.firstInvalidLabel}',
         );
       }
-      return;
+      return false;
     }
 
     if (!isFormValid) {
       if (mounted) context.showSnack('Please fix the errors in the form.');
-      return;
+      return false;
     }
 
     try {
       final success = await _vm.submitLandEdit(textValues: textValues);
       if (success && mounted) {
-        Navigator.pop(context, true);
+        if (popOnSuccess) {
+          Navigator.pop(context, true);
+        } else {
+          _markShouldRefreshOnPop();
+          context.showSnack('Land detail updated!', success: true);
+        }
       }
+      return success;
     } catch (e) {
       if (mounted) {
         final message = _cleanErrorMessage(e);
@@ -219,6 +285,7 @@ class _EditLandDetailViewState extends State<EditLandDetailView> {
           message.isEmpty ? 'Something went wrong. Please try again.' : message,
         );
       }
+      return false;
     }
   }
 
@@ -243,25 +310,33 @@ class _EditLandDetailViewState extends State<EditLandDetailView> {
             _vm.isSaving || _vm.fields.any((df) => df.isLoadingOptions);
         final isBlocked = showOverlay || isUploading;
 
-        return Stack(
-          children: [
-            Scaffold(
-              appBar: AppBar(title: Text(widget.title)),
-              body: _buildBody(isBlocked),
-            ),
-            if (isBlocked)
-              AbsorbPointer(
-                absorbing: true,
-                child: showOverlay
-                    ? Container(
-                        color: Colors.black.withValues(alpha: 0.45),
-                        child: const Center(
-                          child: CircularProgressIndicator(color: Colors.white),
-                        ),
-                      )
-                    : const SizedBox.shrink(),
+        return PopScope<Object?>(
+          canPop: !_shouldRefreshOnPop,
+          onPopInvokedWithResult: (didPop, _) {
+            if (didPop) return;
+            _popWithRefreshResult();
+          },
+          child: Stack(
+            children: [
+              Scaffold(
+                appBar: AppBar(title: Text(widget.title)),
+                body: _buildBody(isBlocked),
               ),
-          ],
+              if (isBlocked)
+                AbsorbPointer(
+                  absorbing: true,
+                  child: showOverlay
+                      ? Container(
+                          color: Colors.black.withValues(alpha: 0.45),
+                          child: const Center(
+                            child:
+                                CircularProgressIndicator(color: Colors.white),
+                          ),
+                        )
+                      : const SizedBox.shrink(),
+                ),
+            ],
+          ),
         );
       },
     );
@@ -308,14 +383,14 @@ class _EditLandDetailViewState extends State<EditLandDetailView> {
 
     int? popupFormFilled;
     int? popupFormTotal;
-    if (f.isPopupForm) {
+    if (f.isFormContainer) {
       final subFields = df.value as List<DynamicFieldModel>? ?? [];
       popupFormTotal = getTotalCount(subFields);
       popupFormFilled = getFilledCount(subFields);
     }
 
-    final isCameraField = f.fieldStyle == FieldStyle.camera ||
-        f.fieldStyle == FieldStyle.cameraFile;
+    final isCameraField = f.fieldStyle == FieldStyle.camera;
+    final isFileField = f.fieldStyle == FieldStyle.file;
 
     return DynamicFieldBuilder(
       field: f,
@@ -327,13 +402,17 @@ class _EditLandDetailViewState extends State<EditLandDetailView> {
       onChanged: (val) {
         _vm.updateFieldValue(f.key, val);
       },
-      onPopupFormPressed: f.isPopupForm ? () => _openEditPopupSheet(df) : null,
+      onPopupFormPressed:
+          f.isFormContainer ? () => _openEditPopupSheet(df) : null,
       popupFormFilledCount: popupFormFilled,
       popupFormTotalCount: popupFormTotal,
-      isUploading: isCameraField ? _vm.isFieldUploading(f.key) : false,
+      isUploading:
+          (isCameraField || isFileField) ? _vm.isFieldUploading(f.key) : false,
       onCapturePhoto: isCameraField ? () => _captureAndUpload(f.key) : null,
       onClearPhoto: isCameraField ? () => _vm.clearCameraImage(f.key) : null,
-      previewUrl: isCameraField ? df.previewUrl : null,
+      onAddFiles: isFileField ? () => _pickAndUploadFiles(df) : null,
+      onDeleteFile: isFileField ? (file) => _deleteFile(df, file) : null,
+      previewUrl: (isCameraField || isFileField) ? df.previewUrl : null,
       onMapPolygonPressed: f.fieldStyle == FieldStyle.mapPolygon
           ? () => _openMapForField(df)
           : null,

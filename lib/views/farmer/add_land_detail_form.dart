@@ -4,10 +4,12 @@ import 'package:provider/provider.dart';
 import '../../core/network/api_client.dart';
 import '../../models/api/api_models.dart';
 import '../../services/auth_service.dart';
+import '../../services/file_upload_service.dart';
 import '../../services/image_upload_service.dart';
 import '../../services/registration_form_service.dart';
 import '../../utils/app_colors.dart';
 import '../../utils/field_fill_state.dart';
+import '../../utils/file_upload_helper.dart';
 import '../../utils/form_validator.dart';
 import '../../utils/snack_bar_helper.dart';
 import '../../view_models/farmer/add_land_detail_view_model.dart';
@@ -44,6 +46,7 @@ class _AddLandDetailFormState extends State<AddLandDetailForm> {
       authService: context.read<AuthService>(),
       apiClient: context.read<ApiClient>(),
       imageUploadService: context.read<ImageUploadService>(),
+      fileUploadService: context.read<FileUploadService>(),
     );
     _vm.addListener(_onVmChanged);
     _vm.useLandForm(
@@ -104,8 +107,11 @@ class _AddLandDetailFormState extends State<AddLandDetailForm> {
   }
 
   Future<void> _captureAndUpload(String fieldKey) async {
-    final localPath =
-        await Navigator.pushNamed(context, '/camera-capture') as String?;
+    final localPath = await Navigator.pushNamed(
+      context,
+      '/camera-capture',
+      arguments: const {'requiresLocation': true},
+    ) as String?;
     if (localPath == null || !mounted) return;
 
     final result = await _vm.uploadCameraImage(fieldKey, localPath);
@@ -114,8 +120,36 @@ class _AddLandDetailFormState extends State<AddLandDetailForm> {
     if (result != null) {
       context.showSnack('Photo uploaded successfully', success: true);
     } else {
-      context.showSnack('Photo upload failed. Please try again.');
+      context.showSnack(
+        _vm.lastUploadErrorMessage ?? 'Photo upload failed. Please try again.',
+      );
     }
+  }
+
+  Future<void> _pickAndUploadFiles(DynamicFieldModel df) async {
+    final localPaths = await pickDynamicUploadFiles(
+      context,
+      requiresLocationForCamera: true,
+    );
+    if (localPaths.isEmpty || !mounted) return;
+
+    final result = await _vm.uploadFilesForField(df.field.key, localPaths);
+    if (!mounted) return;
+
+    if (result == null) {
+      context.showSnack(
+        _vm.lastUploadErrorMessage ?? 'File upload failed. Please try again.',
+      );
+    } else if (result.hasIncompleteData) {
+      context.showSnack('Files uploaded, but some previews are unavailable.',
+          success: true);
+    } else {
+      context.showSnack('Files uploaded successfully', success: true);
+    }
+  }
+
+  Future<void> _deleteFile(DynamicFieldModel df, AppFileItem file) {
+    return _vm.deleteFileForField(df, file);
   }
 
   Future<void> _openPopupSheet(DynamicFieldModel df) async {
@@ -133,6 +167,7 @@ class _AddLandDetailFormState extends State<AddLandDetailForm> {
           if (mounted) setState(() {});
         },
         viewModel: _vm,
+        isEditMode: false,
       ),
     );
   }
@@ -297,14 +332,14 @@ class _AddLandDetailFormState extends State<AddLandDetailForm> {
 
     int? popupFormFilled;
     int? popupFormTotal;
-    if (f.isPopupForm) {
+    if (f.isFormContainer) {
       final subFields = df.value as List<DynamicFieldModel>? ?? [];
       popupFormTotal = getTotalCount(subFields);
       popupFormFilled = getFilledCount(subFields);
     }
 
-    final isCameraField = f.fieldStyle == FieldStyle.camera ||
-        f.fieldStyle == FieldStyle.cameraFile;
+    final isCameraField = f.fieldStyle == FieldStyle.camera;
+    final isFileField = f.fieldStyle == FieldStyle.file;
 
     return DynamicFieldBuilder(
       field: f,
@@ -316,13 +351,16 @@ class _AddLandDetailFormState extends State<AddLandDetailForm> {
       onChanged: (val) {
         _vm.updateFieldValue(f.key, val);
       },
-      onPopupFormPressed: f.isPopupForm ? () => _openPopupSheet(df) : null,
+      onPopupFormPressed: f.isFormContainer ? () => _openPopupSheet(df) : null,
       popupFormFilledCount: popupFormFilled,
       popupFormTotalCount: popupFormTotal,
-      isUploading: isCameraField ? _vm.isFieldUploading(f.key) : false,
+      isUploading:
+          (isCameraField || isFileField) ? _vm.isFieldUploading(f.key) : false,
       onCapturePhoto: isCameraField ? () => _captureAndUpload(f.key) : null,
       onClearPhoto: isCameraField ? () => _vm.clearCameraImage(f.key) : null,
-      previewUrl: isCameraField ? df.previewUrl : null,
+      onAddFiles: isFileField ? () => _pickAndUploadFiles(df) : null,
+      onDeleteFile: isFileField ? (file) => _deleteFile(df, file) : null,
+      previewUrl: (isCameraField || isFileField) ? df.previewUrl : null,
       onMapPolygonPressed: f.fieldStyle == FieldStyle.mapPolygon
           ? () => _openMapForField(df)
           : null,
