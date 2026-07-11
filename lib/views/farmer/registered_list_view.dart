@@ -256,7 +256,7 @@ class _RegisteredListViewState extends State<RegisteredListView> {
             textInputAction: TextInputAction.search,
             onChanged: _handleSearchChanged,
             decoration: InputDecoration(
-              hintText: 'farmer name, code, mobile',
+              hintText: 'Name, Farmer ID',
               hintStyle: TextStyle(
                 color: AppColors.textMedium.withValues(alpha: 0.8),
                 fontSize: 14,
@@ -429,14 +429,23 @@ class _RegisteredListViewState extends State<RegisteredListView> {
                         color: AppColors.textDark,
                       ),
                     ),
-                    const SizedBox(height: 4),
+                    // const SizedBox(height: 1),
                     Text(
-                      farmer.mobileNumber,
+                      farmer.farmerCode,
                       style: const TextStyle(
-                        fontSize: 14,
-                        color: AppColors.textMedium,
+                        fontSize: 13,
+                        color: AppColors.textDark,
                       ),
                     ),
+                    if (farmer.registeredByName != null &&
+                        farmer.registeredByName!.isNotEmpty)
+                      Text(
+                        'Registered by: ${farmer.registeredByName}',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: AppColors.textMedium,
+                        ),
+                      ),
                   ],
                 ),
               ),

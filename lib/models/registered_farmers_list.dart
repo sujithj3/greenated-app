@@ -8,26 +8,29 @@
 /// of these are wrapped by [RegisteredListResponse].
 class RegisteredFarmersList {
   final int farmerId;
-  final String? farmerCode;
+  final String farmerCode;
   final String fullName;
   final String mobileNumber;
   final String formName;
+  final String? registeredByName;
 
   RegisteredFarmersList({
     required this.farmerId,
-    this.farmerCode,
+    required this.farmerCode,
     required this.fullName,
     required this.mobileNumber,
     required this.formName,
+    this.registeredByName,
   });
 
   factory RegisteredFarmersList.fromJson(Map<String, dynamic> json) {
     return RegisteredFarmersList(
       farmerId: json['farmerId'] as int,
-      farmerCode: json['farmerCode'] as String?,
+      farmerCode: json['farmerCode'] as String? ?? 'N/A',
       fullName: json['fullName'] as String? ?? 'Unknown',
       mobileNumber: json['mobileNumber'] as String? ?? 'N/A',
       formName: json['formName'] as String? ?? '',
+      registeredByName: json['registeredByName'] as String? ,
     );
   }
 
@@ -38,6 +41,7 @@ class RegisteredFarmersList {
       'fullName': fullName,
       'mobileNumber': mobileNumber,
       'formName': formName,
+      'registeredByName': registeredByName,
     };
   }
 }
