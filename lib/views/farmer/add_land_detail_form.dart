@@ -370,6 +370,8 @@ class _AddLandDetailFormState extends State<AddLandDetailForm> {
       onMapPolygonPressed: f.fieldStyle == FieldStyle.mapPolygon
           ? () => _openMapForField(df)
           : null,
+      mapPolygonActionLabel:
+          f.fieldStyle == FieldStyle.mapPolygon ? 'Measure Land' : null,
       resolvedOptions:
           f.fieldStyle == FieldStyle.dropdown ? df.resolvedOptions : null,
       isLoadingOptions:

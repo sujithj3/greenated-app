@@ -586,6 +586,8 @@ class _FarmerFormViewState extends State<FarmerFormView> {
       onMapPolygonPressed: f.fieldStyle == FieldStyle.mapPolygon
           ? () => _openMapForDynamicField(df)
           : null,
+      mapPolygonActionLabel:
+          f.fieldStyle == FieldStyle.mapPolygon ? 'Measure Land' : null,
       resolvedOptions:
           f.fieldStyle == FieldStyle.dropdown ? df.resolvedOptions : null,
       isLoadingOptions:
@@ -1288,6 +1290,8 @@ class _PopupFormSheetState extends State<_PopupFormSheet> {
       onMapPolygonPressed: f.fieldStyle == FieldStyle.mapPolygon
           ? () => _openMapForNestedDynamicField(df)
           : null,
+      mapPolygonActionLabel:
+          f.fieldStyle == FieldStyle.mapPolygon ? 'Measure Land' : null,
       previewUrl: (isCameraField || isFileField) ? df.previewUrl : null,
       isUploading: (isCameraField || isFileField)
           ? widget.viewModel.isFieldUploading(f.key)

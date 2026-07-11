@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../models/api/api_models.dart';
 import '../utils/app_colors.dart';
+import '../utils/polygon_geometry.dart';
 import 'file_upload_field.dart';
 
 /// Renders a single [ApiField] as the appropriate UI widget based on its
@@ -26,6 +27,7 @@ class DynamicFieldBuilder extends StatelessWidget {
     this.onDeleteCameraPhoto,
     this.onMapPolygonPressed,
     this.onGenerateKml,
+    this.mapPolygonActionLabel,
     this.resolvedOptions,
     this.isLoadingOptions = false,
     this.optionsError,
@@ -66,6 +68,12 @@ class DynamicFieldBuilder extends StatelessWidget {
   /// Callback to generate and share a KML file for a map polygon field.
   /// When non-null, a "Generate KML" button is shown next to the "View Map" button.
   final VoidCallback? onGenerateKml;
+
+  /// Optional call-to-action label for a map polygon button, used by the
+  /// registration flows (e.g. "Measure Land"). When non-null the button shows
+  /// this text (plus a point count once a polygon exists) instead of embedding
+  /// the field label; when null the existing edit/detail wording is used.
+  final String? mapPolygonActionLabel;
 
   /// Runtime-resolved options for dependent dropdowns (null = use field.options).
   final List<ApiOption>? resolvedOptions;
@@ -956,6 +964,12 @@ class DynamicFieldBuilder extends StatelessWidget {
     final hasData = asList != null && asList.isNotEmpty;
     final int ptsCount = hasData ? asList.length : 0;
 
+    // Area & perimeter derived from the saved coordinates, using the same
+    // formulas as the land-measurement screen. Shown on the detail (view) page
+    // only — null in edit/registration, or until a closed polygon exists.
+    final metrics =
+        isViewMode ? LandPolygonMetrics.fromCoordinates(asList) : null;
+
     return FormField<dynamic>(
       key: ValueKey('mappolygon_${_keyToken}_${hasData ? ptsCount : 0}'),
       initialValue: value,
@@ -969,104 +983,182 @@ class DynamicFieldBuilder extends StatelessWidget {
               return null;
             },
       builder: (state) {
-        final pairLabel = hasData ? 'View Land Map' : 'No polygon data';
-        final soloLabel = isViewMode
-            ? (hasData ? 'View $_label ($ptsCount pts)' : 'No polygon data')
-            : (hasData ? '$_label ($ptsCount pts)' : _label);
+        // View/detail with a saved polygon keeps the paired
+        // "View Land Map" + "Export KML" buttons inside the box; every other
+        // case is a single tappable box that opens the map.
+        final bool showKmlButtons = onGenerateKml != null && hasData;
 
-        final viewMapButton = OutlinedButton.icon(
-          onPressed: (isViewMode && !hasData) ? null : onMapPolygonPressed,
-          icon: Icon(isViewMode ? Icons.map_outlined : Icons.map,
-              color: hasData ? _accent : AppColors.textMedium),
-          label: Text(
-            (onGenerateKml != null && hasData) ? pairLabel : soloLabel,
-            style: TextStyle(color: hasData ? _accent : AppColors.textMedium),
+        final Widget sectionChild = showKmlButtons
+            ? _buildMapPolygonButtons(metrics)
+            : _buildMapPolygonAction(hasData, ptsCount, metrics);
+
+        // Wrap the whole field in an InputDecorator so it renders with the
+        // exact border, fill and floating label used by every other field.
+        final decorated = InputDecorator(
+          decoration: InputDecoration(
+            labelText: isViewMode ? _label : _requiredLabel,
+            floatingLabelBehavior: FloatingLabelBehavior.always,
+            errorText: state.hasError ? state.errorText : null,
+            // Single-action modes put the map icon in the leading prefix slot
+            // so it lines up with every other field's icon.
+            prefixIcon: showKmlButtons
+                ? null
+                : Icon(
+                    isViewMode ? Icons.map_outlined : Icons.map,
+                    color: (isViewMode && !hasData)
+                        ? AppColors.textMedium
+                        : _accent,
+                  ),
           ),
-          style: OutlinedButton.styleFrom(
-            minimumSize: const Size(double.infinity, 48),
-            side: BorderSide(
-              color: state.hasError
-                  ? AppColors.error
-                  : hasData
-                      ? _accent
-                      : AppColors.light,
-              width: hasData ? 1.5 : 1,
-            ),
-          ),
+          child: sectionChild,
         );
 
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (onGenerateKml != null && hasData)
-              IntrinsicHeight(
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Expanded(
-                      flex: 3,
-                      child: OutlinedButton.icon(
-                        onPressed: onMapPolygonPressed,
-                        icon: Icon(
-                          isViewMode ? Icons.map_outlined : Icons.map,
-                          color: _accent,
-                          size: 18,
-                        ),
-                        label: Text(
-                          pairLabel,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(color: _accent),
-                        ),
-                        style: OutlinedButton.styleFrom(
-                          minimumSize: const Size(0, 44),
-                          padding: const EdgeInsets.symmetric(horizontal: 10),
-                          side: BorderSide(color: _accent, width: 1.5),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      flex: 2,
-                      child: OutlinedButton.icon(
-                        onPressed: onGenerateKml,
-                        icon: Icon(
-                          Icons.file_download_outlined,
-                          color: _accent,
-                          size: 18,
-                        ),
-                        label: Text(
-                          'Export KML',
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(color: _accent),
-                        ),
-                        style: OutlinedButton.styleFrom(
-                          minimumSize: const Size(0, 44),
-                          padding: const EdgeInsets.symmetric(horizontal: 10),
-                          side: BorderSide(color: _accent, width: 1.5),
-                        ),
-                      ),
-                    ),
-                  ],
+        if (showKmlButtons) return decorated;
+
+        return GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: (isViewMode && !hasData) ? null : onMapPolygonPressed,
+          child: decorated,
+        );
+      },
+    );
+  }
+
+  /// Single-action content (registration / edit / empty view): the action
+  /// label plus the Area & Perimeter summary, sitting inside the field box.
+  Widget _buildMapPolygonAction(
+    bool hasData,
+    int ptsCount,
+    LandPolygonMetrics? metrics,
+  ) {
+    final String actionLabel;
+    final Color textColor;
+    if (!isViewMode && hasData) {
+      // Registration / edit with a saved polygon: switch to a green
+      // "View Measured Land" call-to-action showing the captured point count.
+      actionLabel = 'View Measured Land ($ptsCount pts)';
+      textColor = _accent;
+    } else if (isViewMode) {
+      actionLabel =
+          hasData ? 'View Land Map ($ptsCount pts)' : 'No polygon data';
+      textColor = hasData ? AppColors.textDark : AppColors.textMedium;
+    } else {
+      // Editable (registration or edit) with no polygon captured yet.
+      actionLabel = mapPolygonActionLabel ?? 'Measure Land';
+      textColor = AppColors.textMedium;
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          actionLabel,
+          style: TextStyle(color: textColor, fontSize: 16),
+        ),
+        if (metrics != null) ...[
+          const SizedBox(height: 6),
+          _buildMapPolygonMetrics(metrics),
+        ],
+      ],
+    );
+  }
+
+  /// Paired "View Land Map" + "Export KML" buttons with the Area & Perimeter
+  /// summary beneath them, shown for a saved polygon in view/detail mode.
+  Widget _buildMapPolygonButtons(LandPolygonMetrics? metrics) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Expanded(
+                flex: 3,
+                child: OutlinedButton.icon(
+                  onPressed: onMapPolygonPressed,
+                  icon: Icon(
+                    isViewMode ? Icons.map_outlined : Icons.map,
+                    color: _accent,
+                    size: 18,
+                  ),
+                  label: Text(
+                    'View Land Map',
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(color: _accent),
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    minimumSize: const Size(0, 44),
+                    padding: const EdgeInsets.symmetric(horizontal: 10),
+                    side: BorderSide(color: _accent, width: 1.5),
+                  ),
                 ),
-              )
-            else
-              viewMapButton,
-            if (state.hasError) ...[
-              const SizedBox(height: 6),
-              Padding(
-                padding: const EdgeInsets.only(left: 12),
-                child: Text(
-                  state.errorText!,
-                  style: TextStyle(
-                    color: Theme.of(context).colorScheme.error,
-                    fontSize: 12,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                flex: 2,
+                child: OutlinedButton.icon(
+                  onPressed: onGenerateKml,
+                  icon: Icon(
+                    Icons.file_download_outlined,
+                    color: _accent,
+                    size: 18,
+                  ),
+                  label: Text(
+                    'Export KML',
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(color: _accent),
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    minimumSize: const Size(0, 44),
+                    padding: const EdgeInsets.symmetric(horizontal: 10),
+                    side: BorderSide(color: _accent, width: 1.5),
                   ),
                 ),
               ),
             ],
-          ],
-        );
-      },
+          ),
+        ),
+        if (metrics != null) ...[
+          const SizedBox(height: 6),
+          _buildMapPolygonMetrics(metrics),
+        ],
+      ],
+    );
+  }
+
+  /// Left-aligned Area / Perimeter summary, using the same figures and wording
+  /// as the land-measurement screen.
+  Widget _buildMapPolygonMetrics(LandPolygonMetrics metrics) {
+    const labelStyle = TextStyle(
+      fontSize: 13,
+      color: AppColors.textMedium,
+      fontWeight: FontWeight.w500,
+    );
+    const valueStyle = TextStyle(
+      fontSize: 13,
+      color: AppColors.dark,
+      fontWeight: FontWeight.w700,
+    );
+    return Wrap(
+      spacing: 20,
+      runSpacing: 6,
+      children: [
+        Text.rich(
+          TextSpan(children: [
+            const TextSpan(text: 'Area: ', style: labelStyle),
+            TextSpan(text: metrics.formattedArea, style: valueStyle),
+          ]),
+        ),
+        Text.rich(
+          TextSpan(children: [
+            const TextSpan(text: 'Perimeter: ', style: labelStyle),
+            TextSpan(text: metrics.formattedPerimeter, style: valueStyle),
+          ]),
+        ),
+      ],
     );
   }
 }
