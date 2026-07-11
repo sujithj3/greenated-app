@@ -48,6 +48,11 @@ Example/template files:
 
 These files are not used by the app. They only show which variables are required.
 
+## Flutter Clean Logs
+```
+flutter logs | sed -E 's/^I\/flutter \([0-9]+\): //'
+```
+
 ## Development Debug
 
 Use this for normal development with hot reload:
