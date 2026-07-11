@@ -45,11 +45,7 @@ final rootScaffoldMessengerKey = GlobalKey<ScaffoldMessengerState>();
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  const appEnvironment = String.fromEnvironment(
-    'APP_ENV',
-    defaultValue: 'development',
-  );
-  await dotenv.load(fileName: '.env.$appEnvironment');
+  await dotenv.load(fileName: '.env.${EnvConfig.appEnvironment}');
 
   // Pre-initialize AuthService to ensure SharedPreferences is ready
   final authService = AuthService();

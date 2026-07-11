@@ -14,6 +14,7 @@ import '../../services/image_upload_service.dart'
 import '../../services/registration_form_service.dart';
 import '../../services/upload_compression_service.dart'
     show UploadValidationException;
+import '../../utils/repeatable_popup_form_utils.dart';
 import 'dynamic_field_form_view_model.dart';
 
 class AddLandDetailViewModel extends DynamicFieldFormViewModel {
@@ -380,6 +381,10 @@ class AddLandDetailViewModel extends DynamicFieldFormViewModel {
     Map<String, String> textValues,
   ) {
     for (final df in fieldList) {
+      if (isDeletedRepeatableField(df)) {
+        continue;
+      }
+
       if (!shouldShowField(df, fieldList)) {
         df.value = null;
         df.previewUrl = null;

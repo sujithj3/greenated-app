@@ -1,5 +1,6 @@
 import '../models/api/api_models.dart';
 import 'field_fill_state.dart';
+import 'repeatable_popup_form_utils.dart';
 
 /// Result of a recursive form validation pass.
 class ValidationResult {
@@ -36,6 +37,11 @@ ValidationResult validateFields(
   String? firstInvalid;
 
   for (final df in fields) {
+    if (isDeletedRepeatableField(df)) {
+      df.clearError();
+      continue;
+    }
+
     // Skip hidden fields — they are not required to be filled.
     if (!shouldShowField(df, fields)) {
       df.clearError();
@@ -69,8 +75,9 @@ ValidationResult _validateSingleField(
   final f = df.field;
 
   // ── POPUP_FORM → recurse ─────────────────────────────────────────────────
-  if (f.isPopupForm) {
+  if (f.isFormContainer) {
     final children = df.value as List<DynamicFieldModel>? ?? [];
+    final visibleChildren = visibleRepeatableFields(children).toList();
     final childResult = _validatePopupChildren(children);
 
     // If the popup itself is required AND completely empty, that's invalid.
@@ -85,8 +92,8 @@ ValidationResult _validateSingleField(
     }
 
     // Also check: popup required but no child has data at all
-    if (f.required) {
-      final hasAnyData = children
+    if (f.required && visibleChildren.isNotEmpty) {
+      final hasAnyData = visibleChildren
           .where((c) => shouldShowField(c, children))
           .any((c) => isFieldFilled(c, siblings: children));
       if (!hasAnyData) {
@@ -136,6 +143,11 @@ ValidationResult _validatePopupChildren(List<DynamicFieldModel> children) {
   String? firstInvalid;
 
   for (final child in children) {
+    if (isDeletedRepeatableField(child)) {
+      child.clearError();
+      continue;
+    }
+
     if (!shouldShowField(child, children)) {
       child.clearError();
       continue;

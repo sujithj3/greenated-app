@@ -1,4 +1,5 @@
 import '../models/api/api_models.dart';
+import 'repeatable_popup_form_utils.dart';
 
 /// Determines whether a single [DynamicFieldModel] contains meaningful
 /// user-entered data.
@@ -13,6 +14,8 @@ import '../models/api/api_models.dart';
 /// form (the popup's own children act as siblings to each other).
 bool isFieldFilled(DynamicFieldModel field,
     {List<DynamicFieldModel>? siblings}) {
+  if (isDeletedRepeatableField(field)) return false;
+
   final style = field.field.fieldStyle;
   final value = field.value;
 
@@ -62,11 +65,13 @@ bool isFieldFilled(DynamicFieldModel field,
 
     // ── Popup Form (recursive) ────────────────────────────────────────────
     case FieldStyle.popupForm:
+    case FieldStyle.repeatablePopupForm:
       if (value == null) return false;
       if (value is! List<DynamicFieldModel>) return false;
       final children = value;
       // A popup is filled when at least one *visible* child is filled.
       return children
+          .where((child) => !isDeletedRepeatableField(child))
           .where((child) => shouldShowField(child, children))
           .any((child) => isFieldFilled(child, siblings: children));
 
@@ -86,6 +91,7 @@ bool isFieldFilled(DynamicFieldModel field,
 /// popup sheet.
 int getFilledCount(List<DynamicFieldModel> fields) {
   return fields
+      .where((f) => !isDeletedRepeatableField(f))
       .where((f) => shouldShowField(f, fields))
       .where((f) => isFieldFilled(f, siblings: fields))
       .length;
@@ -96,5 +102,8 @@ int getFilledCount(List<DynamicFieldModel> fields) {
 /// Hidden conditional fields are excluded so they don't inflate the
 /// denominator of the progress indicator.
 int getTotalCount(List<DynamicFieldModel> fields) {
-  return fields.where((f) => shouldShowField(f, fields)).length;
+  return fields
+      .where((f) => !isDeletedRepeatableField(f))
+      .where((f) => shouldShowField(f, fields))
+      .length;
 }

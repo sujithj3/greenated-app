@@ -9,6 +9,7 @@ import 'package:share_plus/share_plus.dart';
 import '../../models/api/api_models.dart';
 import '../../utils/app_colors.dart';
 import '../../utils/field_fill_state.dart';
+import '../../utils/repeatable_popup_form_utils.dart';
 import '../../utils/snack_bar_helper.dart';
 import '../../widgets/dynamic_field_builder.dart';
 
@@ -187,7 +188,7 @@ $coordLines
 
     int? popupFormFilled;
     int? popupFormTotal;
-    if (f.isPopupForm) {
+    if (f.isFormContainer) {
       final subFields = df.value as List<DynamicFieldModel>? ?? [];
       popupFormTotal = getTotalCount(subFields);
       popupFormFilled = getFilledCount(subFields);
@@ -204,7 +205,7 @@ $coordLines
       onChanged: (_) {},
       isViewMode: true,
       onPopupFormPressed:
-          f.isPopupForm ? () => _openViewOnlyPopupSheet(df) : null,
+          f.isFormContainer ? () => _openViewOnlyPopupSheet(df) : null,
       popupFormFilledCount: popupFormFilled,
       popupFormTotalCount: popupFormTotal,
       onMapPolygonPressed: f.fieldStyle == FieldStyle.mapPolygon
@@ -225,11 +226,13 @@ class _ViewOnlyPopupSheet extends StatefulWidget {
     required this.parentField,
     required this.fields,
     this.onGenerateKml,
+    this.showRepeatableLabels = false,
   });
 
   final ApiField parentField;
   final List<DynamicFieldModel> fields;
   final void Function(DynamicFieldModel df)? onGenerateKml;
+  final bool showRepeatableLabels;
 
   @override
   State<_ViewOnlyPopupSheet> createState() => _ViewOnlyPopupSheetState();
@@ -238,20 +241,17 @@ class _ViewOnlyPopupSheet extends StatefulWidget {
 class _ViewOnlyPopupSheetState extends State<_ViewOnlyPopupSheet> {
   final Map<String, TextEditingController> _textCtrl = {};
 
+  bool get _usesRepeatableLabels =>
+      widget.parentField.isRepeatablePopupForm || widget.showRepeatableLabels;
+  String get _popupTitle => _usesRepeatableLabels
+      ? getRepeatableDisplayLabel(widget.parentField)
+      : widget.parentField.label;
+
   @override
   void initState() {
     super.initState();
     for (final df in widget.fields) {
-      final f = df.field;
-      if (f.fieldStyle == FieldStyle.text ||
-          f.fieldStyle == FieldStyle.number ||
-          f.fieldStyle == FieldStyle.date) {
-        var initText = df.value?.toString() ?? '';
-        if (f.fieldStyle == FieldStyle.date && initText.isNotEmpty) {
-          initText = formatDateForDisplay(initText);
-        }
-        _textCtrl[f.key] = TextEditingController(text: initText);
-      }
+      _ensureTextController(df);
     }
   }
 
@@ -272,6 +272,7 @@ class _ViewOnlyPopupSheetState extends State<_ViewOnlyPopupSheet> {
         parentField: df.field,
         fields: df.value as List<DynamicFieldModel>? ?? [],
         onGenerateKml: widget.onGenerateKml,
+        showRepeatableLabels: _usesRepeatableLabels,
       ),
     );
   }
@@ -318,7 +319,7 @@ class _ViewOnlyPopupSheetState extends State<_ViewOnlyPopupSheet> {
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      widget.parentField.label,
+                      _popupTitle,
                       style: const TextStyle(
                         color: AppColors.primary,
                         fontSize: 18,
@@ -340,7 +341,9 @@ class _ViewOnlyPopupSheetState extends State<_ViewOnlyPopupSheet> {
                 padding: const EdgeInsets.all(20),
                 child: Column(
                   children: widget.fields
-                      .where((df) => shouldShowField(df, widget.fields))
+                      .where((df) =>
+                          !isDeletedRepeatableField(df) &&
+                          shouldShowField(df, widget.fields))
                       .map(
                         (df) => Padding(
                           padding: const EdgeInsets.only(bottom: 14),
@@ -359,22 +362,29 @@ class _ViewOnlyPopupSheetState extends State<_ViewOnlyPopupSheet> {
 
   Widget _buildSubField(DynamicFieldModel df) {
     final f = df.field;
-    final subFields = f.isPopupForm
+    final subFields = f.isFormContainer
         ? (df.value as List<DynamicFieldModel>? ?? [])
         : <DynamicFieldModel>[];
     final isCameraField = f.fieldStyle == FieldStyle.camera;
     final isFileField = f.fieldStyle == FieldStyle.file;
+    final textKey = _textKeyFor(df);
 
     return DynamicFieldBuilder(
       field: f,
-      value: _textCtrl.containsKey(f.key) ? _textCtrl[f.key]!.text : df.value,
-      textController: _textCtrl[f.key],
+      value:
+          _textCtrl.containsKey(textKey) ? _textCtrl[textKey]!.text : df.value,
+      textController: _textCtrl[textKey],
       accentColor: AppColors.primary,
       onChanged: (_) {},
       isViewMode: true,
-      onPopupFormPressed: f.isPopupForm ? () => _openNestedPopup(df) : null,
-      popupFormFilledCount: f.isPopupForm ? getFilledCount(subFields) : null,
-      popupFormTotalCount: f.isPopupForm ? getTotalCount(subFields) : null,
+      displayLabel: getRepeatableFormContainerDisplayLabel(
+        f,
+        _usesRepeatableLabels,
+      ),
+      onPopupFormPressed: f.isFormContainer ? () => _openNestedPopup(df) : null,
+      popupFormFilledCount:
+          f.isFormContainer ? getFilledCount(subFields) : null,
+      popupFormTotalCount: f.isFormContainer ? getTotalCount(subFields) : null,
       onMapPolygonPressed: f.fieldStyle == FieldStyle.mapPolygon
           ? () => _openViewOnlyMap(df)
           : null,
@@ -385,5 +395,26 @@ class _ViewOnlyPopupSheetState extends State<_ViewOnlyPopupSheet> {
           f.fieldStyle == FieldStyle.dropdown ? df.resolvedOptions : null,
       previewUrl: (isCameraField || isFileField) ? df.previewUrl : null,
     );
+  }
+
+  String _textKeyFor(DynamicFieldModel df) {
+    if (!_usesRepeatableLabels) return df.field.key;
+    final index = df.field.index ?? widget.fields.indexOf(df);
+    return '${df.field.key}#$index#${df.field.fieldId}';
+  }
+
+  void _ensureTextController(DynamicFieldModel df) {
+    final f = df.field;
+    if (f.fieldStyle != FieldStyle.text &&
+        f.fieldStyle != FieldStyle.number &&
+        f.fieldStyle != FieldStyle.date) {
+      return;
+    }
+
+    var initText = df.value?.toString() ?? '';
+    if (f.fieldStyle == FieldStyle.date && initText.isNotEmpty) {
+      initText = formatDateForDisplay(initText);
+    }
+    _textCtrl[_textKeyFor(df)] = TextEditingController(text: initText);
   }
 }
