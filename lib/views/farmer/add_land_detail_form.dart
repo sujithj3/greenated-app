@@ -1,3 +1,9 @@
+// Add land detail form view — creates a new land record for a farmer.
+//
+// Renders the dynamic land-detail form described by landFormData and, on
+// submission, attaches the captured land information to the farmer identified
+// by farmerId.
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 

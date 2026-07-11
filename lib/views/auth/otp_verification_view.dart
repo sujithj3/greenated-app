@@ -1,14 +1,15 @@
+// OTP verification view — the code verification step of the login flow.
+//
+// Displays a 6-digit pin input, Verify button, Resend OTP option, and a
+// Change Number button. Calls onVerified after successful verification and
+// onChangeNumber to return to the phone input step.
+
 import 'package:flutter/material.dart';
 import 'package:pinput/pinput.dart';
 import '../../utils/app_colors.dart';
 import '../../utils/snack_bar_helper.dart';
 import '../../view_models/auth/login_view_model.dart';
 
-/// OTP verification view — part of the login flow.
-///
-/// Displays a 6-digit pin input, Verify button, Resend OTP option, and
-/// a Change Number button. Calls [onVerified] after successful verification
-/// and [onChangeNumber] to return to the phone input step.
 class OtpVerificationView extends StatefulWidget {
   const OtpVerificationView({
     super.key,

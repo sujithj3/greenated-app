@@ -1,3 +1,9 @@
+// Registered farmers list view — browses existing registrations.
+//
+// Displays a paginated, searchable list of farmers registered under the given
+// subcategoryId, with infinite scroll and an expandable search bar. Selecting
+// an item opens its FarmerDetailView.
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../models/flow_type.dart';

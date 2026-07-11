@@ -8,14 +8,26 @@ import 'package:mime/mime.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:uuid/uuid.dart';
 
+/// Supplies the directory where temporary compressed files are written;
+/// injected so tests can redirect output away from the real temp directory.
 typedef UploadTempDirectoryProvider = Future<Directory> Function();
 
+/// Output encoding chosen for a compressed image: lossy [jpeg] (default) or
+/// lossless [png] (used when transparency must be preserved).
 enum UploadImageFormat {
   jpeg,
   png,
 }
 
+/// Abstract contract for the native image-compression backend.
+///
+/// Decouples [UploadCompressionService] from the concrete compressor so it can
+/// be swapped for a fake in tests. [NativeUploadImageCompressor] is the real
+/// implementation, backed by `flutter_image_compress`.
 abstract class UploadImageCompressor {
+  /// Compresses the image at [sourcePath] into [targetPath] at the given
+  /// [quality] (0–100) and [format], bounded by [targetWidth]/[targetHeight].
+  /// Returns the written file's path, or null if compression produced nothing.
   Future<String?> compress({
     required String sourcePath,
     required String targetPath,
@@ -26,6 +38,9 @@ abstract class UploadImageCompressor {
   });
 }
 
+/// Default [UploadImageCompressor] backed by the `flutter_image_compress`
+/// plugin, which runs native platform compression with EXIF stripped and
+/// orientation auto-corrected.
 class NativeUploadImageCompressor implements UploadImageCompressor {
   const NativeUploadImageCompressor();
 
@@ -55,6 +70,9 @@ class NativeUploadImageCompressor implements UploadImageCompressor {
   }
 }
 
+/// Thrown when files cannot be prepared for upload — e.g. nothing selected, an
+/// individual file or the batch exceeds the size limit, or an image could not
+/// be compressed small enough. Its [message] is safe to show to the user.
 class UploadValidationException implements Exception {
   const UploadValidationException(this.message);
 
@@ -64,6 +82,13 @@ class UploadValidationException implements Exception {
   String toString() => message;
 }
 
+/// One file ready for upload after preparation.
+///
+/// Records both the [originalPath]/[originalSizeBytes] and the final
+/// [path]/[sizeBytes], the resolved [extension] and [mimeType], and flags
+/// describing how it was handled: [isCompressibleImage], [wasCompressed],
+/// [isTemporary] (a scratch file that must be cleaned up) and the [quality]
+/// used. Non-image files pass through with the original path unchanged.
 class CompressedUploadFile {
   const CompressedUploadFile({
     required this.originalPath,
@@ -90,6 +115,10 @@ class CompressedUploadFile {
   final int? quality;
 }
 
+/// The outcome of preparing a batch: the prepared [files] and their combined
+/// [totalSizeBytes]. [filePaths] is a convenience list of upload paths, and the
+/// result should be passed to [UploadCompressionService.cleanupTemporaryFiles]
+/// once the upload finishes to remove any temporary files.
 class UploadValidationResult {
   const UploadValidationResult({
     required this.files,
@@ -99,9 +128,22 @@ class UploadValidationResult {
   final List<CompressedUploadFile> files;
   final int totalSizeBytes;
 
+  /// The upload path of every prepared file, in order.
   List<String> get filePaths => files.map((file) => file.path).toList();
 }
 
+/// Prepares user-selected files so they fit the backend's upload size limit.
+///
+/// Given one or more file paths, it inspects each file, compresses images
+/// (downscaling to [maxImageLongSide] and stepping down through
+/// [compressionQualities] until each fits its byte budget), leaves documents
+/// untouched, and enforces the [maxUploadBytes] limit for both single files and
+/// the whole batch — throwing a [UploadValidationException] with a user-facing
+/// message when a file simply cannot be made to fit. Successful results come
+/// back as an [UploadValidationResult] of [CompressedUploadFile]s; any temporary
+/// files it creates are tracked so callers can clean them up afterwards. Image
+/// decoding/compression runs off the UI thread. The compressor, temp directory
+/// and UUID generator are injectable for testing.
 class UploadCompressionService {
   const UploadCompressionService({
     this.imageCompressor = const NativeUploadImageCompressor(),
@@ -125,10 +167,19 @@ class UploadCompressionService {
   final UploadTempDirectoryProvider? tempDirectoryProvider;
   final Uuid uuid;
 
+  /// Convenience wrapper over [prepareFiles] for a single [filePath].
   Future<UploadValidationResult> prepareSingleFile(String filePath) {
     return prepareFiles(<String>[filePath]);
   }
 
+  /// Inspects, compresses (images only) and size-validates [filePaths],
+  /// returning an [UploadValidationResult] on success.
+  ///
+  /// When the batch exceeds [maxUploadBytes], compressible images are given a
+  /// proportional share of the remaining budget. Throws a
+  /// [UploadValidationException] if nothing is selected, a non-image file is
+  /// too large, or the batch cannot be brought under the limit; any temporary
+  /// files created before a failure are deleted before rethrowing.
   Future<UploadValidationResult> prepareFiles(List<String> filePaths) async {
     final infos = <_UploadFileInfo>[];
     for (final path in filePaths) {
@@ -203,6 +254,9 @@ class UploadCompressionService {
     }
   }
 
+  /// Deletes the temporary files created for [result]; call after the upload
+  /// completes (or is abandoned) to reclaim disk space. Non-temporary originals
+  /// are left in place.
   Future<void> cleanupTemporaryFiles(UploadValidationResult result) {
     return _deleteTemporaryFiles(result.files);
   }
@@ -457,6 +511,8 @@ class UploadCompressionService {
   }
 }
 
+/// Internal snapshot of an inspected source file (path, size, extension and
+/// sniffed MIME type) used to decide whether it is a compressible image.
 class _UploadFileInfo {
   const _UploadFileInfo({
     required this.path,
@@ -515,6 +571,7 @@ class _UploadFileInfo {
   }
 }
 
+/// Simple width/height pair describing an image's pixel dimensions.
 class _ImageDimensions {
   const _ImageDimensions(this.width, this.height);
 
@@ -522,18 +579,24 @@ class _ImageDimensions {
   final int height;
 }
 
+/// Result of inspecting a PNG's alpha channel, used to decide whether it can be
+/// safely re-encoded as JPEG.
 enum _PngTransparency {
   opaque,
   hasTransparency,
   unknown,
 }
 
+/// Isolate helper that decodes [bytes] just far enough to read the image's
+/// dimensions; returns null when the bytes are not a decodable image.
 _ImageDimensions? _decodeImageDimensions(Uint8List bytes) {
   final image = img.decodeImage(bytes);
   if (image == null) return null;
   return _ImageDimensions(image.width, image.height);
 }
 
+/// Isolate helper that decodes a PNG from [bytes] and reports whether any pixel
+/// is actually translucent, returning a [_PngTransparency] index.
 int _detectPngTransparencyValue(Uint8List bytes) {
   final image = img.decodePng(bytes);
   if (image == null) return _PngTransparency.unknown.index;

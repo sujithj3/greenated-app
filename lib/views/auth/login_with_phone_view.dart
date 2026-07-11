@@ -1,14 +1,15 @@
+// Login with phone view — the phone number input step of the login flow.
+//
+// Displays the country code selector, phone number field, and Continue
+// button. Calls onOtpSent when the OTP is successfully dispatched so the
+// parent can switch to the OTP verification step.
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../utils/app_colors.dart';
 import '../../utils/snack_bar_helper.dart';
 import '../../view_models/auth/login_view_model.dart';
 
-/// Phone number input view — part of the login flow.
-///
-/// Displays country code selector, phone number field, and Continue button.
-/// Calls [onOtpSent] when OTP is successfully dispatched so the parent
-/// can switch to the OTP verification step.
 class LoginWithPhoneView extends StatefulWidget {
   const LoginWithPhoneView({
     super.key,

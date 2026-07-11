@@ -1,3 +1,9 @@
+// Farmer detail view — a read-only summary of a submitted farmer registration.
+//
+// Fetches the full submission for the given farmer and renders the dynamic
+// fields and associated land details in a non-editable layout. Provides entry
+// points to edit the registration and to share/export the record.
+
 import 'dart:io';
 
 import 'package:flutter/material.dart';

@@ -124,6 +124,7 @@ class HttpClientImpl implements ApiClient {
     }
   }
 
+  /// Dispatches the call to the matching [http.Client] verb for [method].
   Future<http.Response> _executeRequest(
     ApiMethod method,
     Uri uri,
@@ -404,12 +405,17 @@ class HttpClientImpl implements ApiClient {
     }
   }
 
+  /// Fans an [error] out to every interceptor's [ApiInterceptor.onError] hook.
   void _notifyErrorInterceptors(Object error, ApiRequest request) {
     for (final ApiInterceptor interceptor in interceptors) {
       interceptor.onError(error, request);
     }
   }
 
+  /// Pretty-prints the full raw request/response pair to the debug console.
+  ///
+  /// No-op outside debug builds. Complements [LoggingInterceptor], which only
+  /// logs a one-line summary, by dumping headers and bodies for diagnostics.
   void _logRawHttpExchange({
     required ApiMethod method,
     required Uri uri,
@@ -440,6 +446,8 @@ class HttpClientImpl implements ApiClient {
     );
   }
 
+  /// Parses [body] into JSON for readable logging, returning it unchanged
+  /// when it is empty or not valid JSON.
   Object? _decodeJsonForLogging(String? body) {
     if (body == null || body.isEmpty) return body;
 
@@ -450,6 +458,8 @@ class HttpClientImpl implements ApiClient {
     }
   }
 
+  /// Prints [message] in fixed-size chunks to work around the platform
+  /// truncation of long [debugPrint] output.
   void _debugPrintLong(String message) {
     const int chunkSize = 800;
     for (int start = 0; start < message.length; start += chunkSize) {

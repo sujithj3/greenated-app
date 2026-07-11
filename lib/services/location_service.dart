@@ -4,7 +4,9 @@ import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http;
 import '../config/env_config.dart';
 
-/// Result from reverse geocoding.
+/// Structured address returned by reverse geocoding: the [Position] resolved
+/// into a human-readable [address] plus its [village], [district] and [state]
+/// administrative components.
 class AddressResult {
   final String address;
   final String village;
@@ -19,7 +21,15 @@ class AddressResult {
   });
 }
 
-/// Handles geolocation and reverse geocoding.
+/// Provides the device's location and turns coordinates into an address.
+///
+/// Wraps the `geolocator` plugin to fetch the current GPS [Position] —
+/// handling the location-services and permission checks, timeouts and a
+/// last-known-position fallback — and the Google Maps Geocoding API to reverse
+/// geocode coordinates into an [AddressResult]. All predictable failures are
+/// surfaced as a typed [LocationException] (categorised by [LocationFailureType])
+/// so callers can prompt the user appropriately. Used by capture/registration
+/// flows that must record where data was collected.
 class LocationService {
   static const Duration _positionTimeout = Duration(seconds: 20);
   static const Duration _reverseGeocodeTimeout = Duration(seconds: 15);
@@ -154,6 +164,8 @@ class LocationService {
     );
   }
 
+  /// Opens the system app-settings page so the user can grant location access
+  /// that was permanently denied.
   Future<bool> openAppSettings() {
     return Geolocator.openAppSettings();
   }
@@ -175,6 +187,8 @@ class LocationService {
   }
 }
 
+/// Categorises why a location request failed, letting the UI tailor its
+/// response (e.g. prompt to enable services, open settings, or retry).
 enum LocationFailureType {
   servicesDisabled,
   permissionDenied,
@@ -183,6 +197,11 @@ enum LocationFailureType {
   unknown,
 }
 
+/// Exception thrown by [LocationService] for any location or geocoding failure.
+///
+/// Carries a user-facing [message] and a [type] ([LocationFailureType]) so
+/// callers can branch on the cause; [isServiceDisabled] and [isPermissionDenied]
+/// offer convenient checks for the common cases.
 class LocationException implements Exception {
   final String message;
   final LocationFailureType type;

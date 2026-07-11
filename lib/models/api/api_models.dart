@@ -1,5 +1,33 @@
+/// Core data models for the app's **server-driven dynamic forms**.
+///
+/// The backend does not ship fixed screens; instead it describes each form as
+/// JSON (categories → subcategories → forms → fields). This file is the
+/// backbone that turns that JSON into typed Dart objects, holds the user's
+/// runtime input, and serializes everything back for submission.
+///
+/// The model layer is organised in three tiers:
+///
+/// 1. **Field description (immutable):** [FieldType], [FieldStyle], [ApiOption],
+///    [FieldDataSource] and [ApiField] describe *what* a field is — its data
+///    type, how it renders, its selectable options and any conditional rules.
+/// 2. **Runtime state (mutable):** [DynamicFieldModel] pairs an [ApiField] with
+///    the value the user has entered, its resolved options and validation
+///    state. This is the object the UI binds to and edits.
+/// 3. **Aggregates:** [ApiForm], [FarmerDetails], [LandDetail] and
+///    [LandFormData] group fields into complete forms and submissions;
+///    [AppFileItem] models file/image attachments.
+///
+/// A set of tolerant JSON helpers at the bottom of the file (key normalisation,
+/// safe int/bool parsing, deep copying, etc.) lets the models absorb backend
+/// inconsistencies (snake_case vs camelCase, strings-for-numbers) without
+/// crashing.
 library;
 
+/// Logical data type of a field's value, as declared by the backend.
+///
+/// This drives how a value is parsed, validated and serialized (e.g. an
+/// [arrayString] is sent as a list, an [integer] as a number). It is distinct
+/// from [FieldStyle], which only controls how the field is rendered.
 enum FieldType {
   string,
   integer,
@@ -11,6 +39,11 @@ enum FieldType {
   dict,
   unknown;
 
+  /// Maps the backend's raw type code to a [FieldType].
+  ///
+  /// Matching is case-insensitive and tolerant of both hyphen and underscore
+  /// separators (e.g. `ARRAY-STRING` and `ARRAY_STRING`). Unrecognised values
+  /// fall back to [FieldType.unknown] rather than throwing.
   static FieldType fromApiValue(Object? rawValue) {
     final value = (rawValue as String? ?? '').trim().toUpperCase();
     return switch (value) {
@@ -28,6 +61,11 @@ enum FieldType {
   }
 }
 
+/// Visual/interaction style of a field — i.e. which widget renders it.
+///
+/// Where [FieldType] describes the data, [FieldStyle] describes the control:
+/// a plain text box, a dropdown, a date picker, a camera capture, a file
+/// picker, a nested pop-up form, a map polygon, etc.
 enum FieldStyle {
   text,
   number,
@@ -42,6 +80,10 @@ enum FieldStyle {
   mapPolygon,
   unknown;
 
+  /// Maps the backend's raw style code to a [FieldStyle].
+  ///
+  /// Case-insensitive; unrecognised values become [FieldStyle.unknown]. Note
+  /// that the legacy `BUTTON` code is treated as a [popupForm].
   static FieldStyle fromApiValue(Object? rawValue) {
     final value = (rawValue as String? ?? '').trim().toUpperCase();
     return switch (value) {
@@ -62,6 +104,12 @@ enum FieldStyle {
   }
 }
 
+/// A single selectable choice for a dropdown, radio or checkbox field.
+///
+/// Parsing is deliberately lenient: the backend may label the display text as
+/// `name`, `label` or `value`, and the identifier as `id`, `optionId` or
+/// `value`. When no id is present the option's name hash is used as a stable
+/// fallback so selections can still be compared.
 class ApiOption {
   const ApiOption({
     required this.id,
@@ -88,6 +136,11 @@ class ApiOption {
       };
 }
 
+/// Describes how a field's options are fetched from the server at runtime.
+///
+/// Used when a field's choices are dynamic (e.g. a dependent dropdown) instead
+/// of a static [ApiOption] list. Holds the [endpoint], HTTP [method] and any
+/// query [params] the client should call to resolve the options.
 class FieldDataSource {
   const FieldDataSource({
     required this.type,
@@ -124,6 +177,18 @@ class FieldDataSource {
       };
 }
 
+/// Immutable definition of a single form field, exactly as described by the
+/// backend.
+///
+/// This is the *blueprint* for a field — its identity ([fieldId], [key]),
+/// label, data [fieldType], render [fieldStyle], whether it is [required], its
+/// selectable [options], and any conditional-visibility rules ([dependsOn] +
+/// [showWhen]). Container styles ([FieldStyle.popupForm] /
+/// [FieldStyle.repeatablePopupForm]) nest their child fields in [subFields]
+/// instead of options.
+///
+/// It carries no user input — that lives in [DynamicFieldModel], which wraps an
+/// [ApiField]. Supports [fromJson] / [toJson] round-tripping and [copyWith].
 class ApiField {
   const ApiField({
     required this.fieldId,
@@ -157,9 +222,12 @@ class ApiField {
   final int? index;
   final bool? isDeleted;
 
+  /// Whether this field hosts a nested set of [subFields] rather than a value.
   bool get isPopupForm => fieldStyle == FieldStyle.popupForm;
   bool get isRepeatablePopupForm =>
       fieldStyle == FieldStyle.repeatablePopupForm;
+
+  /// True for any style that contains child fields (pop-up or repeatable).
   bool get isFormContainer => isPopupForm || isRepeatablePopupForm;
 
   /// Returns [placeHolder] if non-null and non-empty, otherwise falls back to [label].
@@ -172,6 +240,11 @@ class ApiField {
 
   List<String> get fieldData => options.map((option) => option.name).toList();
 
+  /// Builds an [ApiField] from backend JSON.
+  ///
+  /// Container styles parse their nested `fields` recursively into [subFields];
+  /// all other styles parse their flat `options` list. Keys are normalised to
+  /// camelCase first so both snake_case and camelCase payloads are accepted.
   factory ApiField.fromJson(Map<String, dynamic> json) {
     final data = _normalizeJsonKeys(json);
     final resolvedFieldType = FieldType.fromApiValue(data['type']);
@@ -303,6 +376,20 @@ class ApiField {
   }
 }
 
+/// Mutable runtime wrapper that binds a field's [ApiField] blueprint to the
+/// user's live input.
+///
+/// This is the object screens actually render and mutate. It holds:
+/// - [value]: the current user input (a scalar, a list, or a
+///   `List<DynamicFieldModel>` for container fields);
+/// - [resolvedOptions]: options after any [FieldDataSource] fetch, plus
+///   [isLoadingOptions] / [optionsError] to reflect that fetch's status;
+/// - [previewUrl]: display-only presigned URL(s) for camera/file fields;
+/// - [hasError] / [errorMessage]: transient validation state set by the
+///   validator and shown by the UI.
+///
+/// Display-only fields ([previewUrl], validation state) are intentionally
+/// excluded from [toJson] and [copyWith] so they never leak into submissions.
 class DynamicFieldModel {
   DynamicFieldModel({
     required this.field,
@@ -340,10 +427,16 @@ class DynamicFieldModel {
     errorMessage = null;
   }
 
+  /// Monotonic counter used to discard stale async option fetches: a fetch
+  /// captures the current generation and ignores its result if the value has
+  /// since changed (guarding against out-of-order responses).
   int _fetchGeneration = 0;
   int get fetchGeneration => _fetchGeneration;
   void incrementFetchGeneration() => _fetchGeneration++;
 
+  /// Creates a blank runtime model from a field blueprint, seeding a sensible
+  /// initial [value] per style (nested models for containers, `false` for
+  /// checkboxes, an empty list for file fields).
   factory DynamicFieldModel.fromApiField(ApiField field) {
     dynamic initialValue;
     if (field.isFormContainer) {
@@ -362,6 +455,9 @@ class DynamicFieldModel {
     );
   }
 
+  /// Rehydrates a runtime model from a saved/submitted payload, restoring both
+  /// the field definition and its previously entered [value] (recursing into
+  /// nested container fields and normalising file references).
   factory DynamicFieldModel.fromJson(Map<String, dynamic> json) {
     final data = _normalizeJsonKeys(json);
     final apiField = ApiField.fromJson(data);
@@ -468,6 +564,13 @@ class DynamicFieldModel {
   }
 }
 
+/// A single file or image attachment, whether stored [isRemote] on the server
+/// or held as a [localPath] on the device.
+///
+/// Normalises the various ways a file can be referenced (raw path, presigned
+/// preview URL) into one object and derives a [displayName], file [extension]
+/// and type flags ([isImage], [isPdf], [isDoc], [isTxt], [isPreviewable]) used
+/// by the file viewer and upload widgets.
 class AppFileItem {
   const AppFileItem({
     this.id,
@@ -517,6 +620,8 @@ class AppFileItem {
     );
   }
 
+  /// Zips a field's stored paths with their preview URLs into one item per
+  /// attachment, skipping entries where both are empty.
   static List<AppFileItem> fromReferences({
     required Object? value,
     required Object? previewUrl,
@@ -573,6 +678,8 @@ class AppFileItem {
       (extension ?? _extensionFrom(localPath ?? url ?? id) ?? '').toLowerCase();
 }
 
+/// A farmer's submitted registration record: server-assigned [farmerId] and
+/// [farmerCode] plus the list of answered [fields].
 class FarmerDetails {
   const FarmerDetails({
     this.farmerId,
@@ -599,6 +706,10 @@ class FarmerDetails {
   }
 }
 
+/// A single land parcel belonging to a farmer's registration.
+///
+/// Identified by its [submissionId] / [landId] and shown under [landTitle] /
+/// [landCode]; [fields] holds the answered land-specific form fields.
 class LandDetail {
   const LandDetail({
     this.submissionId,
@@ -632,6 +743,9 @@ class LandDetail {
   }
 }
 
+/// A complete form definition: metadata ([formId], [formName], [prefixCode],
+/// [formType], active state, whether geo-location is required) plus the ordered
+/// list of [fields] that make up the form.
 class ApiForm {
   const ApiForm({
     required this.formId,
@@ -682,6 +796,11 @@ class ApiForm {
       };
 }
 
+/// The land-form payload returned for a subcategory.
+///
+/// Wraps one or more candidate [forms] for the subcategory and preserves the
+/// untouched [rawData] so it can be echoed back on submission. [firstUsableForm]
+/// picks the form to render (preferring active forms that actually have fields).
 class LandFormData {
   const LandFormData({
     required this.subcategoryId,
@@ -708,6 +827,9 @@ class LandFormData {
     );
   }
 
+  /// The best form to display: the first active form that has fields, or — if
+  /// none are marked active — the first form with fields. Returns null when no
+  /// form contains any fields.
   ApiForm? get firstUsableForm {
     final activeForms = forms.where((form) => form.isActive == true).toList();
     if (activeForms.isNotEmpty) {
@@ -727,6 +849,17 @@ class LandFormData {
   Map<String, dynamic> toJson() => copyRawData();
 }
 
+// ─────────────────────────────────────────────────────────────────────────
+// JSON helpers
+//
+// Shared, defensive utilities used throughout the models above to tolerate the
+// backend's inconsistencies: mixed key casing, numbers sent as strings, single
+// values where lists are expected, and so on. Keeping the parsing lenient here
+// means the model constructors stay simple and never throw on odd payloads.
+// ─────────────────────────────────────────────────────────────────────────
+
+/// Returns a copy of [json] with every key converted to camelCase so the
+/// models can read a single canonical key regardless of the source casing.
 Map<String, dynamic> _normalizeJsonKeys(Map<String, dynamic> json) {
   final normalized = <String, dynamic>{};
   json.forEach((key, value) {
@@ -735,6 +868,8 @@ Map<String, dynamic> _normalizeJsonKeys(Map<String, dynamic> json) {
   return normalized;
 }
 
+/// Converts a `snake_case` identifier to `camelCase`; returns [input] as-is
+/// when it contains no underscores.
 String _toCamelCase(String input) {
   if (!input.contains('_')) return input;
   final segments = input.split('_');
@@ -749,6 +884,8 @@ String _toCamelCase(String input) {
           .join();
 }
 
+/// Safely coerces [value] (int, num or numeric string) to an int, returning
+/// [fallback] when it cannot be parsed.
 int _asInt(Object? value, {int fallback = 0}) {
   if (value is int) return value;
   if (value is num) return value.toInt();
@@ -756,6 +893,8 @@ int _asInt(Object? value, {int fallback = 0}) {
   return fallback;
 }
 
+/// Safely coerces [value] to a bool, accepting native bools, numbers
+/// (non-zero = true) and the strings `true`/`false`/`1`/`0`.
 bool _asBool(Object? value, {bool fallback = false}) {
   if (value is bool) return value;
   if (value is num) return value != 0;
@@ -767,23 +906,31 @@ bool _asBool(Object? value, {bool fallback = false}) {
   return fallback;
 }
 
+/// Recursively deep-copies a JSON map so callers can mutate the result without
+/// affecting the original (used to preserve untouched raw payloads).
 Map<String, dynamic> _deepCopyMap(Map<dynamic, dynamic> source) {
   return source.map(
     (key, value) => MapEntry(key.toString(), _deepCopyJsonValue(value)),
   );
 }
 
+/// Recursive helper for [_deepCopyMap] that copies nested maps and lists and
+/// returns primitives unchanged.
 Object? _deepCopyJsonValue(Object? value) {
   if (value is Map) return _deepCopyMap(value);
   if (value is List) return value.map(_deepCopyJsonValue).toList();
   return value;
 }
 
+/// Trims [value] to a string, collapsing null/empty results to null.
 String? _asNullableString(Object? value) {
   final text = value?.toString().trim();
   return text == null || text.isEmpty ? null : text;
 }
 
+/// Normalises any raw file/option reference into a clean `List<String>`,
+/// trimming entries and dropping blanks. A single non-list value becomes a
+/// one-element list; null becomes an empty list.
 List<String> cleanStringList(Object? raw) {
   if (raw == null) return <String>[];
   if (raw is List) {
@@ -796,11 +943,16 @@ List<String> cleanStringList(Object? raw) {
   return text.isEmpty ? <String>[] : <String>[text];
 }
 
+/// Returns the first non-empty string from [raw] (via [cleanStringList]), or
+/// null if there is none.
 String? _firstCleanString(Object? raw) {
   final values = cleanStringList(raw);
   return values.isEmpty ? null : values.first;
 }
 
+/// Deep-copies a [DynamicFieldModel.value], which may be a nested list of
+/// models, a plain list, a map, or a primitive — so [copyWith] does not share
+/// mutable references with the original.
 dynamic _copyDynamicValue(dynamic value) {
   if (value is List<DynamicFieldModel>) {
     return value.map((field) => field.copyWith()).toList();
@@ -814,6 +966,7 @@ dynamic _copyDynamicValue(dynamic value) {
   return value;
 }
 
+/// Returns the first non-null, non-blank (trimmed) string in [values], or null.
 String? _firstNonEmptyString(List<String?> values) {
   for (final value in values) {
     final text = value?.trim();
@@ -822,11 +975,14 @@ String? _firstNonEmptyString(List<String?> values) {
   return null;
 }
 
+/// True when [value] parses as an absolute `http`/`https` URL.
 bool _isHttpUrl(String value) {
   final uri = Uri.tryParse(value.trim());
   return uri != null && (uri.scheme == 'http' || uri.scheme == 'https');
 }
 
+/// Extracts a human-readable file name from a path or URL: strips query and
+/// fragment, normalises separators, and URL-decodes the last path segment.
 String? _fileNameFrom(String? raw) {
   final value = raw?.trim();
   if (value == null || value.isEmpty) return null;
@@ -838,6 +994,8 @@ String? _fileNameFrom(String? raw) {
   return last.isEmpty ? value : last;
 }
 
+/// Extracts the lowercased file extension from a path or URL, or null when the
+/// name has no usable extension.
 String? _extensionFrom(String? raw) {
   final fileName = _fileNameFrom(raw);
   if (fileName == null) return null;
@@ -846,6 +1004,8 @@ String? _extensionFrom(String? raw) {
   return fileName.substring(dotIndex + 1).toLowerCase();
 }
 
+/// Normalises a field's `showWhen` condition into a list of allowed values,
+/// accepting either a list or a single scalar (parsed to int when possible).
 List<dynamic>? _parseShowWhen(Object? raw) {
   if (raw == null) return null;
   if (raw is List) return List<dynamic>.from(raw);

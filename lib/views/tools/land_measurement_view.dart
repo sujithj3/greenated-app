@@ -1,3 +1,9 @@
+// Land measurement view — measures a plot's area on an interactive map.
+//
+// Lets the user drop and drag pins on a Google Map to outline a plot, then
+// computes the enclosed area. Handles location services/permission and
+// returns the measured value to the caller for use in the registration form.
+//
 // SETUP REQUIRED FOR GOOGLE MAPS:
 // Android — add inside <application> in android/app/src/main/AndroidManifest.xml:
 //   <meta-data android:name="com.google.android.geo.API_KEY"

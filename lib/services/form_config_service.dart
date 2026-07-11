@@ -5,6 +5,15 @@ import '../models/category/category_models.dart';
 import '../repositories/category_repository.dart';
 import 'registration_form_service.dart';
 
+/// Central store and lookup facade for category/subcategory configuration and
+/// the server-driven forms attached to them.
+///
+/// Loads categories once through [CategoryRepository] (which caches them),
+/// caches the resulting [CategoryModel] list in memory, and delegates form
+/// definition fetches to [RegistrationFormService]. As a [ChangeNotifier] it
+/// exposes observable state — [categories], [isLoading], [error] and
+/// [isLoaded] — that the UI and view models listen to, together with
+/// synchronous lookups for resolving subcategories and their dynamic forms.
 class FormConfigService extends ChangeNotifier {
   FormConfigService({
     required CategoryRepository categoryRepository,
@@ -24,6 +33,11 @@ class FormConfigService extends ChangeNotifier {
   String? get error => _error;
   bool get isLoaded => _categories.isNotEmpty;
 
+  /// Loads categories into memory and notifies listeners around the request.
+  ///
+  /// Skips the fetch when one is already in flight, or when categories are
+  /// already cached and [forceRefresh] is false. Failures are captured in
+  /// [error] rather than rethrown so the UI can render an error state.
   Future<void> fetchCategories({bool forceRefresh = false}) async {
     if (_isLoading) return;
     if (!forceRefresh && _categories.isNotEmpty) return;
@@ -45,6 +59,7 @@ class FormConfigService extends ChangeNotifier {
     }
   }
 
+  /// Returns the cached [CategoryModel] whose name matches [name], or null.
   CategoryModel? getCategoryByName(String name) {
     try {
       return _categories
@@ -66,6 +81,8 @@ class FormConfigService extends ChangeNotifier {
     return getCategoryByName(categoryName)?.subcategories ?? const [];
   }
 
+  /// Resolves the subcategories for [categoryId], loading categories first if
+  /// they have not been fetched yet. Returns an empty list when unknown.
   Future<List<SubcategoryModel>> getSubCategoriesByCategoryId(
     int categoryId,
   ) async {
@@ -77,6 +94,8 @@ class FormConfigService extends ChangeNotifier {
     return category?.subcategories ?? const [];
   }
 
+  /// Fetches the dynamic registration [ApiForm] for [subCategoryId] by
+  /// delegating to [RegistrationFormService.fetchRegistrationForm].
   Future<ApiForm?> getDynamicRegistrationFields(int subCategoryId) {
     return _registrationFormService.fetchRegistrationForm(subCategoryId);
   }

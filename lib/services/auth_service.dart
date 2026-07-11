@@ -1,6 +1,14 @@
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+/// Owns the signed-in user's session and identity for the whole app.
+///
+/// Persists the authenticated user's profile (id, name, phone, timestamps) and
+/// auth tokens to [SharedPreferences] so the session survives app restarts, and
+/// exposes them through simple getters. It extends [ChangeNotifier] so screens
+/// and route guards can listen and react to sign-in / sign-out as observable
+/// state. [signInWithApiTokens] ingests the backend's verify-otp response after
+/// login, and [signOut] clears the stored session.
 class AuthService extends ChangeNotifier {
   SharedPreferences? _prefs;
 
@@ -12,6 +20,8 @@ class AuthService extends ChangeNotifier {
   static const String _tokenKey = 'app_auth_token';
   static const String _refreshTokenKey = 'app_refresh_token';
 
+  /// The signed-in user's id, tolerating values stored as either an int or a
+  /// numeric string; null when no user is signed in.
   int? get userId {
     if (_prefs == null) return null;
     final value = _prefs!.get(_userIdKey);
@@ -33,6 +43,7 @@ class AuthService extends ChangeNotifier {
 
   String? get accessToken => _prefs?.getString(_tokenKey);
 
+  /// True when a user session is present (i.e. [userId] is set).
   bool get isLoggedIn => userId != null;
 
   /// Initialize SharedPreferences. Should be called early in the app lifecycle.
@@ -121,6 +132,8 @@ class AuthService extends ChangeNotifier {
         'ID=$userId, Name=$name, Phone=$mobileNumber');
   }
 
+  /// Clears the stored session — user profile and both auth tokens — and
+  /// notifies listeners so the app can return to the signed-out state.
   Future<void> signOut() async {
     if (_prefs != null) {
       await _prefs!.remove(_userIdKey);

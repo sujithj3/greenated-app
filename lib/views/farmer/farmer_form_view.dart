@@ -1,3 +1,9 @@
+// Farmer registration form view — used to create a new farmer registration.
+//
+// Fetches the dynamic form configuration for the selected subcategory and
+// renders the corresponding fields, validation, file/image uploads, and
+// repeatable sections. On submission it creates a new registration record.
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 

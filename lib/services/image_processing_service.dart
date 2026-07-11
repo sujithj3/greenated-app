@@ -3,6 +3,16 @@ import 'package:flutter/foundation.dart';
 import 'package:image/image.dart' as img;
 import 'package:path_provider/path_provider.dart';
 
+/// Stamps captured photos with a location/timestamp watermark off the UI
+/// thread.
+///
+/// Given a freshly captured photo, it bakes the correct orientation, centre-
+/// crops the image to the app's photo-frame aspect ratio, and draws the
+/// supplied address, coordinates and timestamp as an overlay in the top-left
+/// corner, then writes the result to the app documents directory and returns
+/// the new file path. The heavy `image` package work runs in a background
+/// isolate via [compute] so capture screens stay responsive. The documents
+/// directory is injected for testability.
 class ImageProcessingService {
   ImageProcessingService({
     Future<Directory> Function()? documentsDirectoryProvider,
@@ -37,6 +47,8 @@ class ImageProcessingService {
   }
 }
 
+/// Immutable payload passed to the background isolate describing one image to
+/// watermark: source/output paths and the overlay text lines.
 class _ImageProcessingRequest {
   const _ImageProcessingRequest({
     required this.originalImagePath,
@@ -53,6 +65,8 @@ class _ImageProcessingRequest {
   final String timestampText;
 }
 
+/// Isolate entry point that performs the actual decode, orientation bake,
+/// crop, overlay drawing and JPEG re-encode, returning the output file path.
 String _processImageInBackground(_ImageProcessingRequest request) {
   final bytes = File(request.originalImagePath).readAsBytesSync();
   img.Image? capturedImage = img.decodeImage(bytes);
@@ -117,6 +131,8 @@ String _processImageInBackground(_ImageProcessingRequest request) {
   return request.outputPath;
 }
 
+/// Measures the pixel width of [text] rendered in the given bitmap [font] by
+/// summing each glyph's advance.
 int _calculateTextWidth(String text, img.BitmapFont font) {
   int width = 0;
   for (int i = 0; i < text.length; i++) {
@@ -128,6 +144,8 @@ int _calculateTextWidth(String text, img.BitmapFont font) {
   return width;
 }
 
+/// Truncates [text] with a trailing ellipsis so it fits within [maxWidth]
+/// pixels in the given [font]; returns it unchanged when it already fits.
 String _ellipsizeToWidth(String text, img.BitmapFont font, int maxWidth) {
   if (_calculateTextWidth(text, font) <= maxWidth) {
     return text;
@@ -150,6 +168,9 @@ String _ellipsizeToWidth(String text, img.BitmapFont font, int maxWidth) {
   return '${buffer.toString()}$ellipsis';
 }
 
+/// Centre-crops [image] to the app's photo-frame aspect ratio (chosen from its
+/// orientation by [_photoFrameAspectRatioForImageSize]), trimming the longer
+/// dimension symmetrically.
 img.Image _centerCropToPhotoFrame(img.Image image) {
   final targetAspectRatio = _photoFrameAspectRatioForImageSize(
     width: image.width,
@@ -178,6 +199,8 @@ img.Image _centerCropToPhotoFrame(img.Image image) {
   );
 }
 
+/// Picks the target crop aspect ratio for an image: 4:3 landscape when it is
+/// wider than tall, otherwise 3:4 portrait.
 double _photoFrameAspectRatioForImageSize({
   required int width,
   required int height,

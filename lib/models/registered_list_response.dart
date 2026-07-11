@@ -1,5 +1,11 @@
 import 'registered_farmers_list.dart';
 
+/// Pagination metadata for a list response.
+///
+/// Describes where a returned page sits within the full result set: the
+/// current [page], the [pageSize], and the totals ([totalItems], [totalPages])
+/// across all pages. Parsed from backend JSON with sensible defaults for any
+/// missing field.
 class PaginationMeta {
   final int page;
   final int pageSize;
@@ -32,6 +38,13 @@ class PaginationMeta {
   }
 }
 
+/// A single paginated page of registered farmers as returned by the backend.
+///
+/// This is the backbone of the registered-farmers list feature: it couples a
+/// page of [RegisteredFarmersList] rows with the [PaginationMeta] describing
+/// that page's position in the overall result set. [fromJson] parses the
+/// server envelope — synthesising a single-page [DetailedPaginationMeta] when
+/// the response omits pagination — and [toJson] serializes it back.
 class RegisteredListResponse {
   final List<RegisteredFarmersList> registeredFarmers;
   final PaginationMeta pagination;
@@ -72,6 +85,11 @@ class RegisteredListResponse {
 
 // Rename the internal PaginationMeta alias to avoid conflict or just use the same name.
 // Actually, let's keep it clean:
+/// The [PaginationMeta] variant used by [RegisteredListResponse].
+///
+/// Behaviourally identical to its base class today; it exists as a distinct
+/// type so the registered-farmers response can evolve its pagination shape
+/// independently without affecting other consumers of [PaginationMeta].
 class DetailedPaginationMeta extends PaginationMeta {
   DetailedPaginationMeta({
     required super.page,

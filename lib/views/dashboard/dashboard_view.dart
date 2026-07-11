@@ -1,3 +1,9 @@
+// Dashboard view — the home screen shown after a successful login.
+//
+// Presents the available project categories and the primary entry points into
+// the registration and listing flows. Loads category data on first build and
+// hosts account-level actions such as logout.
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 

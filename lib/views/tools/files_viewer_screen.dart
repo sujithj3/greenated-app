@@ -1,3 +1,9 @@
+// Files viewer screen — previews attachments captured during registration.
+//
+// Displays a list of AppFileItem attachments (PDF, image, document, or text)
+// with a thumbnail strip for navigation. Supports opening/rendering the
+// selected file, sharing it, and optionally deleting it via onDeleteFile.
+
 import 'dart:io';
 
 import 'package:cached_network_image/cached_network_image.dart';

@@ -4,7 +4,19 @@ import '../core/network/api_endpoints.dart';
 import '../core/network/api_method.dart';
 import '../models/registered_list_response.dart';
 
+/// Contract for reading a paginated, optionally searchable list of registered
+/// farmers for a given subcategory.
+///
+/// Abstracts the registered-list data source so view models depend on this
+/// interface rather than the network directly. The default implementation is
+/// [RegisteredListRepositoryImpl].
 abstract class RegisteredListRepository {
+  /// Fetches a single page of registered farmers under [subcategoryId] for the
+  /// current [userId].
+  ///
+  /// [page] is 1-based and [pageSize] caps the rows per page; an optional
+  /// [search] term filters results server-side. Returns the page rows together
+  /// with pagination metadata as a [RegisteredListResponse].
   Future<RegisteredListResponse> fetchRegisteredList({
     required int subcategoryId,
     required int userId,
@@ -14,6 +26,11 @@ abstract class RegisteredListRepository {
   });
 }
 
+/// [ApiClient]-backed [RegisteredListRepository].
+///
+/// Builds the paginated GET request (attaching the search term only when
+/// non-empty), decodes the payload into a [RegisteredListResponse], and throws
+/// when the response body is missing or malformed.
 class RegisteredListRepositoryImpl implements RegisteredListRepository {
   final ApiClient apiClient;
 

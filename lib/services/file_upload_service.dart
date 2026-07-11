@@ -2,6 +2,12 @@ import '../core/network/network.dart';
 import '../models/api/api_models.dart';
 import 'upload_compression_service.dart';
 
+/// Result of a successful multi-file upload.
+///
+/// Pairs the server-assigned storage [paths] (stored as field values and sent
+/// in form submissions) with their presigned [previewUrls] (display-only).
+/// [hasIncompleteData] flags a mismatch or missing paths so callers can guard
+/// against partial uploads.
 class FileUploadResult {
   const FileUploadResult({
     required this.paths,
@@ -22,6 +28,14 @@ class FileUploadResult {
   }
 }
 
+/// Service responsible for uploading and deleting document/file attachments.
+///
+/// Compresses and validates the selected files through
+/// [UploadCompressionService], POSTs them as multipart/form-data to
+/// [ApiEndpoints.filesUpload], and returns a [FileUploadResult] of storage
+/// paths plus presigned preview URLs. Also deletes a previously uploaded file
+/// by its storage path. Backs the file-picker form fields and their view
+/// models; images are handled separately by `ImageUploadService`.
 class FileUploadService {
   FileUploadService({
     required ApiClient apiClient,
@@ -33,6 +47,12 @@ class FileUploadService {
   final ApiClient _apiClient;
   final UploadCompressionService _uploadCompressionService;
 
+  /// Compresses and uploads the files at [filePaths], returning a
+  /// [FileUploadResult] with their storage paths and preview URLs.
+  ///
+  /// Temporary compressed files are always cleaned up afterwards. Throws
+  /// [ApiException] when no files are selected, the upload fails, or the server
+  /// returns no path.
   Future<FileUploadResult> uploadFiles({
     required String fieldKey,
     required List<String> filePaths,
@@ -81,6 +101,11 @@ class FileUploadService {
     }
   }
 
+  /// Deletes the uploaded file at [path] from the backend.
+  ///
+  /// [fieldId] and [submissionId], when provided, scope the delete to a
+  /// specific field/submission. Throws [ApiException] on an empty path or a
+  /// failed request.
   Future<void> deleteFileByPath(
     String path, {
     int? fieldId,
