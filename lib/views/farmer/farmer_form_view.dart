@@ -395,8 +395,7 @@ class _FarmerFormViewState extends State<FarmerFormView> {
       );
       if (success && mounted) {
         context.showSnack('Farmer registered!', success: true);
-        Navigator.pushNamedAndRemoveUntil(
-            context, '/dashboard', (route) => false);
+        Navigator.pop(context, true);
       }
     } catch (e) {
       if (mounted) context.showSnack('Error: ${e.toString()}');

@@ -10,6 +10,11 @@ abstract class CategoryRepository {
   /// Returns the available [CategoryModel]s, using a cached copy when present.
   /// Pass [forceRefresh] to bypass the cache and re-fetch from the network.
   Future<List<CategoryModel>> fetchCategories({bool forceRefresh = false});
+
+  /// Drops any cached categories so the next fetch hits the network.
+  /// Categories are scoped to the signed-in user, so this must be called on
+  /// sign-out to avoid serving one user's categories to the next.
+  void clearCache();
 }
 
 /// Network-backed [CategoryRepository] that fetches via [CategoryApiService]
@@ -36,5 +41,10 @@ class CategoryRepositoryImpl implements CategoryRepository {
     final categories = await _apiService.fetchCategories();
     _cache = List<CategoryModel>.unmodifiable(categories);
     return _cache!;
+  }
+
+  @override
+  void clearCache() {
+    _cache = null;
   }
 }

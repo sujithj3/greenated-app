@@ -13,6 +13,7 @@ import '../../services/auth_service.dart';
 import '../../services/form_config_service.dart';
 import '../../utils/app_colors.dart';
 import '../../view_models/dashboard/dashboard_view_model.dart';
+import '../../view_models/registered_list_view_model.dart';
 import '../../widgets/popup_form.dart';
 import '../../widgets/shimmer_loading.dart';
 
@@ -32,6 +33,7 @@ class _DashboardViewState extends State<DashboardView> {
     _vm = DashboardViewModel(
       context.read<AuthService>(),
       context.read<FormConfigService>(),
+      context.read<RegisteredListViewModel>(),
     );
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted && _vm.categories.isEmpty && !_vm.isCategoriesLoading) {

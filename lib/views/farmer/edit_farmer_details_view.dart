@@ -314,6 +314,7 @@ class _EditFarmerDetailsViewState extends State<EditFarmerDetailsView> {
     );
 
     if (result == true && mounted) {
+      _markShouldRefreshOnPop();
       await _vm.loadEditForm(
         subcategoryId: widget.subcategoryId,
         farmerId: widget.farmerId,
@@ -458,6 +459,7 @@ class _EditFarmerDetailsViewState extends State<EditFarmerDetailsView> {
                           },
                         );
                         if (result == true && mounted) {
+                          _markShouldRefreshOnPop();
                           await _vm.loadEditForm(
                             subcategoryId: widget.subcategoryId,
                             farmerId: widget.farmerId,

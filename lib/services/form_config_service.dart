@@ -28,6 +28,10 @@ class FormConfigService extends ChangeNotifier {
   bool _isLoading = false;
   String? _error;
 
+  /// Bumped by [clear] so results of fetches started before the clear are
+  /// discarded instead of resurrecting the previous user's categories.
+  int _generation = 0;
+
   List<CategoryModel> get categories => _categories;
   bool get isLoading => _isLoading;
   String? get error => _error;
@@ -44,19 +48,38 @@ class FormConfigService extends ChangeNotifier {
 
     _isLoading = true;
     _error = null;
+    final generation = _generation;
     notifyListeners();
 
     try {
-      _categories = await _categoryRepository.fetchCategories(
+      final categories = await _categoryRepository.fetchCategories(
         forceRefresh: forceRefresh,
       );
+      if (generation != _generation) return;
+      _categories = categories;
     } catch (error) {
+      if (generation != _generation) return;
       _error = error.toString();
       debugPrint('FormConfigService.fetchCategories error: $error');
     } finally {
-      _isLoading = false;
-      notifyListeners();
+      if (generation == _generation) {
+        _isLoading = false;
+        notifyListeners();
+      }
     }
+  }
+
+  /// Clears all cached category state, including [CategoryRepository]'s
+  /// cache, so the next fetch hits the network. Categories are scoped to the
+  /// signed-in user — call this on sign-out so the next user never sees the
+  /// previous user's categories.
+  void clear() {
+    _generation++;
+    _categories = const [];
+    _error = null;
+    _isLoading = false;
+    _categoryRepository.clearCache();
+    notifyListeners();
   }
 
   /// Returns the cached [CategoryModel] whose name matches [name], or null.
