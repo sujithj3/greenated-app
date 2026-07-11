@@ -78,7 +78,7 @@ class _LoginWithPhoneViewState extends State<LoginWithPhoneView> {
           ),
           SizedBox(height: 8 * scale),
           Text(
-            'Enter your mobile number to receive a verification code.',
+            'Enter mobile number',
             style: TextStyle(
               color: AppColors.textMedium,
               fontSize: (12 * scale).clamp(11.0, 14.0),

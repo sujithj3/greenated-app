@@ -23,6 +23,7 @@ import 'utils/app_colors.dart';
 import 'views/auth/splash_view.dart';
 import 'views/auth/login_view.dart';
 import 'views/dashboard/dashboard_view.dart';
+import 'views/about/about_view.dart';
 import 'views/category/category_view.dart';
 import 'views/category/subcategory_view.dart';
 import 'views/farmer/farmer_form_view.dart';
@@ -184,6 +185,8 @@ class FarmerRegistrationApp extends StatelessWidget {
               page = const FarmerFormView();
             case '/land-measurement':
               page = const LandMeasurementView();
+            case '/about':
+              page = const AboutView();
             case '/camera-capture':
               final cameraArgs =
                   settings.arguments as Map<String, dynamic>? ?? {};
