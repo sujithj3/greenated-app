@@ -1,15 +1,15 @@
 // About Us view — a static informational screen reached from the side menu.
 //
 // Displays the Greenated brand mark and tagline near the top, with the app
-// version and build date pinned toward the bottom. The version is read from the
-// bundle at runtime via package_info_plus; the "updated" date is the build date,
-// injected at compile time with `--dart-define=BUILD_DATE=<ISO-8601>` and falling
-// back to the current date when the define is absent (e.g. local dev runs).
+// version and update date pinned toward the bottom. Both come from
+// VersionInfoService: the version is read from the bundle at runtime, and the
+// "updated" date is the day that version first ran on this device — it only
+// changes on an actual version bump, not on every rebuild.
 
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:package_info_plus/package_info_plus.dart';
 
+import '../../services/version_info_service.dart';
 import '../../utils/app_colors.dart';
 
 class AboutView extends StatefulWidget {
@@ -20,29 +20,26 @@ class AboutView extends StatefulWidget {
 }
 
 class _AboutViewState extends State<AboutView> {
-  // Build date passed at compile time, e.g. `--dart-define=BUILD_DATE=2026-07-12`.
-  static const String _buildDateRaw = String.fromEnvironment('BUILD_DATE');
-
-  String _version = '';
+  AppVersionInfo? _versionInfo;
 
   @override
   void initState() {
     super.initState();
-    _loadVersion();
+    _loadVersionInfo();
   }
 
-  Future<void> _loadVersion() async {
-    final info = await PackageInfo.fromPlatform();
+  Future<void> _loadVersionInfo() async {
+    final info = await VersionInfoService.load();
     if (mounted) {
-      setState(() => _version = info.version);
+      setState(() => _versionInfo = info);
     }
   }
 
-  String get _updatedDate {
-    final parsed = _buildDateRaw.isNotEmpty
-        ? DateTime.tryParse(_buildDateRaw)
-        : null;
-    return DateFormat('d MMMM yyyy').format(parsed ?? DateTime.now());
+  String get _versionLine {
+    final info = _versionInfo;
+    if (info == null) return 'Version: —';
+    final updated = DateFormat('d MMMM yyyy').format(info.updatedAt);
+    return 'Version: ${info.version}  |  Updated: $updated';
   }
 
   @override
@@ -108,9 +105,9 @@ class _AboutViewState extends State<AboutView> {
                         // Spacer between the tagline (2) and the version block (3).
                         const Spacer(),
 
-                        // 3. Version and build date.
+                        // 3. Version and update date.
                         Text(
-                          'Version: ${_version.isEmpty ? '—' : _version}  |  Updated: $_updatedDate',
+                          _versionLine,
                           textAlign: TextAlign.center,
                           style: const TextStyle(
                             color: AppColors.textMedium,

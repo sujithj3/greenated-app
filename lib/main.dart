@@ -1,3 +1,5 @@
+import 'dart:async' show unawaited;
+
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter/foundation.dart'
@@ -19,6 +21,7 @@ import 'services/form_config_service.dart';
 import 'services/image_upload_service.dart';
 import 'services/registration_form_service.dart';
 import 'services/upload_compression_service.dart';
+import 'services/version_info_service.dart';
 import 'utils/app_colors.dart';
 import 'views/auth/splash_view.dart';
 import 'views/auth/login_view.dart';
@@ -51,6 +54,10 @@ void main() async {
   // Pre-initialize AuthService to ensure SharedPreferences is ready
   final authService = AuthService();
   await authService.init();
+
+  // Record the update date if the app version changed since the last launch.
+  // Fire-and-forget: nothing at startup depends on the result.
+  unawaited(VersionInfoService.load());
 
   runApp(FarmerRegistrationApp(authService: authService));
 }

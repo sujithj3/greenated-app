@@ -46,7 +46,6 @@ class _LoginWithPhoneViewState extends State<LoginWithPhoneView> {
 
     final success = await _vm.sendOTP(phoneNumber);
     if (success && mounted) {
-      context.showSnack('OTP sent to ${_vm.selectedCountryCode}$phoneNumber', success: true);
       widget.onOtpSent();
     } else if (_vm.error != null && mounted) {
       context.showSnack(_vm.error!);

@@ -207,7 +207,7 @@ class _DashboardViewState extends State<DashboardView> {
           // ),
           _drawerItem(
               context, Icons.map, 'Land Measurement', '/land-measurement'),
-          _drawerItem(context, Icons.info_outline, 'About Us', '/about'),
+          _drawerItem(context, Icons.info_outline, 'About', '/about'),
           const Divider(),
           ListTile(
             leading: const Icon(Icons.logout, color: AppColors.error),
