@@ -1,3 +1,9 @@
+// Edit farmer details view — edits a previously submitted farmer registration.
+//
+// Fetches prefilled form data via the `form-edit` GET endpoint and renders an
+// editable dynamic form. Maintains fully independent state from the create and
+// detail flows.
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -21,11 +27,6 @@ import '../../widgets/land_details_widgets.dart';
 import '../../widgets/popup_form.dart';
 import '../../widgets/shimmer_loading.dart';
 
-/// Edit view for a previously submitted farmer registration.
-///
-/// Fetches prefilled form data via the `form-edit` GET endpoint and renders
-/// an editable dynamic form. Maintains fully independent state from the
-/// create and detail flows.
 class EditFarmerDetailsView extends StatefulWidget {
   final int subcategoryId;
   final int farmerId;
@@ -313,6 +314,7 @@ class _EditFarmerDetailsViewState extends State<EditFarmerDetailsView> {
     );
 
     if (result == true && mounted) {
+      _markShouldRefreshOnPop();
       await _vm.loadEditForm(
         subcategoryId: widget.subcategoryId,
         farmerId: widget.farmerId,
@@ -457,6 +459,7 @@ class _EditFarmerDetailsViewState extends State<EditFarmerDetailsView> {
                           },
                         );
                         if (result == true && mounted) {
+                          _markShouldRefreshOnPop();
                           await _vm.loadEditForm(
                             subcategoryId: widget.subcategoryId,
                             farmerId: widget.farmerId,

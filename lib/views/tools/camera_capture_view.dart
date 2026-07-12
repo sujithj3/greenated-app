@@ -1,3 +1,10 @@
+// Camera capture view — captures a photo for a form attachment.
+//
+// Initialises the device camera and provides the capture UI. When
+// requiresLocation is set, it enforces location services/permission and tags
+// the photo with the current position before handing the captured image to
+// ImagePreviewView for confirmation.
+
 import 'dart:async';
 
 import 'package:camera/camera.dart';
@@ -9,6 +16,12 @@ import '../../view_models/tools/camera_capture_view_model.dart';
 import '../../widgets/camera_preview_loader.dart';
 import 'image_preview_view.dart';
 
+/// Camera capture view — captures a photo for a form attachment.
+///
+/// Initialises the device camera and provides the capture UI. When
+/// [requiresLocation] is set, it enforces location services/permission and
+/// tags the photo with the current position before handing the captured
+/// image to [ImagePreviewView] for confirmation.
 class CameraCaptureView extends StatefulWidget {
   final bool requiresLocation;
 

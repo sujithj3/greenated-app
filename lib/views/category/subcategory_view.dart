@@ -1,3 +1,10 @@
+// Subcategory selection view — the second step of the category browsing flow.
+//
+// Lists the subcategories that belong to the category chosen in CategoryView
+// and preserves the active FlowType. Selecting a subcategory routes the user
+// to either the registration form or the registered farmers list, depending
+// on the flow.
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 

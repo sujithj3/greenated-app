@@ -1,7 +1,13 @@
 import '../core/network/network.dart';
 import '../models/api/api_models.dart';
 
-/// Holds the data returned by [RegistrationFormService.fetchFormDetail].
+/// Parsed view of a submitted farmer form, as returned by
+/// [RegistrationFormService.fetchFormDetail] / [RegistrationFormService.fetchFormEdit].
+///
+/// Carries the [formName], the pre-filled farmer [fields] ready for display or
+/// editing, the optional [farmerDetails] record, any associated [landDetails],
+/// and the [resolvedSubmissionId] discovered within the payload (used when
+/// editing land submissions).
 class FormDetailResult {
   const FormDetailResult({
     required this.formName,
@@ -18,6 +24,15 @@ class FormDetailResult {
   final int? resolvedSubmissionId;
 }
 
+/// Network service for the farmer/land registration workflow.
+///
+/// Wraps the registration family of [ApiEndpoints] — registering and editing
+/// farmers and their land parcels, and reading back their forms — over the
+/// injected [ApiClient]. Submission methods POST a `registrationData` payload
+/// and throw [ApiException] on failure; the fetch methods return typed
+/// [ApiForm] blueprints or pre-filled [FormDetailResult] / [LandFormData]
+/// objects. It is the data source behind the registration view models and
+/// [FormConfigService].
 class RegistrationFormService {
   const RegistrationFormService({required ApiClient apiClient})
       : _apiClient = apiClient;
@@ -91,6 +106,10 @@ class RegistrationFormService {
     }
   }
 
+  /// Registers a new land parcel for the farmer identified by [farmerId].
+  ///
+  /// [payload] is the land form's `registrationData` map.
+  /// Throws [ApiException] on non-success responses or network errors.
   Future<void> submitLandRegistration(
       int farmerId, Map<String, dynamic> payload) async {
     final response = await _apiClient.send<Map<String, dynamic>>(
@@ -120,6 +139,10 @@ class RegistrationFormService {
     }
   }
 
+  /// Submits edits to an existing land submission via the `form-land-edit`
+  /// endpoint, keyed by [subcategoryId] and [submissionId] for [userId].
+  ///
+  /// Throws [ApiException] on non-success responses or network errors.
   Future<void> submitEditLandRegistration({
     required int subcategoryId,
     required int submissionId,
@@ -243,6 +266,10 @@ class RegistrationFormService {
     return _parseFormDetailResult(formData);
   }
 
+  /// Loads the blank registration [ApiForm] definition for [subcategoryId].
+  ///
+  /// Returns the first form in the response, or null when the subcategory has
+  /// no usable form. Throws [ApiException] on non-success responses.
   Future<ApiForm?> fetchRegistrationForm(int subcategoryId) async {
     final response = await _apiClient.send<Map<String, dynamic>>(
       ApiRequest(
@@ -279,6 +306,9 @@ class RegistrationFormService {
     return ApiForm.fromJson(Map<String, dynamic>.from(formJson));
   }
 
+  /// Loads the land-form payload ([LandFormData]) for [subcategoryId].
+  ///
+  /// Throws [ApiException] on non-success responses or when no data is returned.
   Future<LandFormData> fetchLandForm(int subcategoryId) async {
     final response = await _apiClient.send<LandFormData>(
       ApiRequest(
@@ -306,6 +336,9 @@ class RegistrationFormService {
   }
 }
 
+/// Turns a single normalised form JSON object into a [FormDetailResult],
+/// preferring the fields under `farmerDetails` and falling back to the
+/// top-level `fields`, and parsing any nested `landDetails`.
 FormDetailResult _parseFormDetailResult(Map<String, dynamic> formData) {
   final formName = formData['formName']?.toString() ?? '';
   final oldRawFields = formData['fields'] as List<dynamic>? ?? const [];

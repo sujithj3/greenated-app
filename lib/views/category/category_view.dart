@@ -1,3 +1,12 @@
+// Category selection view — the entry point for browsing project categories.
+//
+// Displays the available categories in a grid and drives the next navigation
+// step based on the FlowType passed via route arguments:
+//   - FlowType.registration — user is registering a new farmer.
+//   - FlowType.listing      — user is browsing existing registrations.
+//
+// Selecting a category navigates to the SubcategoryView.
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 

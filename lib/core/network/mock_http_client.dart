@@ -6,6 +6,13 @@ import 'api_response.dart';
 import 'api_status_code.dart';
 import 'interceptor/api_interceptor.dart';
 
+/// In-memory [ApiClient] that returns canned responses without any network.
+///
+/// Selected by [ApiClientFactory] when the app runs in demo mode, and handy
+/// for local development and tests. Incoming requests are matched by their
+/// [ApiRequest.routeKey]/path in [_route] and answered with realistic JSON
+/// envelopes after a simulated [latency] delay. Registered [interceptors]
+/// still run, so behaviour mirrors the real [HttpClientImpl].
 class MockHttpClient implements ApiClient {
   MockHttpClient({
     this.latency = const Duration(milliseconds: 600),
@@ -86,6 +93,8 @@ class MockHttpClient implements ApiClient {
     return ApiResponse<T>.fromJson(json, dataParser: decoder);
   }
 
+  /// Dispatches [request] to the matching mock handler and returns its raw
+  /// JSON envelope, falling back to a 404 error when no route matches.
   Map<String, dynamic> _route(ApiRequest request) {
     final key = request.routeKey;
 

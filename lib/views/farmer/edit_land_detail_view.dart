@@ -1,3 +1,9 @@
+// Edit land detail view — updates an existing land record for a farmer.
+//
+// Prefills the dynamic land-detail form from the provided land and persists
+// the changes against the associated submissionId. Signals the caller to
+// refresh when the record is modified.
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 

@@ -220,6 +220,23 @@ class RegisteredListViewModel extends ChangeNotifier {
     });
   }
 
+  /// Resets all list and search state, discarding in-flight requests via the
+  /// generation counters. The fetched farmers are scoped to the signed-in
+  /// user — call this on sign-out so the next user never sees the previous
+  /// user's list, even briefly.
+  void clear() {
+    _searchDebounce?.cancel();
+    _listGeneration++;
+    _searchGeneration++;
+    _subcategoryId = null;
+    _searchQuery = '';
+    _listError = null;
+    _searchError = null;
+    paginationController.reset();
+    searchPaginationController.reset();
+    notifyListeners();
+  }
+
   Future<void> clearSearch(int subcategoryId) async {
     _resetSearchState();
     notifyListeners();

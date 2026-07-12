@@ -1,6 +1,13 @@
+// Registered farmers list view — browses existing registrations.
+//
+// Displays a paginated, searchable list of farmers registered under the given
+// subcategoryId, with infinite scroll and an expandable search bar. Selecting
+// an item opens its FarmerDetailView.
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../models/flow_type.dart';
+import '../../services/form_config_service.dart';
 import '../../utils/app_colors.dart';
 import '../../view_models/registered_list_view_model.dart';
 import '../../models/registered_farmers_list.dart';
@@ -57,6 +64,13 @@ class _RegisteredListViewState extends State<RegisteredListView> {
     super.dispose();
   }
 
+  /// Reloads the farmer list and refreshes the shared category list so
+  /// farmer counts on the subcategory/dashboard screens stay accurate.
+  void _reloadAfterDataChange(BuildContext context) {
+    context.read<RegisteredListViewModel>().loadFirstPage(widget.subcategoryId);
+    context.read<FormConfigService>().fetchCategories(forceRefresh: true);
+  }
+
   @override
   Widget build(BuildContext context) {
     final isRegistration = widget.flowType == FlowType.registration;
@@ -64,8 +78,8 @@ class _RegisteredListViewState extends State<RegisteredListView> {
     return Scaffold(
       floatingActionButton: isRegistration
           ? FloatingActionButton.extended(
-              onPressed: () {
-                Navigator.pushNamed(
+              onPressed: () async {
+                final result = await Navigator.pushNamed(
                   context,
                   '/farmer-form',
                   arguments: <String, dynamic>{
@@ -74,6 +88,9 @@ class _RegisteredListViewState extends State<RegisteredListView> {
                     'subcategoryId': widget.subcategoryId,
                   },
                 );
+                if (result == true && context.mounted) {
+                  _reloadAfterDataChange(context);
+                }
               },
               backgroundColor: AppColors.primary,
               foregroundColor: Colors.white,
@@ -250,7 +267,7 @@ class _RegisteredListViewState extends State<RegisteredListView> {
             textInputAction: TextInputAction.search,
             onChanged: _handleSearchChanged,
             decoration: InputDecoration(
-              hintText: 'farmer name, code, mobile',
+              hintText: 'Name, Farmer ID',
               hintStyle: TextStyle(
                 color: AppColors.textMedium.withValues(alpha: 0.8),
                 fontSize: 14,
@@ -401,9 +418,7 @@ class _RegisteredListViewState extends State<RegisteredListView> {
             },
           );
           if (result == true && mounted) {
-            context
-                .read<RegisteredListViewModel>()
-                .loadFirstPage(widget.subcategoryId);
+            _reloadAfterDataChange(context);
           }
         },
         child: Padding(
@@ -423,14 +438,23 @@ class _RegisteredListViewState extends State<RegisteredListView> {
                         color: AppColors.textDark,
                       ),
                     ),
-                    const SizedBox(height: 4),
+                    // const SizedBox(height: 1),
                     Text(
-                      farmer.mobileNumber,
+                      farmer.farmerCode,
                       style: const TextStyle(
-                        fontSize: 14,
-                        color: AppColors.textMedium,
+                        fontSize: 13,
+                        color: AppColors.textDark,
                       ),
                     ),
+                    if (farmer.registeredByName != null &&
+                        farmer.registeredByName!.isNotEmpty)
+                      Text(
+                        'Registered by: ${farmer.registeredByName}',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: AppColors.textMedium,
+                        ),
+                      ),
                   ],
                 ),
               ),

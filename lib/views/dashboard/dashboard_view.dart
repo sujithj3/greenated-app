@@ -1,3 +1,9 @@
+// Dashboard view — the home screen shown after a successful login.
+//
+// Presents the available project categories and the primary entry points into
+// the registration and listing flows. Loads category data on first build and
+// hosts account-level actions such as logout.
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -7,6 +13,7 @@ import '../../services/auth_service.dart';
 import '../../services/form_config_service.dart';
 import '../../utils/app_colors.dart';
 import '../../view_models/dashboard/dashboard_view_model.dart';
+import '../../view_models/registered_list_view_model.dart';
 import '../../widgets/popup_form.dart';
 import '../../widgets/shimmer_loading.dart';
 
@@ -26,6 +33,7 @@ class _DashboardViewState extends State<DashboardView> {
     _vm = DashboardViewModel(
       context.read<AuthService>(),
       context.read<FormConfigService>(),
+      context.read<RegisteredListViewModel>(),
     );
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted && _vm.categories.isEmpty && !_vm.isCategoriesLoading) {
@@ -199,6 +207,7 @@ class _DashboardViewState extends State<DashboardView> {
           // ),
           _drawerItem(
               context, Icons.map, 'Land Measurement', '/land-measurement'),
+          _drawerItem(context, Icons.info_outline, 'About', '/about'),
           const Divider(),
           ListTile(
             leading: const Icon(Icons.logout, color: AppColors.error),

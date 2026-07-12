@@ -1,3 +1,9 @@
+// Image preview view — confirms a photo captured in CameraCaptureView.
+//
+// Shows the captured image and lets the user save it (returning the saved
+// file path to the caller) or retake it. Delegates image processing and
+// persistence to the shared CameraCaptureViewModel.
+
 import 'dart:io';
 import 'package:flutter/material.dart';
 import '../../utils/app_colors.dart';

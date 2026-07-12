@@ -437,6 +437,21 @@ class LandMeasurementViewModel extends ChangeNotifier {
     _recalculate();
   }
 
+  /// Replaces the current polygon with vertices imported from a KML file.
+  ///
+  /// Pushes the previous state onto the undo stack so the import can be
+  /// reverted. Does nothing when [pts] is empty.
+  void loadImportedPoints(List<LatLng> pts) {
+    if (pts.isEmpty) return;
+    _pushUndo();
+    _points
+      ..clear()
+      ..addAll(pts);
+    _activeIndex = null;
+    _recalculate();
+    notifyListeners();
+  }
+
   void clearAll() {
     if (_points.isNotEmpty) _pushUndo();
     _points.clear();

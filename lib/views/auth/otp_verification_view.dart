@@ -1,14 +1,15 @@
+// OTP verification view — the code verification step of the login flow.
+//
+// Displays a 6-digit pin input, Verify button, Resend OTP option, and a
+// Change Number button. Calls onVerified after successful verification and
+// onChangeNumber to return to the phone input step.
+
 import 'package:flutter/material.dart';
 import 'package:pinput/pinput.dart';
 import '../../utils/app_colors.dart';
 import '../../utils/snack_bar_helper.dart';
 import '../../view_models/auth/login_view_model.dart';
 
-/// OTP verification view — part of the login flow.
-///
-/// Displays a 6-digit pin input, Verify button, Resend OTP option, and
-/// a Change Number button. Calls [onVerified] after successful verification
-/// and [onChangeNumber] to return to the phone input step.
 class OtpVerificationView extends StatefulWidget {
   const OtpVerificationView({
     super.key,
@@ -51,18 +52,6 @@ class _OtpVerificationViewState extends State<OtpVerificationView> {
     }
   }
 
-  Future<void> _resendOTP() async {
-    final success = await _vm.resendOTP();
-    if (mounted) {
-      if (success) {
-        context.showSnack('OTP resent to ${widget.phoneNumber}', success: true);
-      } else if (_vm.error != null) {
-        context.showSnack(_vm.error!);
-      }
-    }
-  }
-
-
   @override
   Widget build(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
@@ -90,19 +79,11 @@ class _OtpVerificationViewState extends State<OtpVerificationView> {
       children: [
         SizedBox(height: 4 * scale),
         Text(
-          'Enter OTP',
+          'Enter Code',
           style: TextStyle(
             fontSize: (20 * scale).clamp(16.0, 24.0),
             fontWeight: FontWeight.w700,
             color: AppColors.dark,
-          ),
-        ),
-        SizedBox(height: 8 * scale),
-        Text(
-          'Code sent to ${widget.phoneNumber}',
-          style: TextStyle(
-            color: AppColors.textMedium,
-            fontSize: (12 * scale).clamp(11.0, 14.0),
           ),
         ),
         SizedBox(height: (32 * scale).clamp(22.0, 38.0)),
@@ -156,7 +137,7 @@ class _OtpVerificationViewState extends State<OtpVerificationView> {
 
         SizedBox(height: 14 * scale),
 
-        // Resend OTP + Change Number row
+        // Change Number row
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
@@ -169,18 +150,6 @@ class _OtpVerificationViewState extends State<OtpVerificationView> {
                   'Change Number',
                   style: TextStyle(
                     fontSize: (13 * scale).clamp(11.0, 15.0),
-                  ),
-                ),
-              ),
-            ),
-            Flexible(
-              child: TextButton(
-                onPressed: _vm.isLoading ? null : _resendOTP,
-                child: Text(
-                  'Resend OTP',
-                  style: TextStyle(
-                    fontSize: (13 * scale).clamp(11.0, 15.0),
-                    color: AppColors.primary,
                   ),
                 ),
               ),

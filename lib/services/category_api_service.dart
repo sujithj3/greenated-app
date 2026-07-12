@@ -1,6 +1,14 @@
 import '../core/network/network.dart';
 import '../models/category/category_models.dart';
 
+/// Thin network service that loads the app's category catalogue.
+///
+/// Wraps the [ApiEndpoints.categories] endpoint, optionally scoping the request
+/// to the current user via the injected `userIdProvider`, and decodes the
+/// response into a list of [CategoryModel] (each carrying its nested
+/// subcategories). It is the lowest layer of the category stack: the
+/// `CategoryRepository` calls it and adds caching, and `FormConfigService`
+/// exposes the result to the UI.
 class CategoryApiService {
   const CategoryApiService({
     required ApiClient apiClient,
@@ -11,6 +19,11 @@ class CategoryApiService {
   final ApiClient _apiClient;
   final int? Function() _userIdProvider;
 
+  /// Fetches every available category (with its subcategories) from the backend.
+  ///
+  /// When the injected `userIdProvider` yields a non-null id it is passed as the
+  /// `userId` query parameter so the server can scope the catalogue to that user.
+  /// Throws [ApiException] when the request fails or returns no data.
   Future<List<CategoryModel>> fetchCategories() async {
     final userId = _userIdProvider();
 

@@ -1,3 +1,11 @@
+// Splash view — the app's launch screen.
+//
+// Responsible only for:
+//   1. Animated branding (fade-in, scale, slide).
+//   2. Timed navigation to the login screen.
+//
+// Contains no authentication UI or login logic.
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:package_info_plus/package_info_plus.dart';
@@ -5,11 +13,6 @@ import '../../config/env_config.dart';
 import '../../services/auth_service.dart';
 import '../../utils/app_colors.dart';
 
-/// Splash screen — only responsible for:
-/// 1. Animated branding (fade-in, scale, slide)
-/// 2. Timed navigation to the login screen
-///
-/// Contains NO authentication UI or login logic.
 class SplashView extends StatefulWidget {
   const SplashView({super.key});
 

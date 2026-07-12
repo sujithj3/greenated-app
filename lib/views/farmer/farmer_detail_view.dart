@@ -1,3 +1,9 @@
+// Farmer detail view — a read-only summary of a submitted farmer registration.
+//
+// Fetches the full submission for the given farmer and renders the dynamic
+// fields and associated land details in a non-editable layout. Provides entry
+// points to edit the registration and to share/export the record.
+
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -37,6 +43,7 @@ class _FarmerDetailViewState extends State<FarmerDetailView> {
   late final FarmerDetailViewModel _vm;
   final Map<String, TextEditingController> _textCtrl = {};
   bool _isInit = false;
+  bool _shouldRefreshOnPop = false;
 
   @override
   void initState() {
@@ -220,42 +227,54 @@ $coordLines
     return ListenableBuilder(
       listenable: _vm,
       builder: (context, _) {
-        return Scaffold(
-          appBar: AppBar(
-            title: Text(_vm.formName.isNotEmpty ? _vm.formName : 'Detail'),
-            actions: [
-              TextButton.icon(
-                onPressed: () async {
-                  final result = await Navigator.pushNamed(
-                    context,
-                    '/edit-farmer-details',
-                    arguments: {
-                      'subcategoryId': widget.subcategoryId,
-                      'farmerId': widget.farmerId,
-                    },
-                  );
+        return PopScope<Object?>(
+          canPop: !_shouldRefreshOnPop,
+          onPopInvokedWithResult: (didPop, _) {
+            if (didPop) return;
+            setState(() => _shouldRefreshOnPop = false);
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (mounted) {
+                Navigator.pop(context, true);
+              }
+            });
+          },
+          child: Scaffold(
+            appBar: AppBar(
+              title: Text(_vm.formName.isNotEmpty ? _vm.formName : 'Detail'),
+              actions: [
+                TextButton.icon(
+                  onPressed: () async {
+                    final result = await Navigator.pushNamed(
+                      context,
+                      '/edit-farmer-details',
+                      arguments: {
+                        'subcategoryId': widget.subcategoryId,
+                        'farmerId': widget.farmerId,
+                      },
+                    );
 
-                  if (result == true && context.mounted) {
-                    // Small delay to allow iOS CupertinoPageRoute pop animation to complete
-                    Future.delayed(const Duration(milliseconds: 400), () {
-                      if (context.mounted) {
-                        Navigator.pop(context, true);
-                      }
-                    });
-                  }
-                },
-                icon: const Icon(Icons.edit, size: 18, color: AppColors.white),
-                label: const Text(
-                  'Edit',
-                  style: TextStyle(
-                    color: AppColors.white,
-                    fontWeight: FontWeight.w600,
+                    if (result == true && context.mounted) {
+                      _shouldRefreshOnPop = true;
+                      await _vm.loadFormDetail(
+                        subcategoryId: widget.subcategoryId,
+                        farmerId: widget.farmerId,
+                      );
+                    }
+                  },
+                  icon:
+                      const Icon(Icons.edit, size: 18, color: AppColors.white),
+                  label: const Text(
+                    'Edit',
+                    style: TextStyle(
+                      color: AppColors.white,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
+            body: _buildBody(),
           ),
-          body: _buildBody(),
         );
       },
     );

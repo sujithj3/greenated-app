@@ -1,3 +1,9 @@
+// Land measurement view — measures a plot's area on an interactive map.
+//
+// Lets the user drop and drag pins on a Google Map to outline a plot, then
+// computes the enclosed area. Handles location services/permission and
+// returns the measured value to the caller for use in the registration form.
+//
 // SETUP REQUIRED FOR GOOGLE MAPS:
 // Android — add inside <application> in android/app/src/main/AndroidManifest.xml:
 //   <meta-data android:name="com.google.android.geo.API_KEY"
@@ -8,11 +14,15 @@
 //   GMSServices.provideAPIKey("YOUR_GOOGLE_MAPS_API_KEY")
 
 import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
 import 'dart:math' as math;
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import '../../utils/app_colors.dart';
+import '../../utils/kml_parser.dart';
 import '../../utils/location_services_dialog.dart';
 import '../../utils/snack_bar_helper.dart';
 import '../../view_models/tools/land_measurement_view_model.dart';
@@ -219,6 +229,67 @@ class _LandMeasurementViewState extends State<LandMeasurementView> {
       return;
     }
     Navigator.pop(context, _vm.getResult());
+  }
+
+  // ─── KML import ────────────────────────────────────────────────────────────
+
+  Future<void> _uploadKml() async {
+    try {
+      final result = await FilePicker.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: const ['kml'],
+        withData: true,
+      );
+      if (result == null || result.files.isEmpty || !mounted) return;
+
+      final file = result.files.first;
+      String? content;
+      if (file.bytes != null) {
+        content = utf8.decode(file.bytes!, allowMalformed: true);
+      } else if (file.path != null) {
+        content = await File(file.path!).readAsString();
+      }
+      if (content == null || !mounted) {
+        if (mounted) context.showSnack('Could not read the KML file.');
+        return;
+      }
+
+      final points = parseKmlPolygon(content);
+      if (points.length < 3) {
+        context.showSnack('No valid polygon boundary found in the KML file.');
+        return;
+      }
+
+      _vm.loadImportedPoints(points);
+      _fitCameraToPoints(points);
+      context.showSnack(
+        'Imported ${points.length} boundary points from KML',
+        success: true,
+      );
+    } catch (e) {
+      if (mounted) context.showSnack('Could not import KML: $e');
+    }
+  }
+
+  void _fitCameraToPoints(List<LatLng> points) {
+    if (points.isEmpty) return;
+    var south = points.first.latitude, north = points.first.latitude;
+    var west = points.first.longitude, east = points.first.longitude;
+    for (final p in points) {
+      south = math.min(south, p.latitude);
+      north = math.max(north, p.latitude);
+      west = math.min(west, p.longitude);
+      east = math.max(east, p.longitude);
+    }
+    _mapController?.animateCamera(
+      CameraUpdate.newLatLngBounds(
+        LatLngBounds(
+          southwest: LatLng(south, west),
+          northeast: LatLng(north, east),
+        ),
+        64, // padding in logical pixels
+      ),
+    );
   }
 
   // ─── Build ────────────────────────────────────────────────────────────────
@@ -555,6 +626,15 @@ class _LandMeasurementViewState extends State<LandMeasurementView> {
         ),
 
         if (!_viewOnly) ...[
+          const SizedBox(height: 8),
+
+          // Upload KML
+          FloatingActionButton.small(
+            heroTag: 'kml',
+            onPressed: _uploadKml,
+            backgroundColor: Colors.white,
+            child: const Icon(Icons.upload_file, color: AppColors.primary),
+          ),
           const SizedBox(height: 8),
 
           // Undo

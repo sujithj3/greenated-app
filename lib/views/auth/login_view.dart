@@ -1,3 +1,9 @@
+// Login view — the main authentication container screen.
+//
+// Manages the login steps and hosts the split background design. Currently
+// supports phone login; designed to be scalable for future login methods
+// (email, Google, Apple, etc.).
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../services/auth_service.dart';
@@ -6,11 +12,6 @@ import '../../view_models/auth/login_view_model.dart';
 import 'login_with_phone_view.dart';
 import 'otp_verification_view.dart';
 
-/// Main authentication container screen.
-///
-/// Manages login steps and hosts the split background design.
-/// Currently supports phone login; designed to be scalable for
-/// future login methods (email, Google, Apple, etc.).
 class LoginView extends StatefulWidget {
   const LoginView({super.key});
 

@@ -1,3 +1,8 @@
+// Land detail view — a read-only display of a single land record.
+//
+// Renders the dynamic fields of the provided land in a non-editable form,
+// intended for reviewing land information captured during registration.
+
 import 'dart:io';
 
 import 'package:flutter/material.dart';

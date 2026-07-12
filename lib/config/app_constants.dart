@@ -13,7 +13,14 @@ class CategoryData {
   });
 }
 
-/// All categories and their metadata.
+/// App-wide catalogue of the fixed project categories and their presentation
+/// metadata.
+///
+/// This is the single source of truth for the categories the app ships with —
+/// Agroforestry, Soil Carbon and Biochar — pairing each name with a
+/// [CategoryData] (icon and colour) so category tiles are styled consistently
+/// across screens. Unlike the server-driven `CategoryModel`, these entries are
+/// compile-time constants used purely for local UI presentation.
 class AppCategories {
   static const Map<String, CategoryData> all = {
     'Agroforestry': CategoryData(
@@ -33,8 +40,12 @@ class AppCategories {
     ),
   };
 
+  /// Returns the [CategoryData] styling for [category], or null when it is not
+  /// a known category.
   static CategoryData? styleFor(String category) => all[category];
 
+  /// Returns the configured subcategory names for [category], or an empty list
+  /// when the category is unknown or has none.
   static List<String> getSubcategories(String category) {
     return all[category]?.subcategories ?? [];
   }
